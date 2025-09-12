@@ -5,7 +5,7 @@ using GeometryBasics: Point2, Rect, Vec2, HyperRectangle
 
 # Units and physical quantities
 using Unitful
-using Unitful: m, mm, cm, inch, @refunit, @unit, @dimension, uconvert, unit, 𝐋, Quantity, μm, rad, °
+using Unitful: m, mm, cm, inch, @refunit, @unit, @dimension, uconvert, unit, 𝐋, Quantity, μm, rad, °, dimension
 
 # Data structures and arrays
 using StaticArrays

@@ -43,7 +43,9 @@ struct IsoBlob{S,T} <: AbstractBlob
     σ::T
     
     function IsoBlob(center::Point2{S}, σ::T) where {S,T}
-        @assert dimension(S) == dimension(T) "Center coordinates and σ must have compatible units. Got $(dimension(S)) for coordinates and $(dimension(T)) for σ."
+        # Safe dimension check - treat types without dimension method as NoDims
+        safe_dimension(::Type{U}) where U = hasmethod(dimension, (Type{U},)) ? dimension(U) : Unitful.NoDims
+        @assert safe_dimension(S) == safe_dimension(T) "Center coordinates and σ must have compatible units. Got $(safe_dimension(S)) for coordinates and $(safe_dimension(T)) for σ."
         new{S,T}(center, σ)
     end
 end
@@ -68,7 +70,9 @@ struct IsoBlobDetection{S, T} <: AbstractBlob
     polarity::FeaturePolarity
     
     function IsoBlobDetection(center::Point2{S}, σ::T, response::Float64, polarity::FeaturePolarity) where {S,T}
-        @assert dimension(S) == dimension(T) "Center coordinates and σ must have compatible units. Got $(dimension(S)) for coordinates and $(dimension(T)) for σ."
+        # Safe dimension check - treat types without dimension method as NoDims
+        safe_dimension(::Type{U}) where U = hasmethod(dimension, (Type{U},)) ? dimension(U) : Unitful.NoDims
+        @assert safe_dimension(S) == safe_dimension(T) "Center coordinates and σ must have compatible units. Got $(safe_dimension(S)) for coordinates and $(safe_dimension(T)) for σ."
         new{S,T}(center, σ, response, polarity)
     end
 end
