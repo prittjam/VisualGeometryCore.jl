@@ -4,15 +4,19 @@ authors = ["James Pritts <jbpritts@gmail.com>"]
 version = "0.1.0"
 
 [deps]
+CoordinateTransformations = "150eb455-5306-5404-9cee-2592286d6298"
 GeometryBasics = "5c1252a2-5f33-56bf-86c9-59e7332b4326"
 JSON3 = "0f8b85d8-7281-11e9-16c2-39a750bddbf1"
+Rotations = "6038ab10-8711-5258-84ad-4b1120ba62dc"
 StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
 StructTypes = "856f2bd8-1eba-4b0a-8007-ebc267875bd4"
 Unitful = "1986cc42-f94f-5a68-af5c-568840ba703d"
 
 [compat]
+CoordinateTransformations = "0.6.4"
 GeometryBasics = "0.5.10"
 JSON3 = "1.14.3"
+Rotations = "1.7.1"
 StaticArrays = "1.9.15"
 StructTypes = "1.11.0"
 Unitful = "1.24.0"
