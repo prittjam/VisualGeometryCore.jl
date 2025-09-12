@@ -1,0 +1,18 @@
+name = "VisualGeometryCore"
+uuid = "297d53b8-c8d7-4cd7-a9af-68e656508a81"
+authors = ["James Pritts <jbpritts@gmail.com>"]
+version = "0.1.0"
+
+[deps]
+GeometryBasics = "5c1252a2-5f33-56bf-86c9-59e7332b4326"
+JSON3 = "0f8b85d8-7281-11e9-16c2-39a750bddbf1"
+StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
+StructTypes = "856f2bd8-1eba-4b0a-8007-ebc267875bd4"
+Unitful = "1986cc42-f94f-5a68-af5c-568840ba703d"
+
+[compat]
+GeometryBasics = "0.5.10"
+JSON3 = "1.14.3"
+StaticArrays = "1.9.15"
+StructTypes = "1.11.0"
+Unitful = "1.24.0"
