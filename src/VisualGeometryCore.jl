@@ -14,7 +14,6 @@ using JSON3, StructTypes
 
 include("utils.jl")        # Units, Size2, geometry utilities
 include("types.jl")        # Structs and StructTypes
-include("blob_board_io.jl") # JSON I/O for blob board patterns
 include("api.jl")
 
 function __init__()
