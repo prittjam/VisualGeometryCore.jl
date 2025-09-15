@@ -67,6 +67,59 @@ function StructTypes.construct(::Type{IsoBlob}, x::Union{Dict{String,Any}, JSON3
     return IsoBlob(center, σ)
 end
 
+# =============================================================================
+# Blob Arithmetic Operations
+# =============================================================================
+
+"""
+    *(blob::IsoBlob, scalar::Number) -> IsoBlob
+    *(scalar::Number, blob::IsoBlob) -> IsoBlob
+
+Scale a blob by multiplying both its center coordinates and σ by the scalar.
+This is useful for oversampling operations where the entire blob needs to be scaled.
+"""
+Base.:*(blob::IsoBlob, scalar::Number) = IsoBlob(blob.center .* scalar, blob.σ * scalar)
+Base.:*(scalar::Number, blob::IsoBlob) = blob * scalar
+
+# =============================================================================
+# Blob Utility Functions
+# =============================================================================
+
+"""
+    radius(blob::AbstractBlob, k=SIGMA_CUTOFF)
+
+Effective radius defined as `k * σ`.
+"""
+radius(blob::AbstractBlob, k=SIGMA_CUTOFF) = k * blob.σ
+
+"""
+    area(blob::AbstractBlob, k=SIGMA_CUTOFF)
+
+Effective area of a blob modeled as a disk of radius `kσ`.
+"""
+area(blob::AbstractBlob, k=SIGMA_CUTOFF) = π * (k * blob.σ)^2
+
+"""
+    intersects(p::AbstractBlob, q::AbstractBlob, cutoff=SIGMA_CUTOFF) -> Bool
+
+True if the distance between centers is less than the sum of effective radii.
+"""
+intersects(p::AbstractBlob, q::AbstractBlob, cutoff=SIGMA_CUTOFF) =
+    norm(p.center - q.center) < (radius(p, cutoff) + radius(q, cutoff))
+
+"""
+    Circle(blob::AbstractBlob, cutoff=SIGMA_CUTOFF) -> GeometryBasics.Circle
+
+Create a `GeometryBasics.Circle` centered at the blob with radius `kσ` (unitless),
+useful for spatial indexing and plotting.
+"""
+function Circle(blob::AbstractBlob, cutoff=SIGMA_CUTOFF)
+    center_vals = float.(ustrip.(blob.center))
+    radius_val = float(ustrip(radius(blob, cutoff)))
+    return GeometryBasics.Circle(Point2(center_vals), radius_val)
+end
+
+# =================================
 """
     IsoBlobDetection{S,T} <: AbstractBlob
 
@@ -216,3 +269,4 @@ function to_physical_units(blob::IsoBlob, render_density::LogicalDensity)
     
     return IsoBlob(center_physical, σ_physical)
 end
+
