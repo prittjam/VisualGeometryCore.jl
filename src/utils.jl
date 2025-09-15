@@ -138,6 +138,10 @@ StructTypes.lower(s::Size2) = (width = s.width, height = s.height)
 # Custom deserialization - reconstruct Size2 with proper Unitful handling
 function StructTypes.construct(::Type{Size2}, x)
     get_field = x isa Dict ? (key) -> x[key] : (key) -> getproperty(x, key)
+
+    StructTypes.construct(ScalarOrQuantity, width_data)
+    StructTypes.construct(ScalarOrQuantity, height_data)
+    
     
     # Reconstruct Unitful quantities if needed
     width_data = get_field("width")
@@ -145,7 +149,7 @@ function StructTypes.construct(::Type{Size2}, x)
     
     width = if width_data isa Dict && haskey(width_data, "value") && haskey(width_data, "unit")
         # Use proper Unitful deserialization to preserve numeric types
-        StructTypes.construct(Unitful.Quantity, width_data)
+        StructTypes.construct(ScalarOrQuantity, width_data)
     else
         width_data
     end

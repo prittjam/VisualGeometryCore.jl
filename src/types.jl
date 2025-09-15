@@ -50,7 +50,22 @@ struct IsoBlob{S,T} <: AbstractBlob
     end
 end
 
-StructTypes.StructType(::Type{IsoBlob}) = StructTypes.Struct()
+# JSON3 serialization support for IsoBlob
+StructTypes.StructType(::Type{<:IsoBlob}) = StructTypes.CustomStruct()
+
+StructTypes.lower(blob::IsoBlob) = (center = blob.center, σ = blob.σ)
+
+function StructTypes.construct(::Type{IsoBlob}, x::Union{Dict{String,Any}, JSON3.Object, NamedTuple})
+    center_data = extract_field(x, "center")
+    center = Point2(
+        StructTypes.construct(ScalarOrQuantity, center_data[1]),
+        StructTypes.construct(ScalarOrQuantity, center_data[2])
+    )
+    
+    σ = StructTypes.construct(ScalarOrQuantity, extract_field(x, "σ"))
+    
+    return IsoBlob(center, σ)
+end
 
 """
     IsoBlobDetection{S,T} <: AbstractBlob
@@ -78,6 +93,7 @@ struct IsoBlobDetection{S, T} <: AbstractBlob
 end
 
 StructTypes.StructType(::Type{IsoBlobDetection}) = StructTypes.Struct()
+
 
 # ========================================================================
 # EuclideanMap Type and Operations
@@ -125,8 +141,12 @@ function Base.:∘(A::EuclideanMap{N,TA}, B::EuclideanMap{N,TB}) where {N,TA,TB}
     return EuclideanMap(R_composed, t_composed)
 end
 
+# Helper functions with unique name to avoid collisions
+extract_field(x::Dict{String,Any}, key::String) = x[key]
+extract_field(x::JSON3.Object, key::String) = getproperty(x, Symbol(key))
+extract_field(x::NamedTuple, key::String) = getproperty(x, Symbol(key))
+
 const ScalarOrQuantity = Union{Number, Unitful.Quantity}
 
-function StructTypes.construct(::Type{ScalarOrQuantity}, data)
+StructTypes.construct(::Type{ScalarOrQuantity}, data) = 
     data isa Number ? data : StructTypes.construct(Unitful.Quantity, data)
-end
