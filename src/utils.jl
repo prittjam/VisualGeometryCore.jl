@@ -283,71 +283,7 @@ snap(x; tol=CLEAN_TOL) = (isfinite(x) && abs(x - round(x)) ≤ tol) ? round(x) :
 snapq(q; tol=CLEAN_TOL) = snap(ustrip(q); tol=tol) * unit(q)
 roundq(q; digits::Integer=6) = round(ustrip(q); digits=digits) * unit(q)
 
-# =============================================================================
-# Unit Conversion Functions for IsoBlob
-# =============================================================================
 
-"""
-    to_logical_units(blob::IsoBlob, render_density::LogicalDensity)
-
-Convert an IsoBlob from physical units to logical units using the specified render density.
-
-# Arguments
-- `blob::IsoBlob`: The blob with physical coordinates and scale
-- `render_density::LogicalDensity`: Render density (e.g., 300dpi for print, 96dpi for screens)
-
-# Returns
-- `IsoBlob`: New blob with logical coordinates (pd units)
-
-# Example
-```julia
-# Physical blob in millimeters
-blob_mm = IsoBlob(Point2(10.0mm, 20.0mm), 2.0mm)
-
-# Convert to logical units at 300 DPI (print) or 96 DPI (screen)
-blob_logical = to_logical_units(blob_mm, 300dpi)
-```
-"""
-function to_logical_units(blob::IsoBlob, render_density::LogicalDensity)
-    # Convert center coordinates from physical to logical units
-    center_logical = uconvert.(pd, blob.center .* render_density)
-    
-    # Convert σ from physical to logical units
-    σ_logical = uconvert(pd, blob.σ * render_density)
-    
-    return IsoBlob(center_logical, σ_logical)
-end
-
-"""
-    to_physical_units(blob::IsoBlob, render_density::LogicalDensity)
-
-Convert an IsoBlob from logical units to physical units using the specified render density.
-
-# Arguments
-- `blob::IsoBlob`: The blob with logical coordinates and scale (pd units)
-- `render_density::LogicalDensity`: Render density (e.g., 300dpi for print, 96dpi for screens)
-
-# Returns
-- `IsoBlob`: New blob with physical coordinates (length units like mm, inch)
-
-# Example
-```julia
-# Logical blob in pixels/dots
-blob_logical = IsoBlob(Point2(300.0pd, 600.0pd), 15.0pd)
-
-# Convert to physical units at 300 DPI (print) or 96 DPI (screen)
-blob_mm = to_physical_units(blob_logical, 300dpi)
-```
-"""
-function to_physical_units(blob::IsoBlob, render_density::LogicalDensity)
-    # Convert center coordinates from logical to physical units
-    center_physical = blob.center ./ render_density
-    
-    # Convert σ from logical to physical units
-    σ_physical = blob.σ / render_density
-    
-    return IsoBlob(center_physical, σ_physical)
-end
 
 # =============================================================================
 # UID Generation Constants
