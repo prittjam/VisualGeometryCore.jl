@@ -14,6 +14,6 @@ export SIGMA_CUTOFF, CLEAN_TOL
 export filter_kwargs
 export FeaturePolarity, PositiveFeature, NegativeFeature, ImageFeature, AbstractBlob, IsoBlobDetection
 export extract_field, ScalarOrQuantity
-export Circle
+export Circle, intersects
 
 export StructTypes
