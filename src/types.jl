@@ -124,3 +124,9 @@ function Base.:∘(A::EuclideanMap{N,TA}, B::EuclideanMap{N,TB}) where {N,TA,TB}
     t_composed = A.R * B.t + A.t
     return EuclideanMap(R_composed, t_composed)
 end
+
+const ScalarOrQuantity = Union{Number, Unitful.Quantity}
+
+function StructTypes.construct(::Type{ScalarOrQuantity}, data)
+    data isa Number ? data : StructTypes.construct(Unitful.Quantity, data)
+end
