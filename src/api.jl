@@ -18,9 +18,7 @@ export Circle, intersects
 
 export StructTypes
 
-# Plotting functionality (requires Makie)
-export PlotBlobs                    # Makie recipe for plotting blobs
-export plotblobs!                   # Plotting function for blobs
-export plot_detection_results       # Plot detected vs ground truth blobs
-export plot_pattern                 # Plot pattern with blob overlay
-export plot_blob_pattern           # Simple pattern visualization
+# Plotting functionality using Makie Spec API with convert_arguments
+# Users can directly call:
+# - plot(pattern, blobs; color=:red, scale_factor=2.0)
+# - plot(pattern, detected_blobs, ground_truth_blobs; detected_color=:red, ground_truth_color=:green)

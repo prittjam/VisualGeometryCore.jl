@@ -14,6 +14,8 @@ using JSON3, StructTypes
 
 # Plotting functionality
 using Makie
+using Makie: campixel!
+import Makie.SpecApi as Spec
 
 include("utils.jl")        # Units, Size2, geometry utilities
 include("types.jl")        # Structs and StructTypes
