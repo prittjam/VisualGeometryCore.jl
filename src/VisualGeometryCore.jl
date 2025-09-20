@@ -12,8 +12,12 @@ using LinearAlgebra
 using CoordinateTransformations, Rotations, StaticArrays
 using JSON3, StructTypes
 
+# Plotting functionality
+using Makie
+
 include("utils.jl")        # Units, Size2, geometry utilities
 include("types.jl")        # Structs and StructTypes
+include("plotting.jl")     # Plotting functionality for blobs and patterns
 include("api.jl")
 
 function __init__()

@@ -17,3 +17,10 @@ export extract_field, ScalarOrQuantity
 export Circle, intersects
 
 export StructTypes
+
+# Plotting functionality (requires Makie)
+export PlotBlobs                    # Makie recipe for plotting blobs
+export plotblobs!                   # Plotting function for blobs
+export plot_detection_results       # Plot detected vs ground truth blobs
+export plot_pattern                 # Plot pattern with blob overlay
+export plot_blob_pattern           # Simple pattern visualization
