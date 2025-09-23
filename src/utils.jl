@@ -139,10 +139,6 @@ StructTypes.lower(s::Size2) = (width = s.width, height = s.height)
 function StructTypes.construct(::Type{Size2}, x)
     get_field = x isa Dict ? (key) -> x[key] : (key) -> getproperty(x, key)
 
-    StructTypes.construct(ScalarOrQuantity, width_data)
-    StructTypes.construct(ScalarOrQuantity, height_data)
-    
-    
     # Reconstruct Unitful quantities if needed
     width_data = get_field("width")
     height_data = get_field("height")
