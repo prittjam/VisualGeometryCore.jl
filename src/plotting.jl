@@ -49,17 +49,18 @@ function Makie.convert_arguments(::Type{Plot{plot}}, detections::Vector{IsoBlobD
 end
 
 # Tuple-based convert_arguments for pattern and blobs
-Makie.used_attributes(::Tuple{Any, Vector{<:AbstractBlob}}) = (:color, :scale_factor, :marker, :markersize, :linewidth)
+Makie.used_attributes(::Type{<:Plot}, ::Any, ::Vector{<:AbstractBlob}) = (:color, :scale_factor, :marker, :markersize, :linewidth)
 
 """
-    Makie.convert_arguments(::Type{Plot{plot}}, pattern, blobs::Vector{<:AbstractBlob}; kwargs...)
+    Makie.convert_arguments(P::Type{<:AbstractPlot}, pattern, blobs::Vector{<:AbstractBlob}; kwargs...)
 
 Convert pattern and blobs tuple to PlotSpec for Makie recipe integration.
 Allows users to call: plot(pattern, blobs; color=:red, scale_factor=2.0)
 """
-function Makie.convert_arguments(::Type{Plot{plot}}, pattern, blobs::Vector{<:AbstractBlob};
-                                color=:green, scale_factor::Float64=3.0,
-                                marker=:cross, markersize::Float64=15.0, linewidth::Float64=1.0) where {plot}
+function Makie.convert_arguments(P::Type{<:AbstractPlot}, pattern, blobs::Vector{<:AbstractBlob};
+                                 color=:green, scale_factor::Float64=3.0,
+                                 marker=:cross, markersize::Float64=15.0, linewidth::Float64=1.0)
+
     # Get pattern dimensions
     pattern_height, pattern_width = size(pattern)
 
@@ -68,9 +69,13 @@ function Makie.convert_arguments(::Type{Plot{plot}}, pattern, blobs::Vector{<:Ab
     # Use plotblobs function with blob-specific kwargs only
     blob_specs = plotblobs(blobs; color=color, scale_factor=scale_factor, marker=marker, markersize=markersize, linewidth=linewidth)
     all_specs = [image_spec, blob_specs...]
+
     return Spec.GridLayout([Spec.LScene(plots=all_specs, show_axis=false,
                                        width=Fixed(pattern_width), height=Fixed(pattern_height),
-                                       scenekw=(camera=campixel!, yreversed=true))])
+                                       tellwidth=false, tellheight=false,
+                                       scenekw=(camera=campixel!, yreversed=true,
+                                               limits=(0, pattern_width, 0, pattern_height)))],
+                                       colsizes=[Fixed(pattern_width)], rowsizes=[Fixed(pattern_height)])
 end
 
 # Tuple-based convert_arguments for detection results (pattern, detected_blobs, ground_truth_blobs)
@@ -108,7 +113,10 @@ function Makie.convert_arguments(::Type{Plot{plot}}, pattern, detected_blobs::Ve
 
     return Spec.GridLayout([Spec.LScene(plots=all_specs, show_axis=false,
                                        width=Fixed(pattern_width), height=Fixed(pattern_height),
-                                       scenekw=(camera=campixel!, yreversed=true))])
+                                       tellwidth=false, tellheight=false,
+                                       scenekw=(camera=campixel!, yreversed=true,
+                                               limits=(0, pattern_width, 0, pattern_height)))],
+                                       colsizes=[Fixed(pattern_width)], rowsizes=[Fixed(pattern_height)])
 end
 
 # Composable plotting functions using Spec API
@@ -148,12 +156,12 @@ Create plot specs for blob visualization (centers and scale circles).
 Returns a vector of PlotSpec objects (scatter + circles) that can be composed.
 """
 function plotblobs(blobs;
-                       color=:green,
-                       scale_factor::Float64=3.0,
-                       marker=:cross,
-                       markersize::Float64=15.0,
-                       linewidth::Float64=1.0,
-                       linestyle=:solid)
+                   color=:green,
+                   scale_factor::Float64=3.0,
+                   marker=:cross,
+                   markersize::Float64=15.0,
+                   linewidth::Float64=1.0,
+                   linestyle=:solid)
     plot_specs = Makie.PlotSpec[]
 
     if !isempty(blobs)
