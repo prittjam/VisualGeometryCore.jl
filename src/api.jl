@@ -11,7 +11,7 @@ export to_logical_units, to_physical_units  # Convert IsoBlob between logical an
 # Additional types and constants needed by BlobBoards
 export PixelCount, Len, LogicalCount, LogicalDensity, LogicalWidth
 export SIGMA_CUTOFF, CLEAN_TOL
-export filter_kwargs
+export filter_kwargs, validate_dir
 export FeaturePolarity, PositiveFeature, NegativeFeature, ImageFeature, AbstractBlob, IsoBlobDetection
 export extract_field, ScalarOrQuantity
 export Circle, intersects

@@ -285,6 +285,31 @@ roundq(q; digits::Integer=6) = round(ustrip(q); digits=digits) * unit(q)
 
 
 
+"""
+    validate_dir(dir::AbstractString; create::Bool=false)
+
+Validate that a directory exists, optionally creating it if it doesn't.
+
+# Arguments
+- `dir`: Path to the directory to validate
+- `create=false`: If true, create the directory if it doesn't exist
+
+# Returns
+- The validated directory path
+
+# Throws
+- `ArgumentError` if the directory doesn't exist and `create=false`
+"""
+function validate_dir(dir::AbstractString; create::Bool=false)
+    if create && !isdir(dir)
+        mkpath(dir)
+    end
+    if !isdir(dir)
+        throw(ArgumentError("Directory does not exist: $dir"))
+    end
+    return dir
+end
+
 # =============================================================================
 # UID Generation Constants
 # =============================================================================
