@@ -229,27 +229,23 @@ blob_mm = IsoBlob(Point2(10.0mm, 20.0mm), 2.0mm)
 blob_logical = to_logical_units(blob_mm, 300dpi)
 ```
 """
-function to_logical_units(blob::IsoBlob, render_density::LogicalDensity)
-    # Convert center coordinates from physical to logical units
-    center_logical = uconvert.(pd, blob.center .* render_density)
-    
-    # Convert σ from physical to logical units
-    σ_logical = uconvert(pd, blob.σ * render_density)
-    
-    return IsoBlob(center_logical, σ_logical)
+function to_logical_units(blob::AbstractBlob, render_density::LogicalDensity)
+    # Scale blob by render density and convert to logical units
+    scaled = blob * render_density
+    return @set! scaled.center = uconvert.(pd, scaled.center) |> b -> @set b.σ = uconvert(pd, b.σ)
 end
 
 """
-    to_physical_units(blob::IsoBlob, render_density::LogicalDensity)
+    to_physical_units(blob::AbstractBlob, render_density::LogicalDensity)
 
-Convert an IsoBlob from logical units to physical units using the specified render density.
+Convert an AbstractBlob from logical units to physical units using the specified render density.
 
 # Arguments
-- `blob::IsoBlob`: The blob with logical coordinates and scale (pd units)
+- `blob::AbstractBlob`: The blob with logical coordinates and scale (pd units)
 - `render_density::LogicalDensity`: Render density (e.g., 300dpi for print, 96dpi for screens)
 
 # Returns
-- `IsoBlob`: New blob with physical coordinates (length units like mm, inch)
+- New blob of the same type with physical coordinates (length units like mm, inch)
 
 # Example
 ```julia
@@ -260,14 +256,9 @@ blob_logical = IsoBlob(Point2(300.0pd, 600.0pd), 15.0pd)
 blob_mm = to_physical_units(blob_logical, 300dpi)
 ```
 """
-function to_physical_units(blob::IsoBlob, render_density::LogicalDensity)
-    # Convert center coordinates from logical to physical units
-    center_physical = blob.center ./ render_density
-
-    # Convert σ from logical to physical units
-    σ_physical = blob.σ / render_density
-
-    return IsoBlob(center_physical, σ_physical)
+function to_physical_units(blob::AbstractBlob, render_density::LogicalDensity)
+    # Scale blob by dividing by render density to get physical units
+    return blob / render_density
 end
 
 # =============================================================================
@@ -319,4 +310,50 @@ translated = blob - (5.0mm, 5.0mm)  # Center at (5.0mm, 15.0mm)
 ```
 """
 Base.:-(blob::AbstractBlob, offset) = @set blob.center = blob.center .- offset
+
+"""
+    *(blob::AbstractBlob, scale)
+
+Scale a blob's center coordinates and σ by a scalar factor.
+
+Uses Accessors.jl for functional updates, allowing scaling without
+knowing all fields of the blob type.
+
+# Arguments
+- `blob::AbstractBlob`: The blob to scale
+- `scale`: A scalar value to multiply center and σ by
+
+# Returns
+- New blob of the same type with scaled center and σ
+
+# Example
+```julia
+blob = IsoBlob(Point2(10.0mm, 20.0mm), 2.0mm)
+scaled = blob * 300dpi  # Scale to logical units
+```
+"""
+Base.:*(blob::AbstractBlob, scale) = @set! blob.center = blob.center .* scale |> b -> @set b.σ = b.σ * scale
+
+"""
+    /(blob::AbstractBlob, scale)
+
+Divide a blob's center coordinates and σ by a scalar factor.
+
+Uses Accessors.jl for functional updates, allowing scaling without
+knowing all fields of the blob type.
+
+# Arguments
+- `blob::AbstractBlob`: The blob to scale
+- `scale`: A scalar value to divide center and σ by
+
+# Returns
+- New blob of the same type with scaled center and σ
+
+# Example
+```julia
+blob = IsoBlob(Point2(300.0pd, 600.0pd), 15.0pd)
+scaled = blob / 300dpi  # Scale to physical units
+```
+"""
+Base.:/(blob::AbstractBlob, scale) = @set! blob.center = blob.center ./ scale |> b -> @set b.σ = b.σ / scale
 
