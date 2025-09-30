@@ -12,6 +12,9 @@ using LinearAlgebra
 using CoordinateTransformations, Rotations, StaticArrays
 using JSON3, StructTypes
 
+# Functional updates
+using Accessors
+
 # Plotting functionality
 using Makie
 using Makie: campixel!

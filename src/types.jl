@@ -279,6 +279,9 @@ end
 
 Translate a blob by adding an offset to its center position.
 
+Uses Accessors.jl for functional updates, allowing translation without
+knowing all fields of the blob type.
+
 # Arguments
 - `blob::AbstractBlob`: The blob to translate
 - `offset`: A tuple or vector representing the translation (x, y)
@@ -292,12 +295,15 @@ blob = IsoBlob(Point2(10.0mm, 20.0mm), 2.0mm)
 translated = blob + (5.0mm, 5.0mm)  # Center at (15.0mm, 25.0mm)
 ```
 """
-Base.:+(blob::AbstractBlob, offset) = typeof(blob)(blob.center .+ offset, blob.σ, blob.polarity)
+Base.:+(blob::AbstractBlob, offset) = @set blob.center = blob.center .+ offset
 
 """
     -(blob::AbstractBlob, offset)
 
 Translate a blob by subtracting an offset from its center position.
+
+Uses Accessors.jl for functional updates, allowing translation without
+knowing all fields of the blob type.
 
 # Arguments
 - `blob::AbstractBlob`: The blob to translate
@@ -312,5 +318,5 @@ blob = IsoBlob(Point2(10.0mm, 20.0mm), 2.0mm)
 translated = blob - (5.0mm, 5.0mm)  # Center at (5.0mm, 15.0mm)
 ```
 """
-Base.:-(blob::AbstractBlob, offset) = typeof(blob)(blob.center .- offset, blob.σ, blob.polarity)
+Base.:-(blob::AbstractBlob, offset) = @set blob.center = blob.center .- offset
 
