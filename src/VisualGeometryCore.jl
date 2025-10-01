@@ -22,7 +22,8 @@ using Makie: campixel!
 import Makie.SpecApi as Spec
 
 include("utils.jl")        # Units, Size2, geometry utilities
-include("types.jl")        # Structs and StructTypes
+include("blobs.jl")        # Blob types and operations
+include("types.jl")        # Other types and StructTypes
 include("plotting.jl")     # Plotting functionality for blobs and patterns
 include("api.jl")
 
