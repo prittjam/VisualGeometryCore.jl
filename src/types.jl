@@ -336,8 +336,8 @@ function Base.:*(blob::AbstractBlob, scale)
     # Compute new values first, then update both fields simultaneously
     new_center = blob.center .* scale
     new_σ = blob.σ * scale
-    # Use Accessors to set both fields at once
-    return Accessors.set(blob, Accessors.Properties((center=new_center, σ=new_σ)))
+    # Use ConstructionBase to set both fields at once, preserving other fields
+    return ConstructionBase.setproperties(blob, (center=new_center, σ=new_σ))
 end
 
 """
@@ -365,7 +365,7 @@ function Base.:/(blob::AbstractBlob, scale)
     # Compute new values first, then update both fields simultaneously
     new_center = blob.center ./ scale
     new_σ = blob.σ / scale
-    # Use Accessors to set both fields at once
-    return Accessors.set(blob, Accessors.Properties((center=new_center, σ=new_σ)))
+    # Use ConstructionBase to set both fields at once, preserving other fields
+    return ConstructionBase.setproperties(blob, (center=new_center, σ=new_σ))
 end
 

@@ -14,6 +14,7 @@ using JSON3, StructTypes
 
 # Functional updates
 using Accessors
+using ConstructionBase
 
 # Plotting functionality
 using Makie
