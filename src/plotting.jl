@@ -157,12 +157,14 @@ append!(lscene.plots, plotblobs(blobs))  # Add blob overlays
 """
 function imshow(pattern; interpolate=false)
     pattern_height, pattern_width = size(pattern)
-    image_spec = Spec.Image(transpose(pattern), interpolate=interpolate)
+    # Reverse rows to flip y-axis (images have row 1 at top, Makie has y=0 at bottom)
+    # Then transpose to get correct orientation
+    image_spec = Spec.Image(transpose(reverse(pattern, dims=1)), interpolate=interpolate)
 
     return Spec.LScene(plots=[image_spec], show_axis=false,
                       width=Fixed(pattern_width), height=Fixed(pattern_height),
                       tellwidth=false, tellheight=false,
-                      scenekw=(camera=campixel!, yreversed=true,
+                      scenekw=(camera=campixel!,
                               limits=(0, pattern_width, 0, pattern_height)))
 end
 
