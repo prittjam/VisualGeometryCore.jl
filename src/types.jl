@@ -103,11 +103,11 @@ end
 Convert an AbstractBlob from logical units to physical units using the specified render density.
 
 # Arguments
-- `blob::AbstractBlob`: The blob with logical coordinates and scale (pd units)
+- `blob::AbstractBlob`: The blob with logical coordinates and scale (pd or px units)
 - `render_density::LogicalDensity`: Render density (e.g., 300dpi for print, 96dpi for screens)
 
 # Returns
-- New blob of the same type with physical coordinates (length units like mm, inch)
+- New blob of the same type with physical coordinates in mm
 
 # Example
 ```julia
@@ -120,7 +120,14 @@ blob_mm = to_physical_units(blob_logical, 300dpi)
 """
 function to_physical_units(blob::AbstractBlob, render_density::LogicalDensity)
     # Scale blob by dividing by render density to get physical units
-    return blob / render_density
+    # Division by density (𝐍 𝐋^-1) converts logical (𝐍) to physical (𝐋)
+    scaled_blob = blob / render_density
+
+    # Simplify to mm for clean physical units
+    center_simplified = uconvert.(mm, scaled_blob.center)
+    σ_simplified = uconvert(mm, scaled_blob.σ)
+
+    return ConstructionBase.setproperties(scaled_blob, (center=center_simplified, σ=σ_simplified))
 end
 
 # =============================================================================
