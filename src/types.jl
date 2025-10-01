@@ -85,10 +85,23 @@ function to_logical_units(blob::AbstractBlob, render_density::LogicalDensity)
     # Multiplication by density (𝐍 𝐋^-1) converts physical (𝐋) to logical (𝐍)
     scaled_blob = blob * render_density
 
-    # Determine target logical unit (pd or px) from density's numerator
-    # Check unit string to detect px vs pd (dpi uses pd)
-    unit_str = string(unit(render_density))
-    target_unit = occursin("px", unit_str) ? px : pd
+    # Determine target logical unit (pd or px) from density's unit type parameters
+    unit_tuple = typeof(unit(render_density)).parameters[1]
+
+    # Look for logical unit (𝐍 dimension) in the tuple
+    target_unit = pd  # default to pd
+    for u in unit_tuple
+        if dimension(u) == 𝐍
+            # Extract the unit instance (not type)
+            # u is already a unit, but we need to ensure we have the right one
+            if u isa Unitful.Unit{:Pixel}
+                target_unit = px
+            elseif u isa Unitful.Unit{:Dot}
+                target_unit = pd
+            end
+            break
+        end
+    end
 
     # Simplify to clean logical units (pd or px)
     center_simplified = uconvert.(target_unit, scaled_blob.center)
@@ -123,17 +136,28 @@ function to_physical_units(blob::AbstractBlob, render_density::LogicalDensity)
     # Division by density (𝐍 𝐋^-1) converts logical (𝐍) to physical (𝐋)
     scaled_blob = blob / render_density
 
-    # Determine target length unit from density's denominator
-    # Check unit string to detect the length unit (mm, inch, etc.)
-    unit_str = string(unit(render_density))
-    target_unit = if occursin("dpi", unit_str)
-        inch  # dpi is defined as pd/inch
-    elseif occursin("mm", unit_str)
-        mm
-    elseif occursin("inch", unit_str)
+    # Determine target length unit from density's unit type parameters
+    unit_tuple = typeof(unit(render_density)).parameters[1]
+
+    # Special case: dpi is a named compound unit (pd/inch)
+    target_unit = if any(u -> u isa Unitful.Unit{:DotsPerInch}, unit_tuple)
         inch
     else
-        mm  # Default to mm for unknown units
+        # Look for inverted length unit (𝐋^-1 dimension) in the tuple
+        found_unit = mm  # default
+        for u in unit_tuple
+            if dimension(u) == Unitful.𝐋^-1
+                # Extract the base unit (e.g., mm^-1 → mm)
+                unit_str = string(u)
+                unit_name = Symbol(unit_str[1:end-3])  # Remove "^-1"
+                found_unit = getfield(Unitful, unit_name)
+                break
+            elseif dimension(u) == Unitful.𝐋
+                found_unit = u
+                break
+            end
+        end
+        found_unit
     end
 
     # Simplify to clean length units
