@@ -107,15 +107,15 @@ Convert an AbstractBlob from logical units to physical units using the specified
 - `render_density::LogicalDensity`: Render density (e.g., 300dpi for print, 96dpi for screens)
 
 # Returns
-- New blob of the same type with physical coordinates in mm
+- New blob of the same type with physical coordinates (length unit matching density denominator)
 
 # Example
 ```julia
 # Logical blob in pixels/dots
 blob_logical = IsoBlob(Point2(300.0pd, 600.0pd), 15.0pd)
 
-# Convert to physical units at 300 DPI (print) or 96 DPI (screen)
-blob_mm = to_physical_units(blob_logical, 300dpi)
+# Convert to physical units at 300 DPI (gives inches) or 300pd/mm (gives mm)
+blob_physical = to_physical_units(blob_logical, 300dpi)
 ```
 """
 function to_physical_units(blob::AbstractBlob, render_density::LogicalDensity)
@@ -123,9 +123,22 @@ function to_physical_units(blob::AbstractBlob, render_density::LogicalDensity)
     # Division by density (𝐍 𝐋^-1) converts logical (𝐍) to physical (𝐋)
     scaled_blob = blob / render_density
 
-    # Simplify to mm for clean physical units
-    center_simplified = uconvert.(mm, scaled_blob.center)
-    σ_simplified = uconvert(mm, scaled_blob.σ)
+    # Determine target length unit from density's denominator
+    # Check unit string to detect the length unit (mm, inch, etc.)
+    unit_str = string(unit(render_density))
+    target_unit = if occursin("dpi", unit_str)
+        inch  # dpi is defined as pd/inch
+    elseif occursin("mm", unit_str)
+        mm
+    elseif occursin("inch", unit_str)
+        inch
+    else
+        mm  # Default to mm for unknown units
+    end
+
+    # Simplify to clean length units
+    center_simplified = uconvert.(target_unit, scaled_blob.center)
+    σ_simplified = uconvert(target_unit, scaled_blob.σ)
 
     return ConstructionBase.setproperties(scaled_blob, (center=center_simplified, σ=σ_simplified))
 end
