@@ -158,9 +158,12 @@ append!(lscene.plots, plotblobs(blobs))  # Add blob overlays
 """
 function imshow(pattern; interpolate=false)
     pattern_height, pattern_width = size(pattern)
-    image_spec = Spec.Image(pattern, interpolate=interpolate)
+    # Transpose to convert (row, col) indexing to (x, y) coordinates
+    # Image is (height, width) in (row, col), becomes (width, height) in (x, y)
+    image_spec = Spec.Image(transpose(pattern), interpolate=interpolate)
 
-    # Use flipped y-limits (height to 0) to display image right-side up
+    # Use flipped y-limits (y from height to 0) to display image right-side up
+    # Rect2f(xmin, ymin, xmax, ymax) -> (0, height, width, 0) flips y-axis
     return Spec.LScene(plots=[image_spec], show_axis=false,
                       width=Fixed(pattern_width), height=Fixed(pattern_height),
                       tellwidth=false, tellheight=false,
