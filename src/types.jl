@@ -56,34 +56,30 @@ StructTypes.construct(::Type{ScalarOrQuantity}, data) =
     data isa Number ? data : StructTypes.construct(Unitful.Quantity, data)
 
 # =============================================================================
-# Unit Conversion Functions for IsoBlob
+# Unit Conversion Functions - Atomic operations on Quantities
 # =============================================================================
 
 """
-    to_logical_units(blob::IsoBlob, render_density::LogicalDensity)
+    to_logical_units(q::Quantity{<:Real, 𝐋}, render_density::LogicalDensity)
 
-Convert an IsoBlob from physical units to logical units using the specified render density.
+Convert a length quantity to logical units (pd or px) using the specified render density.
 
 # Arguments
-- `blob::IsoBlob`: The blob with physical coordinates and scale
+- `q::Quantity`: Physical length quantity (e.g., 10.0mm, 2.5inch)
 - `render_density::LogicalDensity`: Render density (e.g., 300dpi for print, 96dpi for screens)
 
 # Returns
-- `IsoBlob`: New blob with logical coordinates (pd or px units matching the density)
+- Quantity with logical units (pd or px) matching the density's numerator
 
 # Example
 ```julia
-# Physical blob in millimeters
-blob_mm = IsoBlob(Point2(10.0mm, 20.0mm), 2.0mm)
-
-# Convert to logical units at 300 DPI (print) or 96 DPI (screen)
-blob_logical = to_logical_units(blob_mm, 300dpi)
+to_logical_units(10.0mm, 300dpi)  # Returns value in pd
+to_logical_units(10.0mm, 300px/inch)  # Returns value in px
 ```
 """
-function to_logical_units(blob::AbstractBlob, render_density::LogicalDensity)
-    # Scale blob by render density to get logical units
+function to_logical_units(q::Quantity{<:Real, Unitful.𝐋}, render_density::LogicalDensity)
     # Multiplication by density (𝐍 𝐋^-1) converts physical (𝐋) to logical (𝐍)
-    scaled_blob = blob * render_density
+    scaled = q * render_density
 
     # Determine target logical unit (pd or px) from density's unit type parameters
     unit_tuple = typeof(unit(render_density)).parameters[1]
@@ -92,8 +88,6 @@ function to_logical_units(blob::AbstractBlob, render_density::LogicalDensity)
     target_unit = pd  # default to pd
     for u in unit_tuple
         if dimension(u) == 𝐍
-            # Extract the unit instance (not type)
-            # u is already a unit, but we need to ensure we have the right one
             if u isa Unitful.Unit{:Pixel}
                 target_unit = px
             elseif u isa Unitful.Unit{:Dot}
@@ -103,38 +97,30 @@ function to_logical_units(blob::AbstractBlob, render_density::LogicalDensity)
         end
     end
 
-    # Simplify to clean logical units (pd or px)
-    center_simplified = uconvert.(target_unit, scaled_blob.center)
-    σ_simplified = uconvert(target_unit, scaled_blob.σ)
-
-    return ConstructionBase.setproperties(scaled_blob, (center=center_simplified, σ=σ_simplified))
+    return uconvert(target_unit, scaled)
 end
 
 """
-    to_physical_units(blob::AbstractBlob, render_density::LogicalDensity)
+    to_physical_units(q::Quantity{<:Real, 𝐍}, render_density::LogicalDensity)
 
-Convert an AbstractBlob from logical units to physical units using the specified render density.
+Convert a logical quantity (pd or px) to physical length units using the specified render density.
 
 # Arguments
-- `blob::AbstractBlob`: The blob with logical coordinates and scale (pd or px units)
+- `q::Quantity`: Logical quantity (e.g., 300.0pd, 100.0px)
 - `render_density::LogicalDensity`: Render density (e.g., 300dpi for print, 96dpi for screens)
 
 # Returns
-- New blob of the same type with physical coordinates (length unit matching density denominator)
+- Quantity with length units matching the density's denominator (e.g., inch for dpi, mm for pd/mm)
 
 # Example
 ```julia
-# Logical blob in pixels/dots
-blob_logical = IsoBlob(Point2(300.0pd, 600.0pd), 15.0pd)
-
-# Convert to physical units at 300 DPI (gives inches) or 300pd/mm (gives mm)
-blob_physical = to_physical_units(blob_logical, 300dpi)
+to_physical_units(300.0pd, 300dpi)  # Returns value in inches
+to_physical_units(300.0pd, 300pd/mm)  # Returns value in mm
 ```
 """
-function to_physical_units(blob::AbstractBlob, render_density::LogicalDensity)
-    # Scale blob by dividing by render density to get physical units
+function to_physical_units(q::Quantity{<:Real, 𝐍}, render_density::LogicalDensity)
     # Division by density (𝐍 𝐋^-1) converts logical (𝐍) to physical (𝐋)
-    scaled_blob = blob / render_density
+    scaled = q / render_density
 
     # Determine target length unit from density's unit type parameters
     unit_tuple = typeof(unit(render_density)).parameters[1]
@@ -160,11 +146,7 @@ function to_physical_units(blob::AbstractBlob, render_density::LogicalDensity)
         found_unit
     end
 
-    # Simplify to clean length units
-    center_simplified = uconvert.(target_unit, scaled_blob.center)
-    σ_simplified = uconvert(target_unit, scaled_blob.σ)
-
-    return ConstructionBase.setproperties(scaled_blob, (center=center_simplified, σ=σ_simplified))
+    return uconvert(target_unit, scaled)
 end
 
 # =============================================================================
