@@ -61,21 +61,15 @@ function Makie.convert_arguments(P::Type{<:AbstractPlot}, pattern, blobs::Vector
                                  color=:green, scale_factor::Float64=3.0,
                                  marker=:cross, markersize::Float64=15.0, linewidth::Float64=1.0)
 
-    # Get pattern dimensions
-    pattern_height, pattern_width = size(pattern)
+    # Create standalone image with proper y-axis orientation
+    layout = imshow(pattern)
+    lscene = layout.content[1][2]  # Access the LScene BlockSpec from GridLayoutSpec
 
-    # Create image spec (no kwargs needed)
-    image_spec = imshow(pattern)
-    # Use plotblobs function with blob-specific kwargs only
+    # Add blob overlays to the LScene
     blob_specs = plotblobs(blobs; color=color, scale_factor=scale_factor, marker=marker, markersize=markersize, linewidth=linewidth)
-    all_specs = [image_spec, blob_specs...]
+    append!(lscene.plots, blob_specs)
 
-    return Spec.GridLayout([Spec.LScene(plots=all_specs, show_axis=false,
-                                       width=Fixed(pattern_width), height=Fixed(pattern_height),
-                                       tellwidth=false, tellheight=false,
-                                       scenekw=(camera=campixel!, yreversed=true,
-                                               limits=(0, pattern_width, 0, pattern_height)))],
-                                       colsizes=[Fixed(pattern_width)], rowsizes=[Fixed(pattern_height)])
+    return layout
 end
 
 # Tuple-based convert_arguments for detection results (pattern, detected_blobs, ground_truth_blobs)
@@ -91,32 +85,25 @@ function Makie.convert_arguments(::Type{Plot{plot}}, pattern, detected_blobs::Ve
                                 ground_truth_blobs::Union{Vector{<:AbstractBlob}, Nothing};
                                 detected_color=:red, ground_truth_color=:green,
                                 scale_factor::Float64=3.0) where {plot}
-    # Get pattern dimensions
-    pattern_height, pattern_width = size(pattern)
+    # Create standalone image with proper y-axis orientation
+    layout = imshow(pattern)
+    lscene = layout.content[1][2]  # Access the LScene BlockSpec from GridLayoutSpec
 
-    # Use atomic functions
-    all_specs = [imshow(pattern)]
-
-    # Add ground truth blobs with alpha (use plotblobs function)
+    # Add ground truth blobs with alpha
     if ground_truth_blobs !== nothing && !isempty(ground_truth_blobs)
         gt_specs = plotblobs(ground_truth_blobs;
                             color=(ground_truth_color, 0.7),
                             scale_factor=scale_factor)
-        append!(all_specs, gt_specs)
+        append!(lscene.plots, gt_specs)
     end
 
-    # Add detected blobs (use plotblobs function)
+    # Add detected blobs
     detected_specs = plotblobs(detected_blobs;
                               color=detected_color,
                               scale_factor=scale_factor)
-    append!(all_specs, detected_specs)
+    append!(lscene.plots, detected_specs)
 
-    return Spec.GridLayout([Spec.LScene(plots=all_specs, show_axis=false,
-                                       width=Fixed(pattern_width), height=Fixed(pattern_height),
-                                       tellwidth=false, tellheight=false,
-                                       scenekw=(camera=campixel!, yreversed=true,
-                                               limits=(0, pattern_width, 0, pattern_height)))],
-                                       colsizes=[Fixed(pattern_width)], rowsizes=[Fixed(pattern_height)])
+    return layout
 end
 
 # Composable plotting functions using Spec API
@@ -124,7 +111,7 @@ end
 """
     imshow(pattern; interpolate=false)
 
-Create an image plot spec for displaying a pattern.
+Create a standalone image display with proper orientation (y-axis reversed).
 
 # Arguments
 - `pattern`: Image pattern to display
@@ -132,10 +119,30 @@ Create an image plot spec for displaying a pattern.
 # Keyword Arguments
 - `interpolate=false`: Whether to interpolate between pixels
 
-Returns a Spec.Image object that can be composed with other plot elements.
+Returns a GridLayoutSpec containing an LScene with the image. The LScene can be accessed
+to add additional plot overlays.
+
+# Examples
+```julia
+# Standalone display
+layout = imshow(pattern)
+
+# Add overlays to the image
+layout = imshow(pattern)
+lscene = layout.content[1][2]  # Access the LScene BlockSpec
+append!(lscene.plots, plotblobs(blobs))  # Add blob overlays
+```
 """
 function imshow(pattern; interpolate=false)
-    return Spec.Image(transpose(pattern), interpolate=interpolate)
+    pattern_height, pattern_width = size(pattern)
+    image_spec = Spec.Image(transpose(pattern), interpolate=interpolate)
+
+    return Spec.GridLayout([Spec.LScene(plots=[image_spec], show_axis=false,
+                                       width=Fixed(pattern_width), height=Fixed(pattern_height),
+                                       tellwidth=false, tellheight=false,
+                                       scenekw=(camera=campixel!, yreversed=true,
+                                               limits=(0, pattern_width, 0, pattern_height)))],
+                          colsizes=[Fixed(pattern_width)], rowsizes=[Fixed(pattern_height)])
 end
 
 """
