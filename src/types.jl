@@ -69,7 +69,7 @@ Convert an IsoBlob from physical units to logical units using the specified rend
 - `render_density::LogicalDensity`: Render density (e.g., 300dpi for print, 96dpi for screens)
 
 # Returns
-- `IsoBlob`: New blob with logical coordinates (pd units)
+- `IsoBlob`: New blob with logical coordinates (pd or px units matching the density)
 
 # Example
 ```julia
@@ -83,7 +83,18 @@ blob_logical = to_logical_units(blob_mm, 300dpi)
 function to_logical_units(blob::AbstractBlob, render_density::LogicalDensity)
     # Scale blob by render density to get logical units
     # Multiplication by density (𝐍 𝐋^-1) converts physical (𝐋) to logical (𝐍)
-    return blob * render_density
+    scaled_blob = blob * render_density
+
+    # Determine target logical unit (pd or px) from density's numerator
+    # Check unit string to detect px vs pd (dpi uses pd)
+    unit_str = string(unit(render_density))
+    target_unit = occursin("px", unit_str) ? px : pd
+
+    # Simplify to clean logical units (pd or px)
+    center_simplified = uconvert.(target_unit, scaled_blob.center)
+    σ_simplified = uconvert(target_unit, scaled_blob.σ)
+
+    return ConstructionBase.setproperties(scaled_blob, (center=center_simplified, σ=σ_simplified))
 end
 
 """
