@@ -86,14 +86,6 @@ Effective area of a blob modeled as a disk of radius `kσ`.
 area(blob::AbstractBlob, k=SIGMA_CUTOFF) = π * (k * blob.σ)^2
 
 """
-    intersects(p::AbstractBlob, q::AbstractBlob, cutoff=SIGMA_CUTOFF) -> Bool
-
-True if the distance between centers is less than the sum of effective radii.
-"""
-intersects(p::AbstractBlob, q::AbstractBlob, cutoff=SIGMA_CUTOFF) =
-    norm(p.center - q.center) < (radius(p, cutoff) + radius(q, cutoff))
-
-"""
     Circle(blob::AbstractBlob, cutoff=SIGMA_CUTOFF) -> GeometryBasics.Circle
 
 Create a `GeometryBasics.Circle` centered at the blob with radius `kσ` (unitless),
@@ -104,6 +96,22 @@ function Circle(blob::AbstractBlob, cutoff=SIGMA_CUTOFF)
     radius_val = float(ustrip(radius(blob, cutoff)))
     return GeometryBasics.Circle(Point2(center_vals), radius_val)
 end
+
+"""
+    intersects(c1::GeometryBasics.Circle, c2::GeometryBasics.Circle) -> Bool
+
+Check if two circles intersect (distance between centers < sum of radii).
+"""
+intersects(c1::GeometryBasics.Circle, c2::GeometryBasics.Circle) =
+    norm(c1.center - c2.center) < (c1.r + c2.r)
+
+"""
+    intersects(p::AbstractBlob, q::AbstractBlob, cutoff=SIGMA_CUTOFF) -> Bool
+
+Check if two blobs intersect by constructing circles with radius `cutoff*σ` and testing intersection.
+"""
+intersects(p::AbstractBlob, q::AbstractBlob, cutoff=SIGMA_CUTOFF) =
+    intersects(Circle(p, cutoff), Circle(q, cutoff))
 
 # =================================
 """
