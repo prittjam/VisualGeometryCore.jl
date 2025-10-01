@@ -232,8 +232,8 @@ blob_logical = to_logical_units(blob_mm, 300dpi)
 function to_logical_units(blob::AbstractBlob, render_density::LogicalDensity)
     # Scale blob by render density and convert to logical units
     scaled = blob * render_density
-    scaled = @set scaled.center = uconvert.(pd, scaled.center)
-    return @set scaled.σ = uconvert(pd, scaled.σ)
+    # Update both center and σ simultaneously using nested @set
+    return @set (@set scaled.center = uconvert.(pd, scaled.center)).σ = uconvert(pd, scaled.σ)
 end
 
 """
@@ -334,8 +334,8 @@ scaled = blob * 300dpi  # Scale to logical units
 ```
 """
 function Base.:*(blob::AbstractBlob, scale)
-    blob = @set blob.center = blob.center .* scale
-    return @set blob.σ = blob.σ * scale
+    # Update both center and σ simultaneously using nested @set
+    return @set (@set blob.center = blob.center .* scale).σ = blob.σ * scale
 end
 
 """
@@ -360,7 +360,7 @@ scaled = blob / 300dpi  # Scale to physical units
 ```
 """
 function Base.:/(blob::AbstractBlob, scale)
-    blob = @set blob.center = blob.center ./ scale
-    return @set blob.σ = blob.σ / scale
+    # Update both center and σ simultaneously using nested @set
+    return @set (@set blob.center = blob.center ./ scale).σ = blob.σ / scale
 end
 
