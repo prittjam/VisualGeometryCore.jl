@@ -230,10 +230,9 @@ blob_logical = to_logical_units(blob_mm, 300dpi)
 ```
 """
 function to_logical_units(blob::AbstractBlob, render_density::LogicalDensity)
-    # Scale blob by render density and convert to logical units
-    scaled = blob * render_density
-    # Update both center and σ simultaneously using nested @set
-    return @set (@set scaled.center = uconvert.(pd, scaled.center)).σ = uconvert(pd, scaled.σ)
+    # Scale blob by render density to get logical units
+    # Multiplication by density (𝐍 𝐋^-1) converts physical (𝐋) to logical (𝐍)
+    return blob * render_density
 end
 
 """
