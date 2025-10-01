@@ -5,7 +5,7 @@ This example shows:
 1. Loading an image from TestImages
 2. Displaying it with proper y-axis orientation using imshow
 3. Adding blob overlays to the image
-4. Composing multiple plot elements in a Figure using SpecApi
+4. Composing multiple plot elements in a Figure
 """
 
 using VisualGeometryCore
@@ -20,19 +20,21 @@ println("Loading test image...")
 img = testimage("cameraman")
 println("Image size: ", size(img))
 
-# Example 1: Simple imshow with SpecApi
+# Example 1: Simple imshow with SpecApi in a Figure
 println("\nExample 1: Simple image display")
 lscene = imshow(img)
-# Wrap LScene in GridLayout and plot the spec
+# Wrap LScene in GridLayout for Figure
 layout = S.GridLayout([lscene])
-fig1, _, _ = plot(layout)
+fig1 = Figure(size=reverse(size(img)))
+fig1[1, 1] = layout
 display(fig1)
 
 # Example 2: imshow with interpolation
 println("\nExample 2: Image display with interpolation")
 lscene_interp = imshow(img; interpolate=true)
 layout_interp = S.GridLayout([lscene_interp])
-fig2, _, _ = plot(layout_interp)
+fig2 = Figure(size=reverse(size(img)))
+fig2[1, 1] = layout_interp
 display(fig2)
 
 # Example 3: Image with blob overlays
@@ -51,10 +53,7 @@ blobs = [
 lscene_with_blobs = imshow(img)
 blob_specs = plotblobs(blobs; color=:cyan, scale_factor=3.0, linewidth=2.0)
 append!(lscene_with_blobs.plots, blob_specs)
-# Wrap in GridLayout and plot the spec
-layout_blobs = S.GridLayout([lscene_with_blobs])
-fig3, _, _ = plot(layout_blobs)
-display(fig3)
+display(lscene_with_blobs)
 
 # Example 4: Multiple blob layers with different colors
 println("\nExample 4: Multiple blob layers")
@@ -74,21 +73,11 @@ small_blobs = [
 lscene_multi = imshow(img)
 append!(lscene_multi.plots, plotblobs(large_blobs; color=:red, scale_factor=3.0))
 append!(lscene_multi.plots, plotblobs(small_blobs; color=:green, scale_factor=3.0))
-# Wrap in GridLayout and plot the spec
-layout_multi = S.GridLayout([lscene_multi])
-fig4, _, _ = plot(layout_multi)
-display(fig4)
+display(lscene_multi)
 
 println("\n✓ All examples completed!")
 println("\nKey features demonstrated:")
 println("  • imshow provides correct y-axis orientation automatically")
-println("  • Returns LScene BlockSpec that can be wrapped in S.GridLayout")
-println("  • Use plot(layout) to create Figure from spec")
-println("  • Direct access to lscene.plots for adding overlays")
+println("  • Returns LScene BlockSpec for easy composition")
+println("  • Direct access to .plots for adding overlays")
 println("  • Multiple plot layers can be added incrementally")
-
-println("\nUsage pattern:")
-println("  1. lscene = imshow(img)")
-println("  2. append!(lscene.plots, plotblobs(blobs))")
-println("  3. layout = S.GridLayout([lscene])")
-println("  4. fig, _, _ = plot(layout)")
