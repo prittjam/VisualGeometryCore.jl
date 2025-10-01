@@ -3,7 +3,7 @@
 
 import Makie.SpecApi as Spec
 using Makie: Fixed
-using GeometryBasics: Circle, Point2f
+using GeometryBasics: Circle, Point2f, Rect2f
 
 # Convert arguments for images - MATLAB-style imshow
 Makie.used_attributes(::Type{<:Plot}, ::AbstractMatrix) = (:interpolate,)
@@ -132,7 +132,7 @@ end
 """
     imshow(pattern; interpolate=false)
 
-Create a standalone image display with proper orientation (y-axis reversed).
+Create a standalone image display with proper orientation (y-axis flipped).
 
 # Arguments
 - `pattern`: Image pattern to display
@@ -140,7 +140,8 @@ Create a standalone image display with proper orientation (y-axis reversed).
 # Keyword Arguments
 - `interpolate=false`: Whether to interpolate between pixels
 
-Returns an LScene BlockSpec with the image. Additional plots can be added via `.plots`.
+Returns an LScene BlockSpec with flipped y-limits to display image right-side up.
+Additional plots can be added via `.plots`.
 
 # Examples
 ```julia
@@ -157,14 +158,14 @@ append!(lscene.plots, plotblobs(blobs))  # Add blob overlays
 """
 function imshow(pattern; interpolate=false)
     pattern_height, pattern_width = size(pattern)
-    # Use rotr90 to rotate image 90° clockwise for correct orientation
-    image_spec = Spec.Image(rotr90(pattern), interpolate=interpolate)
+    image_spec = Spec.Image(pattern, interpolate=interpolate)
 
+    # Use flipped y-limits (height to 0) to display image right-side up
     return Spec.LScene(plots=[image_spec], show_axis=false,
                       width=Fixed(pattern_width), height=Fixed(pattern_height),
                       tellwidth=false, tellheight=false,
                       scenekw=(camera=campixel!,
-                              limits=(0, pattern_width, 0, pattern_height)))
+                              limits=Rect2f(0, pattern_height, pattern_width, 0)))
 end
 
 """
