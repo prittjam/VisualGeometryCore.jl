@@ -1,0 +1,75 @@
+"""
+Example demonstrating VisualGeometryCore's imshow function with SpecApi.
+
+This example shows:
+1. Loading an image from TestImages
+2. Displaying it with proper y-axis orientation using imshow
+3. Adding blob overlays to the image
+4. Composing multiple plot elements
+"""
+
+using VisualGeometryCore
+using VisualGeometryCore: imshow, plotblobs, IsoBlob, pd
+using TestImages
+using GLMakie
+using GeometryBasics: Point2
+
+# Load a test image
+println("Loading test image...")
+img = testimage("cameraman")
+println("Image size: ", size(img))
+
+# Example 1: Simple imshow with SpecApi
+println("\nExample 1: Simple image display")
+lscene = imshow(img)
+display(lscene)
+
+# Example 2: imshow with interpolation
+println("\nExample 2: Image display with interpolation")
+lscene_interp = imshow(img; interpolate=true)
+display(lscene_interp)
+
+# Example 3: Image with blob overlays
+println("\nExample 3: Image with blob overlays")
+# Create some example blobs at interesting points
+height, width = size(img)
+blobs = [
+    IsoBlob(Point2(width/4*pd, height/4*pd), 20.0pd),
+    IsoBlob(Point2(3*width/4*pd, height/4*pd), 15.0pd),
+    IsoBlob(Point2(width/2*pd, height/2*pd), 25.0pd),
+    IsoBlob(Point2(width/4*pd, 3*height/4*pd), 18.0pd),
+    IsoBlob(Point2(3*width/4*pd, 3*height/4*pd), 22.0pd),
+]
+
+# Create image display and add blob overlays
+lscene_with_blobs = imshow(img)
+blob_specs = plotblobs(blobs; color=:cyan, scale_factor=3.0, linewidth=2.0)
+append!(lscene_with_blobs.plots, blob_specs)
+display(lscene_with_blobs)
+
+# Example 4: Multiple blob layers with different colors
+println("\nExample 4: Multiple blob layers")
+# Create two sets of blobs
+large_blobs = [
+    IsoBlob(Point2(width/3*pd, height/3*pd), 30.0pd),
+    IsoBlob(Point2(2*width/3*pd, 2*height/3*pd), 35.0pd),
+]
+
+small_blobs = [
+    IsoBlob(Point2(width/6*pd, height/6*pd), 10.0pd),
+    IsoBlob(Point2(5*width/6*pd, height/6*pd), 12.0pd),
+    IsoBlob(Point2(width/2*pd, 5*height/6*pd), 11.0pd),
+]
+
+# Compose them on the image
+lscene_multi = imshow(img)
+append!(lscene_multi.plots, plotblobs(large_blobs; color=:red, scale_factor=3.0))
+append!(lscene_multi.plots, plotblobs(small_blobs; color=:green, scale_factor=3.0))
+display(lscene_multi)
+
+println("\n✓ All examples completed!")
+println("\nKey features demonstrated:")
+println("  • imshow provides correct y-axis orientation automatically")
+println("  • Returns LScene BlockSpec for easy composition")
+println("  • Direct access to .plots for adding overlays")
+println("  • Multiple plot layers can be added incrementally")
