@@ -68,34 +68,8 @@ function StructTypes.construct(::Type{IsoBlob}, x::Union{Dict{String,Any}, JSON3
 end
 
 # =============================================================================
-# Blob Utility Functions
+# Blob Intersection
 # =============================================================================
-
-"""
-    radius(blob::AbstractBlob, k=SIGMA_CUTOFF)
-
-Effective radius defined as `k * σ`.
-"""
-radius(blob::AbstractBlob, k=SIGMA_CUTOFF) = k * blob.σ
-
-"""
-    area(blob::AbstractBlob, k=SIGMA_CUTOFF)
-
-Effective area of a blob modeled as a disk of radius `kσ`.
-"""
-area(blob::AbstractBlob, k=SIGMA_CUTOFF) = π * (k * blob.σ)^2
-
-"""
-    Circle(blob::AbstractBlob, cutoff=SIGMA_CUTOFF) -> GeometryBasics.Circle
-
-Create a `GeometryBasics.Circle` centered at the blob with radius `kσ` (unitless),
-useful for spatial indexing and plotting.
-"""
-function Circle(blob::AbstractBlob, cutoff=SIGMA_CUTOFF)
-    center_vals = float.(ustrip.(blob.center))
-    radius_val = float(ustrip(radius(blob, cutoff)))
-    return GeometryBasics.Circle(Point2(center_vals), radius_val)
-end
 
 """
     intersects(c1::GeometryBasics.Circle, c2::GeometryBasics.Circle) -> Bool
@@ -109,9 +83,13 @@ intersects(c1::GeometryBasics.Circle, c2::GeometryBasics.Circle) =
     intersects(p::AbstractBlob, q::AbstractBlob, cutoff=SIGMA_CUTOFF) -> Bool
 
 Check if two blobs intersect by constructing circles with radius `cutoff*σ` and testing intersection.
+Constructs GeometryBasics.Circle objects with unitless centers and radii.
 """
-intersects(p::AbstractBlob, q::AbstractBlob, cutoff=SIGMA_CUTOFF) =
-    intersects(Circle(p, cutoff), Circle(q, cutoff))
+function intersects(p::AbstractBlob, q::AbstractBlob, cutoff=SIGMA_CUTOFF)
+    c1 = GeometryBasics.Circle(Point2(float.(ustrip.(p.center))...), float(ustrip(cutoff * p.σ)))
+    c2 = GeometryBasics.Circle(Point2(float.(ustrip.(q.center))...), float(ustrip(cutoff * q.σ)))
+    return intersects(c1, c2)
+end
 
 # =================================
 """
