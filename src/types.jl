@@ -333,8 +333,11 @@ scaled = blob * 300dpi  # Scale to logical units
 ```
 """
 function Base.:*(blob::AbstractBlob, scale)
-    # Update both center and σ simultaneously using nested @set
-    return @set (@set blob.center = blob.center .* scale).σ = blob.σ * scale
+    # Compute new values first, then update both fields simultaneously
+    new_center = blob.center .* scale
+    new_σ = blob.σ * scale
+    # Use Accessors to set both fields at once
+    return Accessors.set(blob, Accessors.Properties((center=new_center, σ=new_σ)))
 end
 
 """
@@ -359,7 +362,10 @@ scaled = blob / 300dpi  # Scale to physical units
 ```
 """
 function Base.:/(blob::AbstractBlob, scale)
-    # Update both center and σ simultaneously using nested @set
-    return @set (@set blob.center = blob.center ./ scale).σ = blob.σ / scale
+    # Compute new values first, then update both fields simultaneously
+    new_center = blob.center ./ scale
+    new_σ = blob.σ / scale
+    # Use Accessors to set both fields at once
+    return Accessors.set(blob, Accessors.Properties((center=new_center, σ=new_σ)))
 end
 
