@@ -68,20 +68,6 @@ function StructTypes.construct(::Type{IsoBlob}, x::Union{Dict{String,Any}, JSON3
 end
 
 # =============================================================================
-# Blob Arithmetic Operations
-# =============================================================================
-
-"""
-    *(blob::IsoBlob, scalar::Number) -> IsoBlob
-    *(scalar::Number, blob::IsoBlob) -> IsoBlob
-
-Scale a blob by multiplying both its center coordinates and σ by the scalar.
-This is useful for oversampling operations where the entire blob needs to be scaled.
-"""
-Base.:*(blob::IsoBlob, scalar::Number) = IsoBlob(blob.center .* scalar, blob.σ * scalar)
-Base.:*(scalar::Number, blob::IsoBlob) = blob * scalar
-
-# =============================================================================
 # Blob Utility Functions
 # =============================================================================
 
