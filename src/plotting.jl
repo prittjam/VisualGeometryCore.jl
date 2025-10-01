@@ -5,6 +5,29 @@ import Makie.SpecApi as Spec
 using Makie: Fixed
 using GeometryBasics: Circle, Point2f
 
+# Convert arguments for images - MATLAB-style imshow
+Makie.used_attributes(::Type{<:Plot}, ::AbstractMatrix) = (:interpolate,)
+
+"""
+    Makie.convert_arguments(::Type{Plot{plot}}, image::AbstractMatrix; interpolate=false)
+
+Convert a matrix to an image plot with proper orientation (y-axis reversed).
+Provides MATLAB-style imshow behavior: plot(image) displays it correctly.
+
+# Examples
+```julia
+pattern = rand(100, 150)
+plot(pattern)  # Displays with correct y-axis orientation
+
+# With interpolation
+plot(pattern; interpolate=true)
+```
+"""
+function Makie.convert_arguments(::Type{Plot{plot}}, image::AbstractMatrix;
+                                interpolate=false) where {plot}
+    return imshow(image; interpolate=interpolate)
+end
+
 # Convert arguments for PlotSpec integration with recipes
 # Atomic convert_arguments for blobs only
 Makie.used_attributes(::Vector{<:AbstractBlob}) = (:color, :scale_factor, :marker, :markersize, :linewidth, :linestyle)
@@ -121,7 +144,10 @@ Returns an LScene BlockSpec with the image. Additional plots can be added via `.
 
 # Examples
 ```julia
-# Standalone display
+# Standalone display (MATLAB-style)
+plot(pattern)  # Uses imshow automatically via convert_arguments
+
+# Manual display with imshow
 lscene = imshow(pattern)
 
 # Add overlays to the image
