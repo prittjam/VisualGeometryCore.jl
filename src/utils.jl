@@ -61,10 +61,25 @@ const Rad{T} = Quantity{T, Unitful.NoDims, typeof(rad)}
 
 StructTypes.StructType(::Type{<:Unitful.Quantity}) = StructTypes.CustomStruct()
 
-StructTypes.lower(q::Unitful.Quantity) = (
-    value = ustrip(q),
-    unit = string(unit(q)),
-)
+function StructTypes.lower(q::Unitful.Quantity)
+    # Normalize to canonical units for JSON serialization
+    # This avoids parsing issues with compound units like "pd dpi^-1"
+    dim = dimension(q)
+    canonical = if dim == 𝐋
+        uconvert(mm, q)
+    elseif dim == 𝐍
+        uconvert(pd, q)
+    elseif dim == 𝐍/𝐋
+        uconvert(dpi, q)
+    else
+        q  # Keep as-is for other dimensions
+    end
+
+    return (
+        value = ustrip(canonical),
+        unit = string(unit(canonical)),
+    )
+end
 
 function StructTypes.construct(::Type{<:Unitful.Quantity}, obj)
     # Parse unit; trust the numeric value as saved (JSON provides Int for integers, Float64 otherwise)
