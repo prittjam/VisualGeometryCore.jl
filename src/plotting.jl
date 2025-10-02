@@ -20,6 +20,15 @@ function Makie.convert_arguments(::Type{<:AbstractPlot}, img::PlottableImage)
     return [image_spec]
 end
 
+# Direct convert_arguments for image matrices (no wrapper needed)
+Makie.used_attributes(::Type{<:Plot}, ::AbstractMatrix{<:Colorant}) = (:interpolate,)
+
+function Makie.convert_arguments(::Type{<:AbstractPlot}, img::AbstractMatrix{<:Colorant};
+                                 interpolate=false)
+    image_spec = Spec.Image(transpose(img), interpolate=interpolate)
+    return [image_spec]
+end
+
 # Convert arguments for PlotSpec integration with recipes
 # Atomic convert_arguments for blobs only
 Makie.used_attributes(::Type{<:Plot}, ::Vector{<:AbstractBlob}) = (:color, :scale_factor, :marker, :markersize, :linewidth, :linestyle)
