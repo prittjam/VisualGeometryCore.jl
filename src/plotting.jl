@@ -13,7 +13,7 @@ using GeometryBasics: Circle, Point2f
 #   fig, _, _ = plot(S.GridLayout([lscene]))
 
 # PlottableImage wrapper for plot!/plot compatibility
-Makie.used_attributes(::Type{<:AbstractPlot}, ::PlottableImage) = ()
+Makie.used_attributes(::Type{<:Plot}, ::PlottableImage) = ()
 
 function Makie.convert_arguments(::Type{<:AbstractPlot}, img::PlottableImage)
     image_spec = Spec.Image(transpose(img.data), interpolate=img.interpolate)
