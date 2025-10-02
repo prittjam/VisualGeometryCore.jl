@@ -53,6 +53,7 @@ layout3 = S.GridLayout(scenemat, colgaps=[Fixed(0)], rowgaps=[Fixed(0)])
 f3, _, _ = plot(layout3)
 display(f3)
 
+
 # Load a test image
 println("\n\nNow testing imshow function...")
 println("Loading test image...")
