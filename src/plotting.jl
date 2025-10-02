@@ -13,12 +13,14 @@ using GeometryBasics: Circle, Point2f
 #   fig, _, _ = plot(S.GridLayout([lscene]))
 
 # Direct convert_arguments for image matrices
+# Returns GridLayout with y-flipped LScene for proper image display
 Makie.used_attributes(::Type{<:Plot}, ::AbstractMatrix{<:Colorant}) = (:interpolate,)
 
 function Makie.convert_arguments(::Type{<:AbstractPlot}, img::AbstractMatrix{<:Colorant};
                                  interpolate=false)
-    image_spec = Spec.Image(transpose(img), interpolate=interpolate)
-    return [image_spec]
+    # Use imshow to get proper y-axis flipping
+    lscene = imshow(img; interpolate=interpolate)
+    return Spec.GridLayout([lscene]; rowgaps=Fixed(0), colgaps=Fixed(0))
 end
 
 # Convert arguments for PlotSpec integration with recipes
