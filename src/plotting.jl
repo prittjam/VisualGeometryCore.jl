@@ -2,7 +2,7 @@
 # Uses Makie Spec API with convert_arguments for composable plotting
 
 import Makie.SpecApi as Spec
-using Makie: Fixed
+using Makie: Fixed, campixel!
 using GeometryBasics: Circle, Point2f
 
 # Convert arguments for images - MATLAB-style imshow
@@ -158,17 +158,41 @@ append!(lscene.plots, plotblobs(blobs))  # Add blob overlays
 """
 function imshow(pattern; interpolate=false)
     pattern_height, pattern_width = size(pattern)
-    # Transpose to convert (row, col) indexing to (x, y) coordinates
-    # Image is (height, width) in (row, col), becomes (width, height) in (x, y)
+    # Transpose to convert (row, col) to (x, y): pattern[row, col] -> pattern'[col, row]
+    # This gives us (x, y) coordinates where x is column, y is row
     image_spec = Spec.Image(transpose(pattern), interpolate=interpolate)
 
-    # Use flipped y-limits (y from height to 0) to display image right-side up
-    # limits tuple: (xmin, xmax, ymin, ymax) -> (0, width, height, 0) flips y-axis
-    return Spec.LScene(plots=[image_spec], show_axis=false,
-                      width=Fixed(pattern_width), height=Fixed(pattern_height),
-                      tellwidth=false, tellheight=false,
-                      scenekw=(camera=campixel!,
-                              limits=(0, pattern_width, pattern_height, 0)))
+    # We need to flip the y-axis so that row 1 (y=1) appears at the TOP
+    # In Makie's default coordinate system, y increases upward (bottom to top)
+    # In image coordinates, row index increases downward (top to bottom)
+    # Solution: Apply transformation that flips y-axis
+
+    # Use then_funcs to apply transformation after scene is created
+    function flip_y_axis(lscene_block)
+        scene = lscene_block.scene
+        # Flip y-axis by scaling y by -1 and translating
+        # For an image of height H, point at y=0 maps to y=H, point at y=H maps to y=0
+        # Transformation: y' = -y + H (scale by -1, translate by H)
+        scene.transformation.scale[] = (1.0, -1.0, 1.0)
+        scene.transformation.translation[] = (0.0, Float64(pattern_height), 0.0)
+
+        # Update camera to ensure it doesn't clip
+        # The transformation is applied to the plotted data, so the camera sees
+        # the transformed coordinates. We need to ensure the camera viewport is correct.
+        notify(scene.camera.projectionview)
+        return
+    end
+
+    lscene = Spec.LScene(plots=[image_spec], show_axis=false,
+                        width=Fixed(pattern_width), height=Fixed(pattern_height),
+                        tellwidth=false, tellheight=false,
+                        scenekw=(camera=campixel!,
+                                limits=(0, pattern_width, 0, pattern_height)))
+
+    # Add callback to flip y-axis after scene is created
+    push!(lscene.then_funcs, flip_y_axis)
+
+    return lscene
 end
 
 """
