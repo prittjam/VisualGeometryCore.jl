@@ -23,53 +23,30 @@ function Makie.convert_arguments(::Type{<:AbstractPlot}, img::AbstractMatrix{<:C
     return Spec.GridLayout([lscene]; rowgaps=Fixed(0), colgaps=Fixed(0))
 end
 
-# Compound plot type for image + blobs overlay
-"""
-    ImageBlobs(image, blobs; color=:green, scale_factor=3.0, marker=:cross, markersize=15.0, linewidth=1.0)
+# Multi-argument convert_arguments for image + blobs composition
+Makie.used_attributes(::Type{<:Plot}, ::AbstractMatrix{<:Colorant}, ::Vector{<:AbstractBlob}) = (:interpolate, :color, :scale_factor, :marker, :markersize, :linewidth)
 
-Wrapper struct for plotting an image with blob overlays.
-Composes image and blob PlotSpecs using convert_arguments.
+"""
+    Makie.convert_arguments(::Type{<:AbstractPlot}, img::AbstractMatrix{<:Colorant}, blobs::Vector{<:AbstractBlob}; kwargs...)
+
+Convert image and blobs to composed GridLayout with overlay.
+Composes by calling through to imshow() and plotblobs().
 
 # Examples
 ```julia
 img = testimage("cameraman")
 blobs = [IsoBlob(Point2(100pd, 100pd), 20pd)]
-fig, ax, pl = plot(ImageBlobs(img, blobs; color=:red, scale_factor=3.0))
+fig, ax, pl = plot(img, blobs; color=:red, scale_factor=3.0)
 ```
 """
-struct ImageBlobs{T<:AbstractMatrix{<:Colorant}, B<:Vector{<:AbstractBlob}}
-    image::T
-    blobs::B
-    color::Symbol
-    scale_factor::Float64
-    marker::Symbol
-    markersize::Float64
-    linewidth::Float64
-    interpolate::Bool
-end
-
-function ImageBlobs(image::AbstractMatrix{<:Colorant}, blobs::Vector{<:AbstractBlob};
-                   color::Symbol=:green, scale_factor::Float64=3.0,
-                   marker::Symbol=:cross, markersize::Float64=15.0,
-                   linewidth::Float64=1.0, interpolate::Bool=false)
-    return ImageBlobs(image, blobs, color, scale_factor, marker, markersize, linewidth, interpolate)
-end
-
-Makie.used_attributes(::Type{<:Plot}, ::ImageBlobs) = ()
-
-function Makie.convert_arguments(::Type{<:AbstractPlot}, obj::ImageBlobs)
-    # Compose by calling through to simpler convert_arguments
-    # Get the image LScene with y-flip
-    lscene = imshow(obj.image; interpolate=obj.interpolate)
-
-    # Get blob PlotSpecs
-    blob_specs = plotblobs(obj.blobs; color=obj.color, scale_factor=obj.scale_factor,
-                          marker=obj.marker, markersize=obj.markersize, linewidth=obj.linewidth)
-
-    # Compose them
+function Makie.convert_arguments(::Type{<:AbstractPlot}, img::AbstractMatrix{<:Colorant}, blobs::Vector{<:AbstractBlob};
+                                 interpolate=false, color=:green, scale_factor::Float64=3.0,
+                                 marker=:cross, markersize::Float64=15.0, linewidth::Float64=1.0)
+    # Compose by calling through to simpler functions
+    lscene = imshow(img; interpolate=interpolate)
+    blob_specs = plotblobs(blobs; color=color, scale_factor=scale_factor,
+                          marker=marker, markersize=markersize, linewidth=linewidth)
     append!(lscene.plots, blob_specs)
-
-    # Return GridLayout
     return Spec.GridLayout([lscene]; rowgaps=Fixed(0), colgaps=Fixed(0))
 end
 
