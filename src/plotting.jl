@@ -5,131 +5,134 @@ import Makie.SpecApi as Spec
 using Makie: Fixed, campixel!
 using GeometryBasics: Circle, Point2f
 
-# Convert arguments for images - MATLAB-style imshow
-Makie.used_attributes(::Type{<:Plot}, ::AbstractMatrix) = (:interpolate,)
+# Convert arguments for images using SpecApi
+# Note: For image+blob overlays, use SpecApi composition:
+#   lscene = imshow(image)
+#   blob_specs = plotblobs(blobs; color=:red, scale_factor=3.0)
+#   append!(lscene.plots, blob_specs)
+#   fig, _, _ = plot(S.GridLayout([lscene]))
 
-"""
-    Makie.convert_arguments(::Type{Plot{plot}}, image::AbstractMatrix; interpolate=false)
+# PlottableImage wrapper for plot!/plot compatibility
+Makie.used_attributes(::Type{<:AbstractPlot}, ::PlottableImage) = ()
 
-Convert a matrix to an image plot with proper orientation (y-axis reversed).
-Provides MATLAB-style imshow behavior: plot(image) displays it correctly.
-
-# Examples
-```julia
-pattern = rand(100, 150)
-plot(pattern)  # Displays with correct y-axis orientation
-
-# With interpolation
-plot(pattern; interpolate=true)
-```
-"""
-function Makie.convert_arguments(::Type{Plot{plot}}, image::AbstractMatrix;
-                                interpolate=false) where {plot}
-    return imshow(image; interpolate=interpolate)
+function Makie.convert_arguments(::Type{<:AbstractPlot}, img::PlottableImage)
+    image_spec = Spec.Image(transpose(img.data), interpolate=img.interpolate)
+    return [image_spec]
 end
 
 # Convert arguments for PlotSpec integration with recipes
 # Atomic convert_arguments for blobs only
-Makie.used_attributes(::Vector{<:AbstractBlob}) = (:color, :scale_factor, :marker, :markersize, :linewidth, :linestyle)
+Makie.used_attributes(::Type{<:AbstractPlot}, ::Vector{<:AbstractBlob}) = (:color, :scale_factor, :marker, :markersize, :linewidth, :linestyle)
 
 """
-    Makie.convert_arguments(::Type{Plot{plot}}, blobs::Vector{<:AbstractBlob}; kwargs...)
+    Makie.convert_arguments(::Type{<:AbstractPlot}, blobs::Vector{<:AbstractBlob}; color=:green, scale_factor=3.0, ...)
 
-Convert blobs to PlotSpec for Makie recipe integration.
-Allows users to call: plot(blobs; color=:red, scale_factor=2.0)
+Convert blobs to PlotSpec vector for Makie recipe integration.
+Allows users to call: plot(blobs; color=:red, scale_factor=2.0) or plot!(blobs; ...)
 """
-function Makie.convert_arguments(::Type{Plot{plot}}, blobs::Vector{<:AbstractBlob}) where {plot}
-    # Extract centers and scales for standard Makie plotting
-    if isempty(blobs)
-        return (Float64[], Float64[])
-    end
-
-    centers = [ustrip.(blob.center) for blob in blobs]
-    x_coords = [c[1] for c in centers]
-    y_coords = [c[2] for c in centers]
-
-    return (x_coords, y_coords)
+function Makie.convert_arguments(::Type{<:AbstractPlot}, blobs::Vector{<:AbstractBlob};
+                                color=:green, scale_factor::Float64=3.0,
+                                marker=:cross, markersize::Float64=15.0,
+                                linewidth::Float64=1.0, linestyle=:solid)
+    # Return PlotSpec vector for SpecApi integration
+    return plotblobs(blobs; color=color, scale_factor=scale_factor,
+                    marker=marker, markersize=markersize,
+                    linewidth=linewidth, linestyle=linestyle)
 end
 
 # Atomic convert_arguments for blob detections with dashed outlines
-Makie.used_attributes(::Vector{IsoBlobDetection}) = (:color, :scale_factor, :marker, :markersize, :linewidth, :linestyle)
+Makie.used_attributes(::Type{<:AbstractPlot}, ::Vector{IsoBlobDetection}) = (:color, :scale_factor, :marker, :markersize, :linewidth, :linestyle)
 
 """
-    Makie.convert_arguments(::Type{Plot{plot}}, detections::Vector{IsoBlobDetection}; kwargs...)
+    Makie.convert_arguments(::Type{<:AbstractPlot}, detections::Vector{IsoBlobDetection}; color=:blue, linestyle=:dash, ...)
 
-Convert blob detections to PlotSpec with dashed outlines for Makie recipe integration.
-Allows users to call: plot(detections; color=:blue, linestyle=:dash)
+Convert blob detections to PlotSpec vector with dashed outlines for Makie recipe integration.
+Allows users to call: plot(detections; color=:blue, linestyle=:dash) or plot!(detections; ...)
 """
-function Makie.convert_arguments(::Type{Plot{plot}}, detections::Vector{IsoBlobDetection};
+function Makie.convert_arguments(::Type{<:AbstractPlot}, detections::Vector{IsoBlobDetection};
                                 color=:blue, scale_factor::Float64=3.0,
                                 marker=:cross, markersize::Float64=15.0, linewidth::Float64=1.0,
-                                linestyle=:dash) where {plot}
-    # Extract IsoBlobs from detections and call through to AbstractBlob implementation
+                                linestyle=:dash)
+    # Extract IsoBlobs from detections and call plotblobs
     blobs = [det.blob for det in detections]
-    return Makie.convert_arguments(Plot{plot}, blobs; color=color, scale_factor=scale_factor,
-                                  marker=marker, markersize=markersize, linewidth=linewidth,
-                                  linestyle=linestyle)
+    return plotblobs(blobs; color=color, scale_factor=scale_factor,
+                    marker=marker, markersize=markersize,
+                    linewidth=linewidth, linestyle=linestyle)
 end
 
-# Tuple-based convert_arguments for pattern and blobs
-Makie.used_attributes(::Type{<:Plot}, ::Any, ::Vector{<:AbstractBlob}) = (:color, :scale_factor, :marker, :markersize, :linewidth)
+# Direct tuple conversion - returns data tuples (Makie standard pattern for multiple arguments)
+# This enables: scatter(img, blobs) but blobs will be plotted as points, not overlaid on image
+# For proper image+blob overlay, use ImageWithBlobs wrapper struct instead
 
 """
-    Makie.convert_arguments(P::Type{<:AbstractPlot}, pattern, blobs::Vector{<:AbstractBlob}; kwargs...)
+    Makie.convert_arguments(::PointBased, image::AbstractMatrix, blobs::Vector{<:AbstractBlob})
 
-Convert pattern and blobs tuple to PlotSpec for Makie recipe integration.
-Allows users to call: plot(pattern, blobs; color=:red, scale_factor=2.0)
+Convert image and blobs to point data for scatter-style plots.
+Note: This plots blobs as points in a scatter plot, NOT overlaid on the image.
+For image with blob overlay, use `ImageWithBlobs` wrapper instead.
 """
-function Makie.convert_arguments(P::Type{<:AbstractPlot}, pattern, blobs::Vector{<:AbstractBlob};
-                                 color=:green, scale_factor::Float64=3.0,
-                                 marker=:cross, markersize::Float64=15.0, linewidth::Float64=1.0)
-
-    # Create standalone image with proper y-axis orientation
-    lscene = imshow(pattern)
-
-    # Add blob overlays to the LScene
-    blob_specs = plotblobs(blobs; color=color, scale_factor=scale_factor, marker=marker, markersize=markersize, linewidth=linewidth)
-    append!(lscene.plots, blob_specs)
-
-    # For SpecApi pattern, return the pattern and blobs as separate data
-    # Users should use: lscene = imshow(pattern); append!(lscene.plots, plotblobs(blobs))
-    # This convert_arguments is mainly for documentation/convenience
-    return (pattern, blobs)
-end
-
-# Tuple-based convert_arguments for detection results (pattern, detected_blobs, ground_truth_blobs)
-Makie.used_attributes(::Tuple{Any, Vector{<:AbstractBlob}, Union{Vector{<:AbstractBlob}, Nothing}}) = (:detected_color, :ground_truth_color, :scale_factor)
-
-"""
-    Makie.convert_arguments(::Type{Plot{plot}}, pattern, detected_blobs::Vector{<:AbstractBlob}, ground_truth_blobs; kwargs...)
-
-Convert pattern, detected blobs, and ground truth blobs tuple to PlotSpec for Makie recipe integration.
-Allows users to call: plot(pattern, detected_blobs, ground_truth_blobs; detected_color=:red, ground_truth_color=:green)
-"""
-function Makie.convert_arguments(::Type{Plot{plot}}, pattern, detected_blobs::Vector{<:AbstractBlob},
-                                ground_truth_blobs::Union{Vector{<:AbstractBlob}, Nothing};
-                                detected_color=:red, ground_truth_color=:green,
-                                scale_factor::Float64=3.0) where {plot}
-    # Create standalone image with proper y-axis orientation
-    lscene = imshow(pattern)
-
-    # Add ground truth blobs with alpha
-    if ground_truth_blobs !== nothing && !isempty(ground_truth_blobs)
-        gt_specs = plotblobs(ground_truth_blobs;
-                            color=(ground_truth_color, 0.7),
-                            scale_factor=scale_factor)
-        append!(lscene.plots, gt_specs)
+function Makie.convert_arguments(::Makie.PointBased, image::AbstractMatrix, blobs::Vector{<:AbstractBlob})
+    # Extract blob centers as points (standard Makie pattern for multiple args)
+    if isempty(blobs)
+        return (Point2f[],)
     end
 
-    # Add detected blobs
-    detected_specs = plotblobs(detected_blobs;
-                              color=detected_color,
-                              scale_factor=scale_factor)
-    append!(lscene.plots, detected_specs)
+    centers = [ustrip.(blob.center) for blob in blobs]
+    points = [Point2f(c[1], c[2]) for c in centers]
+    return (points,)
+end
 
-    # For SpecApi pattern, return the data components
-    # Users should use the manual SpecApi pattern for full control
-    return (pattern, detected_blobs, ground_truth_blobs)
+# Wrapper struct for image with blobs overlay - following Makie's CustomMatrix pattern
+"""
+    ImageWithBlobs(image, blobs; color=:green, scale_factor=3.0, marker=:cross, markersize=15.0, linewidth=1.0)
+
+Wrapper struct for plotting an image with blob overlays using convert_arguments.
+Follows the Makie SpecApi pattern with a custom struct (like CustomMatrix in docs).
+
+# Examples
+```julia
+img = testimage("cameraman")
+blobs = [IsoBlob(Point2(100pd, 100pd), 20pd)]
+obj = ImageWithBlobs(img, blobs; color=:red, scale_factor=3.0)
+fig, _, _ = plot(obj)
+```
+"""
+struct ImageWithBlobs{T<:AbstractMatrix, B<:Vector{<:AbstractBlob}}
+    image::T
+    blobs::B
+    color::Symbol
+    scale_factor::Float64
+    marker::Symbol
+    markersize::Float64
+    linewidth::Float64
+end
+
+function ImageWithBlobs(image::AbstractMatrix, blobs::Vector{<:AbstractBlob};
+                       color::Symbol=:green, scale_factor::Float64=3.0,
+                       marker::Symbol=:cross, markersize::Float64=15.0, linewidth::Float64=1.0)
+    return ImageWithBlobs(image, blobs, color, scale_factor, marker, markersize, linewidth)
+end
+
+"""
+    Makie.convert_arguments(::Type{<:AbstractPlot}, obj::ImageWithBlobs)
+
+Convert ImageWithBlobs to SpecApi PlotSpec vector for Makie recipe integration.
+Returns a vector of PlotSpecs (Image + blob overlays) with proper y-axis orientation.
+"""
+function Makie.convert_arguments(::Type{<:AbstractPlot}, obj::ImageWithBlobs)
+    # Create image PlotSpec with proper y-flip
+    pattern_height, pattern_width = size(obj.image)
+    image_spec = Spec.Image(transpose(obj.image), interpolate=false)
+
+    # Create blob PlotSpecs
+    blob_specs = plotblobs(obj.blobs; color=obj.color, scale_factor=obj.scale_factor,
+                          marker=obj.marker, markersize=obj.markersize, linewidth=obj.linewidth)
+
+    # Combine and return
+    plots = Makie.PlotSpec[image_spec]
+    append!(plots, blob_specs)
+
+    return plots
 end
 
 # Composable plotting functions using Spec API
