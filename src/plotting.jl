@@ -12,15 +12,7 @@ using GeometryBasics: Circle, Point2f
 #   append!(lscene.plots, blob_specs)
 #   fig, _, _ = plot(S.GridLayout([lscene]))
 
-# PlottableImage wrapper for plot!/plot compatibility
-Makie.used_attributes(::Type{<:Plot}, ::PlottableImage) = ()
-
-function Makie.convert_arguments(::Type{<:AbstractPlot}, img::PlottableImage)
-    image_spec = Spec.Image(transpose(img.data), interpolate=img.interpolate)
-    return [image_spec]
-end
-
-# Direct convert_arguments for image matrices (no wrapper needed)
+# Direct convert_arguments for image matrices
 Makie.used_attributes(::Type{<:Plot}, ::AbstractMatrix{<:Colorant}) = (:interpolate,)
 
 function Makie.convert_arguments(::Type{<:AbstractPlot}, img::AbstractMatrix{<:Colorant};
@@ -67,81 +59,6 @@ function Makie.convert_arguments(::Type{<:AbstractPlot}, detections::Vector{IsoB
     return plotblobs(blobs; color=color, scale_factor=scale_factor,
                     marker=marker, markersize=markersize,
                     linewidth=linewidth, linestyle=linestyle)
-end
-
-# Direct tuple conversion - returns data tuples (Makie standard pattern for multiple arguments)
-# This enables: scatter(img, blobs) but blobs will be plotted as points, not overlaid on image
-# For proper image+blob overlay, use ImageWithBlobs wrapper struct instead
-
-"""
-    Makie.convert_arguments(::PointBased, image::AbstractMatrix, blobs::Vector{<:AbstractBlob})
-
-Convert image and blobs to point data for scatter-style plots.
-Note: This plots blobs as points in a scatter plot, NOT overlaid on the image.
-For image with blob overlay, use `ImageWithBlobs` wrapper instead.
-"""
-function Makie.convert_arguments(::Makie.PointBased, image::AbstractMatrix, blobs::Vector{<:AbstractBlob})
-    # Extract blob centers as points (standard Makie pattern for multiple args)
-    if isempty(blobs)
-        return (Point2f[],)
-    end
-
-    centers = [ustrip.(blob.center) for blob in blobs]
-    points = [Point2f(c[1], c[2]) for c in centers]
-    return (points,)
-end
-
-# Wrapper struct for image with blobs overlay - following Makie's CustomMatrix pattern
-"""
-    ImageWithBlobs(image, blobs; color=:green, scale_factor=3.0, marker=:cross, markersize=15.0, linewidth=1.0)
-
-Wrapper struct for plotting an image with blob overlays using convert_arguments.
-Follows the Makie SpecApi pattern with a custom struct (like CustomMatrix in docs).
-
-# Examples
-```julia
-img = testimage("cameraman")
-blobs = [IsoBlob(Point2(100pd, 100pd), 20pd)]
-obj = ImageWithBlobs(img, blobs; color=:red, scale_factor=3.0)
-fig, _, _ = plot(obj)
-```
-"""
-struct ImageWithBlobs{T<:AbstractMatrix, B<:Vector{<:AbstractBlob}}
-    image::T
-    blobs::B
-    color::Symbol
-    scale_factor::Float64
-    marker::Symbol
-    markersize::Float64
-    linewidth::Float64
-end
-
-function ImageWithBlobs(image::AbstractMatrix, blobs::Vector{<:AbstractBlob};
-                       color::Symbol=:green, scale_factor::Float64=3.0,
-                       marker::Symbol=:cross, markersize::Float64=15.0, linewidth::Float64=1.0)
-    return ImageWithBlobs(image, blobs, color, scale_factor, marker, markersize, linewidth)
-end
-
-"""
-    Makie.convert_arguments(::Type{<:AbstractPlot}, obj::ImageWithBlobs)
-
-Convert ImageWithBlobs to SpecApi PlotSpec vector for Makie recipe integration.
-Returns a vector of PlotSpecs (Image + blob overlays) with proper y-axis orientation.
-"""
-function Makie.convert_arguments(::Type{<:AbstractPlot}, obj::ImageWithBlobs)
-    # Create image PlotSpec with proper y-flip
-    pattern_height, pattern_width = size(obj.image)
-    image_spec = Spec.Image(transpose(obj.image), interpolate=false)
-
-    # Create blob PlotSpecs
-    blob_specs = plotblobs(obj.blobs; color=obj.color, scale_factor=obj.scale_factor,
-                          marker=obj.marker, markersize=obj.markersize, linewidth=obj.linewidth)
-
-    # Combine and return
-    plots = Makie.PlotSpec[image_spec]
-    append!(plots, blob_specs)
-
-    return plots
 end
 
 # Composable plotting functions using Spec API

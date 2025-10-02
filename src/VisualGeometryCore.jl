@@ -23,13 +23,6 @@ import Makie.SpecApi as Spec
 using Colors
 using Colors: Colorant
 
-# Define PlottableImage struct here to avoid precompilation issues
-struct PlottableImage
-    data::Any
-    interpolate::Bool
-end
-PlottableImage(data; interpolate=false) = PlottableImage(data, interpolate)
-
 include("utils.jl")        # Units, Size2, geometry utilities
 include("blobs.jl")        # Blob types and operations
 include("types.jl")        # Other types and StructTypes
