@@ -91,7 +91,10 @@ function Makie.convert_arguments(P::Type{<:AbstractPlot}, pattern, blobs::Vector
     blob_specs = plotblobs(blobs; color=color, scale_factor=scale_factor, marker=marker, markersize=markersize, linewidth=linewidth)
     append!(lscene.plots, blob_specs)
 
-    return lscene
+    # For SpecApi pattern, return the pattern and blobs as separate data
+    # Users should use: lscene = imshow(pattern); append!(lscene.plots, plotblobs(blobs))
+    # This convert_arguments is mainly for documentation/convenience
+    return (pattern, blobs)
 end
 
 # Tuple-based convert_arguments for detection results (pattern, detected_blobs, ground_truth_blobs)
@@ -124,7 +127,9 @@ function Makie.convert_arguments(::Type{Plot{plot}}, pattern, detected_blobs::Ve
                               scale_factor=scale_factor)
     append!(lscene.plots, detected_specs)
 
-    return lscene
+    # For SpecApi pattern, return the data components
+    # Users should use the manual SpecApi pattern for full control
+    return (pattern, detected_blobs, ground_truth_blobs)
 end
 
 # Composable plotting functions using Spec API
