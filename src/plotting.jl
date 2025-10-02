@@ -3,7 +3,7 @@
 
 import Makie.SpecApi as Spec
 using Makie: Fixed
-using GeometryBasics: Circle, Point2f, Rect2f
+using GeometryBasics: Circle, Point2f
 
 # Convert arguments for images - MATLAB-style imshow
 Makie.used_attributes(::Type{<:Plot}, ::AbstractMatrix) = (:interpolate,)
@@ -163,12 +163,12 @@ function imshow(pattern; interpolate=false)
     image_spec = Spec.Image(transpose(pattern), interpolate=interpolate)
 
     # Use flipped y-limits (y from height to 0) to display image right-side up
-    # Rect2f(xmin, ymin, xmax, ymax) -> (0, height, width, 0) flips y-axis
+    # limits tuple: (xmin, xmax, ymin, ymax) -> (0, width, height, 0) flips y-axis
     return Spec.LScene(plots=[image_spec], show_axis=false,
                       width=Fixed(pattern_width), height=Fixed(pattern_height),
                       tellwidth=false, tellheight=false,
                       scenekw=(camera=campixel!,
-                              limits=Rect2f(0, pattern_height, pattern_width, 0)))
+                              limits=(0, pattern_width, pattern_height, 0)))
 end
 
 """

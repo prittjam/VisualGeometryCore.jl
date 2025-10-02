@@ -41,7 +41,7 @@ using GeometryBasics: Rect2f
 ish2 = S.Image(img'; interpolate=false)
 # Use flipped y-limits: y goes from height to 0 instead of 0 to height
 lscene2 = S.LScene(show_axis=false, plots=[ish2];
-                   scenekw=(camera=campixel!, limits=Rect2f(0, h, w, 0)))
+                   scenekw=(camera=campixel!, limits=Rect2f(0, w, h, 0)))
 layout2 = S.GridLayout([lscene2])
 f2, _, _ = plot(layout2)
 display(f2)
