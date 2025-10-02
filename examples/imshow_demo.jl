@@ -15,7 +15,46 @@ using GLMakie
 using GeometryBasics: Point2
 import Makie.SpecApi as S
 
+
+# Example: Manual y-flip using scene transformation (post-processing)
+println("Manual Example 1: Y-flip via scene transformation...")
+img = testimage("cameraman")
+h, w = size(img)
+ish = S.Image(img'; interpolate=false)
+lscene = S.LScene(show_axis=false, plots=[ish])
+layout = S.GridLayout([lscene])
+f1, _, _ = plot(layout)
+
+# Post-process: flip y-axis via scene transformation
+for item in f1.layout.content
+    ls = item.content
+    if ls isa Makie.LScene
+        ls.scene.transformation.scale[] = (1.0, -1.0, 1.0)
+        ls.scene.transformation.translation[] = (0.0, Float64(h), 0.0)
+    end
+end
+display(f1)
+
+# Example: Y-flip using flipped limits (declarative, at spec level)
+println("\nManual Example 2: Y-flip via flipped limits...")
+using GeometryBasics: Rect2f
+ish2 = S.Image(img'; interpolate=false)
+# Use flipped y-limits: y goes from height to 0 instead of 0 to height
+lscene2 = S.LScene(show_axis=false, plots=[ish2];
+                   scenekw=(camera=campixel!, limits=Rect2f(0, h, w, 0)))
+layout2 = S.GridLayout([lscene2])
+f2, _, _ = plot(layout2)
+display(f2)
+
+# Example: Multiple scenes with flipped limits
+println("\nManual Example 3: Multiple scenes with flipped limits...")
+scenemat = [lscene2 lscene2; lscene2 lscene2]
+layout3 = S.GridLayout(scenemat, colgaps=[Fixed(0)], rowgaps=[Fixed(0)])
+f3, _, _ = plot(layout3)
+display(f3)
+
 # Load a test image
+println("\n\nNow testing imshow function...")
 println("Loading test image...")
 img = testimage("cameraman")
 println("Image size: ", size(img))
