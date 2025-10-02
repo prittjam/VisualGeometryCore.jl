@@ -23,6 +23,56 @@ function Makie.convert_arguments(::Type{<:AbstractPlot}, img::AbstractMatrix{<:C
     return Spec.GridLayout([lscene]; rowgaps=Fixed(0), colgaps=Fixed(0))
 end
 
+# Compound plot type for image + blobs overlay
+"""
+    ImageBlobs(image, blobs; color=:green, scale_factor=3.0, marker=:cross, markersize=15.0, linewidth=1.0)
+
+Wrapper struct for plotting an image with blob overlays.
+Composes image and blob PlotSpecs using convert_arguments.
+
+# Examples
+```julia
+img = testimage("cameraman")
+blobs = [IsoBlob(Point2(100pd, 100pd), 20pd)]
+fig, ax, pl = plot(ImageBlobs(img, blobs; color=:red, scale_factor=3.0))
+```
+"""
+struct ImageBlobs{T<:AbstractMatrix{<:Colorant}, B<:Vector{<:AbstractBlob}}
+    image::T
+    blobs::B
+    color::Symbol
+    scale_factor::Float64
+    marker::Symbol
+    markersize::Float64
+    linewidth::Float64
+    interpolate::Bool
+end
+
+function ImageBlobs(image::AbstractMatrix{<:Colorant}, blobs::Vector{<:AbstractBlob};
+                   color::Symbol=:green, scale_factor::Float64=3.0,
+                   marker::Symbol=:cross, markersize::Float64=15.0,
+                   linewidth::Float64=1.0, interpolate::Bool=false)
+    return ImageBlobs(image, blobs, color, scale_factor, marker, markersize, linewidth, interpolate)
+end
+
+Makie.used_attributes(::Type{<:Plot}, ::ImageBlobs) = ()
+
+function Makie.convert_arguments(::Type{<:AbstractPlot}, obj::ImageBlobs)
+    # Compose by calling through to simpler convert_arguments
+    # Get the image LScene with y-flip
+    lscene = imshow(obj.image; interpolate=obj.interpolate)
+
+    # Get blob PlotSpecs
+    blob_specs = plotblobs(obj.blobs; color=obj.color, scale_factor=obj.scale_factor,
+                          marker=obj.marker, markersize=obj.markersize, linewidth=obj.linewidth)
+
+    # Compose them
+    append!(lscene.plots, blob_specs)
+
+    # Return GridLayout
+    return Spec.GridLayout([lscene]; rowgaps=Fixed(0), colgaps=Fixed(0))
+end
+
 # Convert arguments for PlotSpec integration with recipes
 # Atomic convert_arguments for blobs only
 Makie.used_attributes(::Type{<:Plot}, ::Vector{<:AbstractBlob}) = (:color, :scale_factor, :marker, :markersize, :linewidth, :linestyle)
