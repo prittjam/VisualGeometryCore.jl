@@ -1,10 +1,6 @@
 # Plotting functionality for VisualGeometryCore types
 # Uses Makie Spec API with convert_arguments for composable plotting
 
-import Makie.SpecApi as Spec
-using Makie: Fixed, campixel!
-using GeometryBasics: Circle, Point2f
-
 # Convert arguments for images using SpecApi
 # Note: For image+blob overlays, use SpecApi composition:
 #   lscene = imshow(image)
@@ -234,9 +230,6 @@ function plotblobs(blobs;
 
     return plot_specs
 end
-
-
-using GLMakie
 
 
 

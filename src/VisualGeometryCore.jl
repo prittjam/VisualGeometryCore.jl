@@ -18,10 +18,12 @@ using ConstructionBase
 
 # Plotting functionality
 using Makie
-using Makie: campixel!
+using Makie: campixel!, Fixed
 import Makie.SpecApi as Spec
 using Colors
 using Colors: Colorant
+using GeometryBasics: Circle, Point2f
+using GLMakie
 
 include("utils.jl")        # Units, Size2, geometry utilities
 include("blobs.jl")        # Blob types and operations
