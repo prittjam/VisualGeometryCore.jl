@@ -22,7 +22,7 @@ end
 
 # Convert arguments for PlotSpec integration with recipes
 # Atomic convert_arguments for blobs only
-Makie.used_attributes(::Type{<:AbstractPlot}, ::Vector{<:AbstractBlob}) = (:color, :scale_factor, :marker, :markersize, :linewidth, :linestyle)
+Makie.used_attributes(::Type{<:Plot}, ::Vector{<:AbstractBlob}) = (:color, :scale_factor, :marker, :markersize, :linewidth, :linestyle)
 
 """
     Makie.convert_arguments(::Type{<:AbstractPlot}, blobs::Vector{<:AbstractBlob}; color=:green, scale_factor=3.0, ...)
@@ -41,7 +41,7 @@ function Makie.convert_arguments(::Type{<:AbstractPlot}, blobs::Vector{<:Abstrac
 end
 
 # Atomic convert_arguments for blob detections with dashed outlines
-Makie.used_attributes(::Type{<:AbstractPlot}, ::Vector{IsoBlobDetection}) = (:color, :scale_factor, :marker, :markersize, :linewidth, :linestyle)
+Makie.used_attributes(::Type{<:Plot}, ::Vector{IsoBlobDetection}) = (:color, :scale_factor, :marker, :markersize, :linewidth, :linestyle)
 
 """
     Makie.convert_arguments(::Type{<:AbstractPlot}, detections::Vector{IsoBlobDetection}; color=:blue, linestyle=:dash, ...)
