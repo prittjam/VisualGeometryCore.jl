@@ -22,3 +22,4 @@ export StructTypes
 # Users can directly call:
 # - plot(pattern, blobs; color=:red, scale_factor=2.0)
 # - plot(pattern, detected_blobs, ground_truth_blobs; detected_color=:red, ground_truth_color=:green)
+export imshow

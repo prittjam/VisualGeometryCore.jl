@@ -1,50 +1,67 @@
 """
-Example demonstrating VisualGeometryCore's plotting with sequential plotting.
+Example demonstrating VisualGeometryCore's image plotting with overlays.
 
-This example shows two ways to plot images and blobs:
-1. Simple image display via convert_arguments
-2. Sequential plotting: plot image first, then add blobs with plot!
+This example shows how to use imshow() to display images and add blob overlays.
 """
 
 using VisualGeometryCore
 using VisualGeometryCore: IsoBlob, pd
 using TestImages
 using GLMakie
-using GeometryBasics: Point2
+using Makie: Fixed
+import Makie.SpecApi as Spec
+using GeometryBasics: Point2, Circle, Point2f
+using Unitful: ustrip
 
 # Load a test image
 println("Loading test image...")
 img = testimage("cameraman")
-height, width = size(img)
-println("Image size: ", (height, width))
+h,w = size(img)
+println("Image size: ", (h, w))
 
-# Example 1: Simple image display using convert_arguments
-println("\nExample 1: Simple image display - plot(img)")
-fig1, _, _ = plot(img; size=(width, height))
-display(fig1)
+# Example 1: Simple image display
+println("\nExample 1: Display image with imshow()")
+lscene = imshow(img)
+fap = plot(Spec.GridLayout([lscene]; rowgaps=Fixed(0), colgaps=Fixed(0)); figure=(; size=(w, h)))
+display(fap)
 
-# Example 2: Sequential plotting using SpecApi - plot image, then add blob overlay
-println("\nExample 2: Sequential SpecApi - plot image then add blobs")
+# Example 2: Display image and add blob overlays using SpecApi
+println("\nExample 2: Display image with blob overlays")
 blobs = [
-    IsoBlob(Point2(width/4*pd, height/4*pd), 20.0pd),
-    IsoBlob(Point2(3*width/4*pd, height/4*pd), 15.0pd),
-    IsoBlob(Point2(width/2*pd, height/2*pd), 25.0pd),
+    IsoBlob(Point2(w/4*pd, h/4*pd), 20.0pd),
+    IsoBlob(Point2(3*w/4*pd, h/4*pd), 15.0pd),
+    IsoBlob(Point2(w/2*pd, h/2*pd), 25.0pd),
 ]
 
-using VisualGeometryCore: imshow, plotblobs
-import Makie.SpecApi as S
-using GLMakie: Fixed
-
-# Build the plot sequentially with SpecApi
+# Get LScene from imshow
 lscene = imshow(img)
-blob_specs = plotblobs(blobs; color=:cyan, scale_factor=3.0)
-append!(lscene.plots, blob_specs)
-layout = S.GridLayout([lscene]; rowgaps=Fixed(0), colgaps=Fixed(0))
-fig2, _, _ = plot(layout; size=(width, height))
-display(fig2)
+
+# Add blob overlays using SpecApi
+blob_x = [ustrip(b.center[1]) for b in blobs]
+blob_y = [ustrip(b.center[2]) for b in blobs]
+blob_σ = [ustrip(b.σ) for b in blobs]
+
+# Add blob centers to lscene plots
+push!(lscene.plots, Spec.Scatter(blob_x, blob_y; color=:cyan, markersize=15, marker=:cross))
+
+# Add blob scales as circles
+for (x, y, σ) in zip(blob_x, blob_y, blob_σ)
+    circle = Circle(Point2f(x, y), 3.0 * σ)
+    push!(lscene.plots, Spec.Poly(circle; color=(:cyan, 0.0), strokecolor=:cyan, strokewidth=2))
+end
+
+# Create the plot
+fap = plot(Spec.GridLayout([lscene]; rowgaps=Fixed(0), colgaps=Fixed(0)); figure=(; size=(w, h)))
 
 println("\n✓ Examples completed!")
-println("\nUsage patterns:")
-println("  plot(img)                                  # Display image")
-println("  lscene = imshow(img)                       # Build with SpecApi")
-println("  append!(lscene.plots, plotblobs(blobs))    # Add blobs sequentially")
+println("\nUsage pattern:")
+println("  # Simple display:")
+println("  h, w = size(img)")
+println("  lscene = imshow(img)")
+println("  fap = plot(Spec.GridLayout([lscene]); figure=(; size=(w, h)))")
+println()
+println("  # With overlays using SpecApi:")
+println("  lscene = imshow(img)")
+println("  push!(lscene.plots, Spec.Scatter(x, y; ...))")
+println("  push!(lscene.plots, Spec.Lines(x, y; ...))")
+println("  fap = plot(Spec.GridLayout([lscene]); figure=(; size=(w, h)))")

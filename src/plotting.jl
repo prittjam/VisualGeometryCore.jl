@@ -89,30 +89,33 @@ end
 # Composable plotting functions using Spec API
 
 """
-    imshow(pattern; interpolate=false)
+    imshow(pattern; interpolate=false) -> LScene
 
-Create a standalone image display with proper orientation (y-axis flipped).
+Create an LScene spec for displaying an image with proper orientation (y-axis flipped).
 
 # Arguments
-- `pattern`: Image pattern to display
+- `pattern`: Image matrix (AbstractMatrix{<:Colorant})
+- `interpolate::Bool=false`: Enable image interpolation
 
-# Keyword Arguments
-- `interpolate=false`: Whether to interpolate between pixels
-
-Returns an LScene BlockSpec with flipped y-limits to display image right-side up.
-Additional plots can be added via `.plots`.
+Returns an LScene spec that can be used with SpecApi for composable plotting.
 
 # Examples
 ```julia
-# Standalone display (MATLAB-style)
-plot(pattern)  # Uses imshow automatically via convert_arguments
+# Display image
+h, w = size(img)
+lscene = imshow(img)
+fap = plot(Spec.GridLayout([lscene]); figure=(; size=(w, h)))
 
-# Manual display with imshow
-lscene = imshow(pattern)
+# Add overlays using SpecApi
+lscene = imshow(img)
+push!(lscene.plots, Spec.Scatter(x, y; color=:red))
+push!(lscene.plots, Spec.Lines(x, y; color=:blue))
+fap = plot(Spec.GridLayout([lscene]); figure=(; size=(w, h)))
 
-# Add overlays to the image
-lscene = imshow(pattern)
-append!(lscene.plots, plotblobs(blobs))  # Add blob overlays
+# Or use plotblobs helper
+lscene = imshow(img)
+append!(lscene.plots, plotblobs(blobs))
+fap = plot(Spec.GridLayout([lscene]); figure=(; size=(w, h)))
 ```
 """
 function imshow(pattern; interpolate=false)
@@ -143,10 +146,10 @@ function imshow(pattern; interpolate=false)
     end
 
     lscene = Spec.LScene(plots=[image_spec], show_axis=false,
-                        width=Fixed(pattern_width), height=Fixed(pattern_height),
-                        tellwidth=false, tellheight=false,
-                        scenekw=(camera=campixel!,
-                                limits=(0, pattern_width, 0, pattern_height)))
+                         width=Fixed(pattern_width), height=Fixed(pattern_height),
+                         tellwidth=false, tellheight=false,
+                         scenekw=(camera=campixel!,
+                                  limits=(0, pattern_width, 0, pattern_height)))
 
     # Add callback to flip y-axis after scene is created
     push!(lscene.then_funcs, flip_y_axis)
@@ -179,7 +182,6 @@ function plotblobs(blobs;
                    linewidth::Float64=1.0,
                    linestyle=:solid)
     plot_specs = Makie.PlotSpec[]
-
     if !isempty(blobs)
         centers = [ustrip.(blob.center) for blob in blobs]
         scales = [ustrip(blob.σ) for blob in blobs]
