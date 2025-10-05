@@ -46,6 +46,51 @@ function Makie.convert_arguments(::Type{<:AbstractPlot}, img::AbstractMatrix{<:C
     return Spec.GridLayout([lscene]; rowgaps=Fixed(0), colgaps=Fixed(0))
 end
 
+# Three-argument convert_arguments for image + detections + ground truth
+Makie.used_attributes(::Type{<:Plot}, ::AbstractMatrix{<:Colorant}, ::Vector{<:AbstractBlob}, ::Vector{<:AbstractBlob}) =
+    (:interpolate, :detection_color, :ground_truth_color, :scale_factor, :detection_marker, :ground_truth_marker,
+     :detection_markersize, :ground_truth_markersize, :linewidth, :detection_linestyle, :ground_truth_linestyle)
+
+"""
+    Makie.convert_arguments(::Type{<:AbstractPlot}, img::AbstractMatrix{<:Colorant}, detections::Vector{<:AbstractBlob}, ground_truth::Vector{<:AbstractBlob}; kwargs...)
+
+Convert image, detected blobs, and ground truth blobs to composed GridLayout with overlays.
+
+# Examples
+```julia
+img = testimage("cameraman")
+detections = [IsoBlob(Point2(100pd, 100pd), 20pd)]
+ground_truth = [IsoBlob(Point2(105pd, 102pd), 18pd)]
+fig, ax, pl = plot(img, detections, ground_truth; scale_factor=3.0)
+```
+"""
+function Makie.convert_arguments(::Type{<:AbstractPlot}, img::AbstractMatrix{<:Colorant},
+                                 detections::Vector{<:AbstractBlob}, ground_truth::Vector{<:AbstractBlob};
+                                 interpolate=false,
+                                 detection_color=:blue, ground_truth_color=:green,
+                                 scale_factor::Float64=3.0,
+                                 detection_marker=:circle, ground_truth_marker=:cross,
+                                 detection_markersize::Float64=8.0, ground_truth_markersize::Float64=10.0,
+                                 linewidth::Float64=1.0,
+                                 detection_linestyle=:dash, ground_truth_linestyle=:solid)
+    # Create base image
+    lscene = imshow(img; interpolate=interpolate)
+
+    # Add ground truth blobs (green, solid)
+    gt_specs = plotblobs(ground_truth; color=ground_truth_color, scale_factor=scale_factor,
+                        marker=ground_truth_marker, markersize=ground_truth_markersize,
+                        linewidth=linewidth, linestyle=ground_truth_linestyle)
+    append!(lscene.plots, gt_specs)
+
+    # Add detection blobs (blue, dashed)
+    det_specs = plotblobs(detections; color=detection_color, scale_factor=scale_factor,
+                         marker=detection_marker, markersize=detection_markersize,
+                         linewidth=linewidth, linestyle=detection_linestyle)
+    append!(lscene.plots, det_specs)
+
+    return Spec.GridLayout([lscene]; rowgaps=Fixed(0), colgaps=Fixed(0))
+end
+
 # Convert arguments for PlotSpec integration with recipes
 # Atomic convert_arguments for blobs only
 Makie.used_attributes(::Type{<:Plot}, ::Vector{<:AbstractBlob}) = (:color, :scale_factor, :marker, :markersize, :linewidth, :linestyle)
