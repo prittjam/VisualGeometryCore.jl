@@ -28,15 +28,18 @@ class HomogeneousConic:
             matrix = np.asarray(matrix)
             if matrix.shape != (3, 3):
                 raise ValueError("Conic matrix must be 3x3")
-            julia_matrix = VisualGeometryCore.numpy_to_julia(matrix)
-            self._julia_obj = jl.HomogeneousConic(julia_matrix)
+            # Convert to HomogeneousConic directly from tuple (column-major order)
+            # Julia matrices are column-major, so we need to transpose
+            matrix_col_major = matrix.T.flatten()
+            self._julia_obj = jl.HomogeneousConic(tuple(matrix_col_major))
         else:
             raise ValueError("Either matrix or julia_conic must be provided")
     
     @property
     def matrix(self):
         """Get the 3x3 conic matrix as NumPy array"""
-        return VisualGeometryCore.julia_to_numpy(self._julia_obj.C)
+        # HomogeneousConic is a 3x3 matrix wrapper, convert directly
+        return VisualGeometryCore.julia_to_numpy(self._julia_obj)
     
     def __repr__(self):
         return f"HomogeneousConic(\n{self.matrix}\n)"
@@ -85,13 +88,13 @@ class Ellipse:
     
     @property
     def semi_axes(self):
-        """Get semi-axes as NumPy array"""
-        return VisualGeometryCore.julia_to_numpy(self._julia_obj.semi_axes)
+        """Get semi-axes as NumPy array [a, b]"""
+        return np.array([float(self._julia_obj.a), float(self._julia_obj.b)])
     
     @property
-    def angle(self):
+    def rotation(self):
         """Get rotation angle in radians"""
-        return float(self._julia_obj.angle)
+        return float(self._julia_obj.θ)
     
     def to_homogeneous_conic(self):
         """Convert to HomogeneousConic representation"""
@@ -115,7 +118,7 @@ class Ellipse:
         try:
             # Try to use Julia decompose for better accuracy
             from .decompose import decompose_ellipse
-            return decompose_ellipse(self.center, self.semi_axes, self.angle, n_points)
+            return decompose_ellipse(self.center, self.semi_axes, self.rotation, n_points)
         except Exception:
             # Fallback to pure Python implementation
             theta = np.linspace(0, 2*np.pi, n_points, endpoint=False)
@@ -130,8 +133,8 @@ class Ellipse:
             y *= b
             
             # Rotate
-            cos_angle = np.cos(self.angle)
-            sin_angle = np.sin(self.angle)
+            cos_angle = np.cos(self.rotation)
+            sin_angle = np.sin(self.rotation)
             
             x_rot = x * cos_angle - y * sin_angle
             y_rot = x * sin_angle + y * cos_angle
@@ -143,5 +146,37 @@ class Ellipse:
             
             return np.column_stack([x_rot, y_rot])
     
+    def evaluate_points(self, points):
+        """
+        Evaluate ellipse equation at given points
+        
+        Parameters:
+        -----------
+        points : ndarray, shape (n, 2)
+            Points to evaluate
+            
+        Returns:
+        --------
+        values : ndarray, shape (n,)
+            Ellipse equation values (should be ~0 for points on ellipse)
+        """
+        points = np.asarray(points)
+        if points.ndim == 1:
+            points = points.reshape(1, -1)
+        
+        # Translate to ellipse center
+        centered = points - self.center
+        
+        # Rotate by -angle to align with axes
+        cos_angle = np.cos(-self.rotation)
+        sin_angle = np.sin(-self.rotation)
+        
+        x_aligned = centered[:, 0] * cos_angle - centered[:, 1] * sin_angle
+        y_aligned = centered[:, 0] * sin_angle + centered[:, 1] * cos_angle
+        
+        # Evaluate ellipse equation: (x/a)² + (y/b)² - 1
+        a, b = self.semi_axes
+        return (x_aligned / a) ** 2 + (y_aligned / b) ** 2 - 1
+    
     def __repr__(self):
-        return f"Ellipse(center={self.center}, semi_axes={self.semi_axes}, angle={self.angle:.3f})"
+        return f"Ellipse(center={self.center}, semi_axes={self.semi_axes}, rotation={self.rotation:.3f})"

@@ -35,6 +35,7 @@ def main():
     
     # Import VisualGeometry components
     from visualgeometry import Circle, Ellipse, HomogeneousConic
+    from visualgeometry.core import jl
     
     print("✓ Successfully imported VisualGeometry with Julia backend")
     
@@ -92,7 +93,10 @@ def main():
     print("-" * 23)
     
     transformed_conic = HomogeneousConic(matrix=transformed_conic_matrix)
-    ellipse = transformed_conic.to_ellipse()
+    
+    # Convert HomogeneousConic to Ellipse using Julia constructor
+    julia_ellipse = jl.Ellipse(transformed_conic._julia_obj)
+    ellipse = Ellipse(julia_ellipse=julia_ellipse)
     
     print(f"Extracted ellipse: {ellipse}")
     print(f"Center: {ellipse.center}")
