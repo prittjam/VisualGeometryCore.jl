@@ -76,21 +76,6 @@ python test_decompose.py
 
 ---
 
-#### `circle_to_ellipse_transform.py`
-**Pure Python transformation example**
-
-Demonstrates:
-- Coordinate transformation mathematics
-- NumPy-based geometric operations
-- Transformation matrix composition
-- Visualization without Julia backend dependency
-
-```bash
-python circle_to_ellipse_transform.py
-```
-
----
-
 #### `circle_to_ellipse_julia.py`
 **Julia backend integration showcase**
 
@@ -165,8 +150,8 @@ python test_decompose.py
 # Basic usage patterns
 python basic_usage.py
 
-# Advanced transformations
-python circle_to_ellipse_transform.py
+# Advanced Julia integration
+python circle_to_ellipse_julia.py
 ```
 
 ### Troubleshooting
