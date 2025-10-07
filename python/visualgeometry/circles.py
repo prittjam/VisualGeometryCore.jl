@@ -52,17 +52,31 @@ class Circle:
     
     def points(self, n_points=100):
         """
-        Generate points on the circle boundary
+        Generate points on the circle boundary using Julia backend
+        
+        Uses Julia's GeometryBasics.decompose for high-precision point generation.
+        Falls back to pure Python implementation if Julia backend unavailable.
         
         Parameters:
         -----------
-        n_points : int
-            Number of points to generate
+        n_points : int, optional
+            Number of points to generate (default: 100)
             
         Returns:
         --------
         points : ndarray, shape (n_points, 2)
-            Points on circle boundary
+            Points on circle boundary as [x, y] coordinates
+            
+        Examples:
+        ---------
+        >>> circle = Circle([0, 0], 1.0)
+        >>> points = circle.points(64)
+        >>> points.shape
+        (64, 2)
+        >>> # Verify points are on circle boundary
+        >>> distances = np.linalg.norm(points, axis=1)
+        >>> np.allclose(distances, 1.0)
+        True
         """
         try:
             # Try to use Julia decompose for better accuracy

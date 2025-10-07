@@ -14,26 +14,28 @@ python plot_circle_ellipse_transform.py
 
 ### 🎨 Visualization Examples
 
-#### `plot_circle_ellipse_transform.py` ⭐ **Featured Example**
-**Complete circle to ellipse transformation with visualization**
+#### `circle_to_ellipse_julia.py` ⭐ **Featured Example**
+**Complete circle to ellipse transformation with Julia backend integration**
 
 Demonstrates:
 - Julia backend integration for high-performance point generation
-- Custom transformation matrices (scale, rotation, translation)
-- Professional matplotlib visualization
-- Transformation analysis and statistics
+- HomogeneousConic transformations using matrix operations
+- Conversion between geometric representations (Circle ↔ Conic ↔ Ellipse)
+- Professional matplotlib visualization with verification
+- Numerical accuracy validation
 
 ```bash
-python plot_circle_ellipse_transform.py
+python circle_to_ellipse_julia.py
 ```
 
-**Output**: Interactive plot + `circle_ellipse_transformation.png`
+**Output**: Interactive plot + `julia_circle_to_ellipse.png`
 
 **Key Features**:
-- Uses Julia `GeometryBasics.decompose` for 64-point circle generation
-- Applies 2.5x/1.2x scaling, 45° rotation, and [2,1] translation
-- Creates 3-panel visualization showing transformation pipeline
-- Calculates transformation determinant and area ratios
+- Uses Julia `GeometryBasics.decompose` for 100-point circle generation
+- Applies affine transformation (2x/1.5x scaling, 30° rotation, [1,2] translation)
+- Converts Circle → HomogeneousConic → transformed → Ellipse
+- Verifies transformation accuracy (typically < 1e-10 error)
+- Creates 3-panel visualization showing complete pipeline
 
 ---
 
@@ -54,25 +56,7 @@ python demo_structure.py
 
 ### 🔧 Technical Examples
 
-#### `test_decompose.py`
-**Julia backend testing and performance analysis**
 
-Comprehensive testing of:
-- Julia GeometryBasics.decompose integration
-- Accuracy verification against analytical results
-- Performance comparison: Julia vs pure Python
-- Fallback behavior when Julia unavailable
-
-```bash
-python test_decompose.py
-```
-
-**Sample Output**:
-```
-✓ Generated 8 points using Julia GeometryBasics.decompose
-✓ Maximum difference: 0.00e+00 (perfect accuracy)
-✓ Julia backend is 2.1x faster than pure Python
-```
 
 ---
 
@@ -145,7 +129,7 @@ cd python/examples
 python plot_circle_ellipse_transform.py
 
 # Test Julia backend integration
-python test_decompose.py
+julia -e 'using Pkg; Pkg.test()'
 
 # Basic usage patterns
 python basic_usage.py
@@ -271,7 +255,7 @@ def analyze_geometric_data():
 3. Try `plot_circle_ellipse_transform.py` - See visualization capabilities
 
 ### Intermediate  
-1. Study `test_decompose.py` - Understand backend integration
+1. Study `circle_to_ellipse_julia.py` - Understand backend integration
 2. Explore `circle_to_ellipse_transform.py` - Learn transformation math
 3. Experiment with custom transformations
 

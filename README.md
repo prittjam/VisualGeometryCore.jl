@@ -57,7 +57,7 @@ For the Python interface, see [`python/README.md`](python/README.md).
 using VisualGeometryCore
 using GeometryBasics
 
-# Create a circle
+# Create a circle using GeometryBasics
 center = Point2f(2.0, 3.0)
 radius = 1.5f0
 circle = GeometryBasics.Circle(center, radius)
@@ -66,40 +66,50 @@ circle = GeometryBasics.Circle(center, radius)
 points = GeometryBasics.decompose(Point2f, circle; resolution=64)
 println("Generated $(length(points)) points")
 
-# Create an ellipse
+# Create an ellipse using VisualGeometryCore
 ellipse = Ellipse(Point2f(0, 0), 3.0f0, 2.0f0, π/4)
-ellipse_points = decompose(Point2f, ellipse; resolution=32)
+ellipse_points = GeometryBasics.decompose(Point2f, ellipse; resolution=32)
+println("Generated $(length(ellipse_points)) ellipse points")
 ```
 
 ### Coordinate Transformations
 ```julia
 using VisualGeometryCore
+using CoordinateTransformations
+using Rotations
 
-# Create transformation matrices
-euclidean = EuclideanMat(π/4, [2.0, 1.0])  # 45° rotation + translation
-similarity = SimilarityMat(2.0, π/6, [1.0, -1.0])  # Scale + rotate + translate
-affine = AffineMat([2.0 0.5; 0.0 1.5], [0.0, 2.0])  # General affine transform
+# Create transformations using CoordinateTransformations
+rotation = LinearMap(RotMatrix{2}(π/4))  # 45° rotation
+translation = Translation([2.0, 1.0])    # translation
+euclidean = translation ∘ rotation       # compose transformations
+
+# Convert to typed homogeneous matrices for efficiency
+euclidean_mat = to_homogeneous(euclidean)  # Returns EuclideanMat{Float64}
+println("Transform type: $(typeof(euclidean_mat))")
 
 # Apply transformations to points
 original_points = [Point2f(1, 0), Point2f(0, 1), Point2f(-1, 0)]
-transformed = [euclidean * p for p in original_points]
+transformed = [euclidean(p) for p in original_points]
 ```
 
 ### Homogeneous Conics
 ```julia
 using VisualGeometryCore
+using GeometryBasics
 
-# Create a circle as homogeneous conic
-circle_conic = HomogeneousConic([1.0 0.0 -2.0; 0.0 1.0 -3.0; -2.0 -3.0 3.0])
+# Create a circle and convert to homogeneous conic
+circle = GeometryBasics.Circle(Point2f(2, 3), 1.5f0)
+circle_conic = HomogeneousConic(circle)
+println("Circle conic matrix:")
+println(SMatrix{3,3}(circle_conic))
 
-# Convert to geometric primitives
-if is_circle(circle_conic)
-    circle = Circle(circle_conic)
-    println("Circle: center=$(circle.center), radius=$(circle.radius)")
-elseif is_ellipse(circle_conic)
-    ellipse = Ellipse(circle_conic)
-    println("Ellipse: center=$(ellipse.center), semi_axes=$(ellipse.a, ellipse.b)")
-end
+# Create an ellipse and convert to homogeneous conic
+ellipse = Ellipse(Point2f(0, 0), 3.0f0, 2.0f0, π/4)
+ellipse_conic = HomogeneousConic(ellipse)
+
+# Convert back from conic to geometric primitives
+recovered_ellipse = Ellipse(ellipse_conic)
+println("Recovered ellipse: center=$(recovered_ellipse.center), axes=$(recovered_ellipse.a, recovered_ellipse.b)")
 ```
 
 ### Units and Measurements

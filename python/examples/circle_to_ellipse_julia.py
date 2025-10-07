@@ -200,7 +200,7 @@ if __name__ == "__main__":
         print("- VisualGeometryCore.jl is not installed")
         print("\nNext steps:")
         print("1. Resolve Julia/OpenSSL setup (see TROUBLESHOOTING.md)")
-        print("2. Test Julia backend: python test_interface.py")
+        print("2. Test Julia backend: julia -e 'using Pkg; Pkg.test()'")
         print("3. Run this example again once Julia backend works")
         
     except Exception as e:

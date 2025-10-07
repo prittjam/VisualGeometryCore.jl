@@ -154,8 +154,12 @@ python examples/demo_structure.py
 
 ### Full Integration Test (requires Julia setup)
 ```bash
-cd python
-python test_interface.py
+# Test Julia backend
+julia -e 'using Pkg; Pkg.test()'
+
+# Test Python examples
+cd python/examples
+python circle_to_ellipse_julia.py
 ```
 
 ### Installation Test

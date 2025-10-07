@@ -2,6 +2,29 @@
 # Homogeneous 2D Transforms
 # ========================================================================
 
+"""
+    @staticmat3(Name)
+
+Macro to create typed 3×3 homogeneous transformation matrix wrappers.
+
+Creates a struct `Name{T}` that:
+- Stores data as `NTuple{9,T}` for efficiency
+- Implements minimal StaticArrays interface
+- Supports tuple-based construction and conversion
+- Provides type-safe homogeneous matrix operations
+
+# Generated Interface
+- `Name{T}(args::Vararg{T,9})`: Constructor from 9 elements
+- `Name{T}(M::SMatrix{3,3,T})`: Constructor from StaticArrays matrix
+- `Base.Tuple(A::Name{T})`: Convert to tuple
+- Standard matrix indexing: `A[i,j]` and `A[k]`
+
+# Example
+```julia
+@staticmat3 MyMatrix
+m = MyMatrix{Float64}(1,0,0, 0,1,0, 0,0,1)  # Identity matrix
+```
+"""
 # --- 3×3 typed homogeneous wrappers (tuple-backed, minimal StaticArrays interface) ---
 macro staticmat3(Name)
     name = esc(Name)
@@ -21,13 +44,62 @@ macro staticmat3(Name)
     end
 end
 
-@staticmat3 HomRotMat        # homogeneous rotation (no translation)
-@staticmat3 HomTransMat      # homogeneous translation (no rotation)
-@staticmat3 HomScaleIsoMat   # homogeneous isotropic scaling (s*I)
-@staticmat3 HomScaleAnisoMat # homogeneous anisotropic diagonal scaling diag(sx,sy)
-@staticmat3 EuclideanMat     # rotation + translation (rigid body)
-@staticmat3 SimilarityMat    # rotation + translation + uniform scaling
-@staticmat3 AffineMat        # general affine (fallback & compositions)
+"""
+    HomRotMat{T} <: StaticMatrix{3,3,T}
+
+Homogeneous 2D rotation matrix (no translation).
+Represents pure rotation transformations in homogeneous coordinates.
+"""
+@staticmat3 HomRotMat
+
+"""
+    HomTransMat{T} <: StaticMatrix{3,3,T}
+
+Homogeneous 2D translation matrix (no rotation).
+Represents pure translation transformations in homogeneous coordinates.
+"""
+@staticmat3 HomTransMat
+
+"""
+    HomScaleIsoMat{T} <: StaticMatrix{3,3,T}
+
+Homogeneous 2D isotropic (uniform) scaling matrix.
+Represents uniform scaling transformations where sx = sy.
+"""
+@staticmat3 HomScaleIsoMat
+
+"""
+    HomScaleAnisoMat{T} <: StaticMatrix{3,3,T}
+
+Homogeneous 2D anisotropic (non-uniform) scaling matrix.
+Represents diagonal scaling transformations with different sx, sy values.
+"""
+@staticmat3 HomScaleAnisoMat
+
+"""
+    EuclideanMat{T} <: StaticMatrix{3,3,T}
+
+Homogeneous 2D Euclidean (rigid body) transformation matrix.
+Combines rotation and translation while preserving distances and angles.
+"""
+@staticmat3 EuclideanMat
+
+"""
+    SimilarityMat{T} <: StaticMatrix{3,3,T}
+
+Homogeneous 2D similarity transformation matrix.
+Combines rotation, translation, and uniform scaling while preserving angles.
+"""
+@staticmat3 SimilarityMat
+
+"""
+    AffineMat{T} <: StaticMatrix{3,3,T}
+
+Homogeneous 2D general affine transformation matrix.
+Most general linear transformation that preserves parallel lines.
+Used as fallback for complex transformation compositions.
+"""
+@staticmat3 AffineMat
 
 const HomMatAny = Union{HomRotMat, HomTransMat, HomScaleIsoMat, HomScaleAnisoMat, EuclideanMat, SimilarityMat, AffineMat}
 

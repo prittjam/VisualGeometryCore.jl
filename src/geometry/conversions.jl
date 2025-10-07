@@ -2,7 +2,25 @@
 # Coordinate Conversions
 # ========================================================================
 
-# Convert 2×2 matrix and 2D translation to 3×3 homogeneous matrix
+"""
+    to_homogeneous(M::SMatrix{2,2,T}, t::SVector{2,T}) -> SMatrix{3,3,T}
+
+Convert 2×2 linear transformation matrix and 2D translation vector to 3×3 homogeneous matrix.
+
+# Arguments
+- `M::SMatrix{2,2,T}`: 2×2 linear transformation matrix
+- `t::SVector{2,T}`: 2D translation vector
+
+# Returns
+- `SMatrix{3,3,T}`: 3×3 homogeneous transformation matrix
+
+# Example
+```julia
+M = @SMatrix [2.0 0.0; 0.0 1.5]  # scaling
+t = SVector(1.0, 2.0)            # translation
+H = to_homogeneous(M, t)         # 3×3 homogeneous matrix
+```
+"""
 @inline to_homogeneous(M::SMatrix{2,2,T}, t::SVector{2,T}) where {T} = 
     @SMatrix [M[1,1] M[1,2] t[1]
               M[2,1] M[2,2] t[2]

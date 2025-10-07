@@ -192,7 +192,7 @@ if __name__ == "__main__":
     print("NEXT STEPS")
     print("=" * 55)
     print("1. Resolve OpenSSL conflict (see TROUBLESHOOTING.md)")
-    print("2. Test with Julia backend: python test_interface.py")
+    print("2. Test with Julia backend: julia -e 'using Pkg; Pkg.test()'")
     print("3. Run full examples: python examples/basic_usage.py")
     print("4. Integrate with your existing Python workflows")
     print("\nThe Python interface structure is complete and ready to use!")

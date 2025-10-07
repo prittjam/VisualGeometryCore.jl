@@ -103,17 +103,32 @@ class Ellipse:
     
     def points(self, n_points=100):
         """
-        Generate points on the ellipse boundary
+        Generate points on the ellipse boundary using Julia backend
+        
+        Uses Julia's GeometryBasics.decompose for high-precision point generation
+        with proper handling of rotation and scaling. Falls back to pure Python 
+        implementation if Julia backend unavailable.
         
         Parameters:
         -----------
-        n_points : int
-            Number of points to generate
+        n_points : int, optional
+            Number of points to generate (default: 100)
             
         Returns:
         --------
         points : ndarray, shape (n_points, 2)
-            Points on ellipse boundary
+            Points on ellipse boundary as [x, y] coordinates
+            
+        Examples:
+        ---------
+        >>> ellipse = Ellipse([0, 0], [2, 1], np.pi/4)
+        >>> points = ellipse.points(64)
+        >>> points.shape
+        (64, 2)
+        >>> # Verify points satisfy ellipse equation
+        >>> errors = ellipse.evaluate_points(points)
+        >>> np.allclose(errors, 0, atol=1e-10)
+        True
         """
         try:
             # Try to use Julia decompose for better accuracy

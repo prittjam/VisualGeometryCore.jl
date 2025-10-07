@@ -6,4 +6,5 @@ using Test
     include("test_coordinate_conversion.jl")
     include("test_transforms.jl")
     include("test_integration.jl")
+    include("test_python_interface.jl")
 end

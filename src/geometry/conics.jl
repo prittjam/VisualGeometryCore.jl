@@ -19,9 +19,26 @@ The constructor automatically ensures `a ≥ b` by swapping axes and adjusting t
 - `b::T`: Semi-minor axis length (always ≤ a)  
 - `θ::T`: Orientation angle in radians [0, π)
 
-# Example
+# Constructors
 ```julia
+# Basic constructor with Point2 center
 ellipse = Ellipse(Point2(1.0, 2.0), 3.0, 2.0, π/4)
+
+# Constructor with vector center (automatically converted to Point2)
+ellipse = Ellipse([1.0, 2.0], 3.0, 2.0, π/4)
+
+# Mixed numeric types are automatically promoted
+ellipse = Ellipse([1, 2], 3.0f0, 2, π/4)
+```
+
+# Integration with GeometryBasics
+```julia
+# Generate boundary points using GeometryBasics.decompose
+points = GeometryBasics.decompose(Point2f, ellipse; resolution=64)
+
+# Access geometric properties
+center = GeometryBasics.coordinates(ellipse)  # Returns ellipse.center
+major_radius = GeometryBasics.radius(ellipse)  # Returns max(a, b)
 ```
 """
 struct Ellipse{T}

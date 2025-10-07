@@ -8,7 +8,7 @@ A high-performance Python interface to VisualGeometryCore.jl, providing seamless
 - **Seamless Integration**: Automatic Julia-Python type conversion with NumPy arrays
 - **Complete Geometry Suite**: Circles, ellipses, and coordinate transformations
 - **Matplotlib Ready**: Direct integration with Python visualization ecosystem
-- **Fallback Support**: Pure Python implementations when Julia backend unavailable
+- **Robust Fallback**: Pure Python implementations when Julia backend unavailable
 
 ## 📦 Installation
 
@@ -594,6 +594,9 @@ def test_julia_backend():
 
 # Run test
 test_julia_backend()
+
+# For comprehensive testing, run the Julia test suite:
+# julia -e 'using Pkg; Pkg.test()'
 ```
 
 ## 🚨 Troubleshooting
@@ -615,6 +618,14 @@ from visualgeometry import Circle
 circle = Circle([0, 0], 1.0)
 points = circle.points(32)  # Uses NumPy fallback
 print("Fallback mode: points generated with pure Python")
+
+# Performance will be reduced but functionality remains
+import time
+start = time.time()
+for _ in range(100):
+    points = circle.points(64)
+fallback_time = time.time() - start
+print(f"Fallback performance: {fallback_time:.4f}s for 100 iterations")
 ```
 
 #### Import Errors

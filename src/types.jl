@@ -4,9 +4,44 @@
 # ========================================================================
 
 """
-    EuclideanMap{N,T,R<:Rotation{N,T},V<:SVector{N,T}} <: Transformation
+    EuclideanMap{N,T,R<:Rotation{N,T},V<:StaticVector{N,T}} <: Transformation
 
-Rigid transform `x ↦ R*x + t` in `N` dims.
+Rigid transformation `x ↦ R*x + t` in `N` dimensions, combining rotation and translation.
+
+This represents a Euclidean (rigid body) transformation that preserves distances and angles.
+It consists of a rotation `R` followed by a translation `t`.
+
+# Fields
+- `R::Rotation{N,T}`: Rotation component (from Rotations.jl)
+- `t::StaticVector{N,T}`: Translation vector
+
+# Constructors
+```julia
+# From rotation and translation vector
+R = RotMatrix{2}(π/4)  # 45° rotation
+t = [2.0, 1.0]         # translation
+euclidean = EuclideanMap(R, t)
+
+# From MRP (Modified Rodrigues Parameters) for 3D
+mrp = MRP(0.1, 0.2, 0.3)
+euclidean_3d = EuclideanMap(mrp, [1.0, 2.0, 3.0])
+
+# From tuple
+euclidean = EuclideanMap((R, t))
+```
+
+# Usage
+```julia
+# Apply transformation to points
+point = Point2f(1.0, 0.0)
+transformed = euclidean(point)
+
+# Compose transformations
+combined = euclidean2 ∘ euclidean1
+
+# Inverse transformation
+inverse_euclidean = inv(euclidean)
+```
 """
 struct EuclideanMap{N,T,R<:Rotation{N,T},V<:StaticVector{N,T}} <: CoordinateTransformations.Transformation
     R::R
