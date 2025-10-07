@@ -1,0 +1,66 @@
+"""
+Example demonstrating VisualGeometryCore's image plotting with overlays.
+
+This example shows how to use imshow() to display images and add blob overlays.
+"""
+
+using VisualGeometryCore
+using VisualGeometryCore: IsoBlob, pd
+using TestImages
+using GLMakie
+using Makie: Fixed
+import Makie.SpecApi as Spec
+using GeometryBasics: Point2, Circle, Point2f
+using Unitful: ustrip
+
+# Load a test image
+println("Loading test image...")
+img = testimage("cameraman")
+h,w = size(img)
+println("Image size: ", (h, w))
+
+# Example 1: Simple image display
+println("\nExample 1: Display image with imshow()")
+lscene = imshow(img)
+fap = plot(Spec.GridLayout([lscene]; rowgaps=Fixed(0), colgaps=Fixed(0)))
+display(fap)
+
+# Example 2: Display image and add blob overlays using SpecApi
+println("\nExample 2: Display image with blob overlays")
+blobs = [
+    IsoBlob(Point2(w/4*pd, h/4*pd), 20.0pd),
+    IsoBlob(Point2(3*w/4*pd, h/4*pd), 15.0pd),
+    IsoBlob(Point2(w/2*pd, h/2*pd), 25.0pd),
+]
+
+# Get LScene from imshow
+lscene = imshow(img)
+
+# Add blob overlays using SpecApi
+blob_x = [ustrip(b.center[1]) for b in blobs]
+blob_y = [ustrip(b.center[2]) for b in blobs]
+blob_σ = [ustrip(b.σ) for b in blobs]
+
+# Add blob centers to lscene plots
+push!(lscene.plots, Spec.Scatter(blob_x, blob_y; color=:cyan, markersize=15, marker=:cross))
+
+# Add blob scales as circles
+for (x, y, σ) in zip(blob_x, blob_y, blob_σ)
+    circle = Circle(Point2f(x, y), 3.0 * σ)
+    push!(lscene.plots, Spec.Poly(circle; color=(:cyan, 0.0), strokecolor=:cyan, strokewidth=2))
+end
+
+# Create the plot
+fap = plot(Spec.GridLayout([lscene]; rowgaps=Fixed(0), colgaps=Fixed(0)))
+
+println("\n✓ Examples completed!")
+println("\nUsage pattern:")
+println("  # Simple display:")
+println("  lscene = imshow(img)")
+println("  fap = plot(Spec.GridLayout([lscene]))")
+println()
+println("  # With overlays using SpecApi:")
+println("  lscene = imshow(img)")
+println("  push!(lscene.plots, Spec.Scatter(x, y; ...))")
+println("  push!(lscene.plots, Spec.Lines(x, y; ...))")
+println("  fap = plot(Spec.GridLayout([lscene]))")

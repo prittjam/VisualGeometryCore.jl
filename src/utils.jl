@@ -16,6 +16,38 @@ Used by utilities like `radius` and `area` when not explicitly provided.
 const SIGMA_CUTOFF = 3.0
 const CLEAN_TOL = 1e-9  # tolerance for snapping near integers/zero in JSON and helpers
 
+# =============================================================================
+# Coordinate Conversion Functions
+# =============================================================================
+
+"""
+    to_homogeneous(v::AbstractVector{T}) -> SVector{N+1,T}
+
+Convert N-dimensional vector to homogeneous coordinates by appending w=1.
+Uses `push` for efficient static vector construction on the stack.
+
+# Examples
+```julia
+to_homogeneous(SVector(1.0, 2.0))     # -> SVector(1.0, 2.0, 1.0)
+to_homogeneous(Point2(3.0, 4.0))      # -> SVector(3.0, 4.0, 1.0)
+```
+"""
+@inline to_homogeneous(v::AbstractVector{T}) where {T} = push(SVector{length(v),T}(v), one(T))
+
+"""
+    to_euclidean(v::AbstractVector{T}) -> SVector{N-1,T}
+
+Convert homogeneous coordinates to euclidean by perspective division (removing last component).
+Uses `pop` for efficient static vector construction on the stack.
+
+# Examples
+```julia
+to_euclidean(SVector(2.0, 4.0, 2.0))  # -> SVector(1.0, 2.0)  [divides by w=2.0]
+to_euclidean(SVector(3.0, 6.0, 3.0))  # -> SVector(1.0, 2.0)  [divides by w=3.0]
+```
+"""
+@inline to_euclidean(v::AbstractVector{T}) where {T} = pop(SVector{length(v),T}(v)) ./ v[end]
+
 # Define a dimensionless dimension for pixels/dots
 @dimension 𝐍 "𝐍" LogicalUnits   
 
