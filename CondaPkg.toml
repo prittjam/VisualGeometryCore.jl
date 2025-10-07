@@ -1,0 +1,8 @@
+[deps]
+pip = ""
+python = "3.11"
+
+[pip.deps]
+matplotlib = ""
+juliacall = ""
+numpy = ""
