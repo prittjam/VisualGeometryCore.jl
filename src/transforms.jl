@@ -52,7 +52,27 @@ to_homogeneous(Tx::CoordinateTransformations.Translation{<:SVector{2,T}}) where 
                                     0.0 1.0 Tx.translation[2]
                                     0.0 0.0 1.0 ]))
 
-# LinearMap: ONLY diagonals are treated as scaling; else Affine (zero translation)
+# LinearMap: Type-based dispatch for specific matrix types
+# Uniform scaling (isotropic)
+to_homogeneous(L::CoordinateTransformations.LinearMap{<:UniformScaling{T}}) where {T} =
+    HomScaleIsoMat{T}(Tuple(to_homogeneous(SMatrix{2,2,T}(L.linear), SVector{2,T}(0,0))))
+
+# Diagonal scaling
+function to_homogeneous(L::CoordinateTransformations.LinearMap{<:Diagonal{T}}) where {T}
+    sx, sy = L.linear.diag[1], L.linear.diag[2]
+    M = SMatrix{2,2,T}(L.linear)
+    if sx == sy
+        return HomScaleIsoMat{T}(Tuple(to_homogeneous(M, SVector{2,T}(0,0))))
+    else
+        return HomScaleAnisoMat{T}(Tuple(to_homogeneous(M, SVector{2,T}(0,0))))
+    end
+end
+
+# Rotation matrices (from Rotations.jl)
+to_homogeneous(L::CoordinateTransformations.LinearMap{<:Rotations.RotMatrix{2,T}}) where {T} =
+    HomRotMat{T}(Tuple(to_homogeneous(SMatrix{2,2,T}(L.linear), SVector{2,T}(0,0))))
+
+# General matrix - fallback with runtime checks
 function to_homogeneous(L::CoordinateTransformations.LinearMap{Mat}) where {Mat<:AbstractMatrix}
     T = eltype(L.linear)
     M = SMatrix{2,2,T}(L.linear)
@@ -66,6 +86,13 @@ function to_homogeneous(L::CoordinateTransformations.LinearMap{Mat}) where {Mat<
     else
         return AffineMat{T}(Tuple(to_homogeneous(M, SVector{2,T}(0,0))))
     end
+end
+
+# EuclideanMap: Rotation + Translation
+to_homogeneous(E::EuclideanMap{2,T}) where {T} = begin
+    M = SMatrix{2,2,T}(Matrix(E.R))
+    t = SVector{2,T}(E.t)
+    EuclideanMat{T}(Tuple(to_homogeneous(M, t)))
 end
 
 # AffineMap: ALWAYS Affine
