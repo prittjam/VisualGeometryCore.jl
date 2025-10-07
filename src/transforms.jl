@@ -31,11 +31,12 @@ end
 const HomMatAny = Union{HomRotMat, HomTransMat, HomScaleIsoMat, HomScaleAnisoMat, EuclideanMat, AffineMat}
 
 # helpers
-@inline elty(x) = eltype(typeof(x))
-_smat(::Type{T}, A) where {T} = SMatrix{3,3,T}(Tuple(A))
-_h(M::SMatrix{2,2,T}, t::SVector{2,T}) where {T} = @SMatrix [ M[1,1] M[1,2] t[1]
-                                                              M[2,1] M[2,2] t[2]
-                                                              0.0    0.0    1.0 ]
+
+# Convert 2×2 matrix and 2D translation to 3×3 homogeneous matrix
+@inline to_homogeneous(M::SMatrix{2,2,T}, t::SVector{2,T}) where {T} = 
+    @SMatrix [M[1,1] M[1,2] t[1]
+              M[2,1] M[2,2] t[2]
+              zero(T) zero(T) one(T)]
 
 # -------------------------------------------------
 # Bridge: CoordinateTransformations / Rotations -> typed homogeneous
@@ -43,7 +44,7 @@ _h(M::SMatrix{2,2,T}, t::SVector{2,T}) where {T} = @SMatrix [ M[1,1] M[1,2] t[1]
 
 # primitives
 to_homogeneous(R::Rotations.Rotation{2,T}) where {T} =
-    HomRotMat{T}(Tuple(_h(SMatrix{2,2,T}(Matrix(R)), SVector{2,T}(0,0))))
+    HomRotMat{T}(Tuple(to_homogeneous(SMatrix{2,2,T}(Matrix(R)), SVector{2,T}(0,0))))
 
 to_homogeneous(Tx::CoordinateTransformations.Translation{<:SVector{2,T}}) where {T} =
     HomTransMat{T}(Tuple(@SMatrix [ 1.0 0.0 Tx.translation[1]
@@ -57,12 +58,12 @@ function to_homogeneous(L::CoordinateTransformations.LinearMap{Mat}) where {Mat<
     if iszero(M[1,2]) && iszero(M[2,1])
         sx, sy = M[1,1], M[2,2]
         if sx == sy
-            return HomScaleIsoMat{T}(Tuple(_h(M, SVector{2,T}(0,0))))
+            return HomScaleIsoMat{T}(Tuple(to_homogeneous(M, SVector{2,T}(0,0))))
         else
-            return HomScaleAnisoMat{T}(Tuple(_h(M, SVector{2,T}(0,0))))
+            return HomScaleAnisoMat{T}(Tuple(to_homogeneous(M, SVector{2,T}(0,0))))
         end
     else
-        return AffineMat{T}(Tuple(_h(M, SVector{2,T}(0,0))))
+        return AffineMat{T}(Tuple(to_homogeneous(M, SVector{2,T}(0,0))))
     end
 end
 
@@ -71,14 +72,14 @@ to_homogeneous(Af::CoordinateTransformations.AffineMap{Mat,V}) where {Mat<:Abstr
     T = promote_type(eltype(Af.linear), eltype(Af.translation))
     M = SMatrix{2,2,T}(Af.linear)
     t = SVector{2,T}(Af.translation)
-    AffineMat{T}(Tuple(_h(M,t)))
+    AffineMat{T}(Tuple(to_homogeneous(M, t)))
 end
 
 # Compositions: ALWAYS Affine (we do not reclassify composites)
 to_homogeneous(C::ComposedFunction) = begin
     A = to_homogeneous(C.outer)
     B = to_homogeneous(C.inner)
-    T = promote_type(elty(A), elty(B))
+    T = promote_type(eltype(A), eltype(B))
     H = SMatrix{3,3,T}(Tuple(A)) * SMatrix{3,3,T}(Tuple(B))
     AffineMat{T}(Tuple(H))
 end
@@ -165,9 +166,9 @@ StaticArrays.similar_type(::Type{AffineMat}, ::Type{T}) where {T} = AffineMat{T}
 
 # Single multiplication function
 function Base.:*(a::HomMatAny, b::HomMatAny)
-    T = promote_type(elty(a), elty(b))
+    T = promote_type(eltype(a), eltype(b))
     ResultType = result_type(typeof(a), typeof(b))
-    C = _smat(T, a) * _smat(T, b)
+    C = SMatrix{3,3,T}(Tuple(a)) * SMatrix{3,3,T}(Tuple(b))
     return similar_type(ResultType, T)(Tuple(C))
 end
 
