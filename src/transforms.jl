@@ -25,10 +25,11 @@ end
 @staticmat3 HomTransMat      # homogeneous translation (no rotation)
 @staticmat3 HomScaleIsoMat   # homogeneous isotropic scaling (s*I)
 @staticmat3 HomScaleAnisoMat # homogeneous anisotropic diagonal scaling diag(sx,sy)
-@staticmat3 EuclideanMat     # rotation + translation (explicit constructor)
+@staticmat3 EuclideanMat     # rotation + translation (rigid body)
+@staticmat3 SimilarityMat    # rotation + translation + uniform scaling
 @staticmat3 AffineMat        # general affine (fallback & compositions)
 
-const HomMatAny = Union{HomRotMat, HomTransMat, HomScaleIsoMat, HomScaleAnisoMat, EuclideanMat, AffineMat}
+const HomMatAny = Union{HomRotMat, HomTransMat, HomScaleIsoMat, HomScaleAnisoMat, EuclideanMat, SimilarityMat, AffineMat}
 
 # helpers
 
@@ -84,7 +85,7 @@ to_homogeneous(C::ComposedFunction) = begin
     AffineMat{T}(Tuple(H))
 end
 
-materialize(tf) = to_homogeneous(tf)
+
 
 # Identity methods for already-homogeneous matrices
 to_homogeneous(H::HomMatAny) = H
@@ -100,6 +101,7 @@ struct TranslationTrait <: TransformTrait end
 struct IsotropicScaleTrait <: TransformTrait end
 struct AnisotropicScaleTrait <: TransformTrait end
 struct EuclideanTrait <: TransformTrait end
+struct SimilarityTrait <: TransformTrait end
 struct AffineTrait <: TransformTrait end
 
 # Trait dispatch for transform types
@@ -108,6 +110,7 @@ transform_trait(::Type{<:HomTransMat}) = TranslationTrait()
 transform_trait(::Type{<:HomScaleIsoMat}) = IsotropicScaleTrait()
 transform_trait(::Type{<:HomScaleAnisoMat}) = AnisotropicScaleTrait()
 transform_trait(::Type{<:EuclideanMat}) = EuclideanTrait()
+transform_trait(::Type{<:SimilarityMat}) = SimilarityTrait()
 transform_trait(::Type{<:AffineMat}) = AffineTrait()
 
 # No ranking needed! We use dispatch failure as a signal to swap arguments
@@ -118,6 +121,7 @@ result_type_trait(::TranslationTrait, ::TranslationTrait) = HomTransMat
 result_type_trait(::IsotropicScaleTrait, ::IsotropicScaleTrait) = HomScaleIsoMat
 result_type_trait(::AnisotropicScaleTrait, ::AnisotropicScaleTrait) = HomScaleAnisoMat
 result_type_trait(::EuclideanTrait, ::EuclideanTrait) = EuclideanMat
+result_type_trait(::SimilarityTrait, ::SimilarityTrait) = SimilarityMat
 result_type_trait(::AffineTrait, ::AffineTrait) = AffineMat
 
 # Euclidean combinations (rotation + translation)
@@ -128,13 +132,20 @@ result_type_trait(::TranslationTrait, ::EuclideanTrait) = EuclideanMat
 # Scaling combinations
 result_type_trait(::IsotropicScaleTrait, ::AnisotropicScaleTrait) = HomScaleAnisoMat
 
-# Scaling with rigid transforms → Affine
-result_type_trait(::RotationTrait, ::IsotropicScaleTrait) = AffineMat
+# Similarity combinations (rotation + translation + uniform scaling)
+result_type_trait(::RotationTrait, ::IsotropicScaleTrait) = SimilarityMat
+result_type_trait(::TranslationTrait, ::IsotropicScaleTrait) = SimilarityMat
+result_type_trait(::IsotropicScaleTrait, ::EuclideanTrait) = SimilarityMat
+result_type_trait(::RotationTrait, ::SimilarityTrait) = SimilarityMat
+result_type_trait(::TranslationTrait, ::SimilarityTrait) = SimilarityMat
+result_type_trait(::IsotropicScaleTrait, ::SimilarityTrait) = SimilarityMat
+result_type_trait(::EuclideanTrait, ::SimilarityTrait) = SimilarityMat
+
+# Anisotropic scaling breaks similarity → Affine
 result_type_trait(::RotationTrait, ::AnisotropicScaleTrait) = AffineMat
-result_type_trait(::TranslationTrait, ::IsotropicScaleTrait) = AffineMat
 result_type_trait(::TranslationTrait, ::AnisotropicScaleTrait) = AffineMat
-result_type_trait(::IsotropicScaleTrait, ::EuclideanTrait) = AffineMat
 result_type_trait(::AnisotropicScaleTrait, ::EuclideanTrait) = AffineMat
+result_type_trait(::AnisotropicScaleTrait, ::SimilarityTrait) = AffineMat
 
 # Anything with Affine → Affine
 result_type_trait(::RotationTrait, ::AffineTrait) = AffineMat
@@ -142,6 +153,7 @@ result_type_trait(::TranslationTrait, ::AffineTrait) = AffineMat
 result_type_trait(::IsotropicScaleTrait, ::AffineTrait) = AffineMat
 result_type_trait(::AnisotropicScaleTrait, ::AffineTrait) = AffineMat
 result_type_trait(::EuclideanTrait, ::AffineTrait) = AffineMat
+result_type_trait(::SimilarityTrait, ::AffineTrait) = AffineMat
 
 # Fallback trait method - if we hit this, swap arguments and try again
 # But add a recursion breaker for the ultimate fallback
@@ -162,6 +174,7 @@ StaticArrays.similar_type(::Type{HomTransMat}, ::Type{T}) where {T} = HomTransMa
 StaticArrays.similar_type(::Type{HomScaleIsoMat}, ::Type{T}) where {T} = HomScaleIsoMat{T}
 StaticArrays.similar_type(::Type{HomScaleAnisoMat}, ::Type{T}) where {T} = HomScaleAnisoMat{T}
 StaticArrays.similar_type(::Type{EuclideanMat}, ::Type{T}) where {T} = EuclideanMat{T}
+StaticArrays.similar_type(::Type{SimilarityMat}, ::Type{T}) where {T} = SimilarityMat{T}
 StaticArrays.similar_type(::Type{AffineMat}, ::Type{T}) where {T} = AffineMat{T}
 
 # Single multiplication function

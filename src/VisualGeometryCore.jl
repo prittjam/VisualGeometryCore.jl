@@ -31,8 +31,8 @@ using GLMakie
 export Point2, Rect, Vec2, HyperRectangle, Circle, Point2f
 
 # Export transforms and conics functionality
-export HomRotMat, HomTransMat, HomScaleIsoMat, HomScaleAnisoMat, EuclideanMat, AffineMat
-export to_homogeneous, to_euclidean, materialize, result_type
+export HomRotMat, HomTransMat, HomScaleIsoMat, HomScaleAnisoMat, EuclideanMat, SimilarityMat, AffineMat
+export to_homogeneous, to_euclidean, result_type
 export HomogeneousConic, Ellipse
 export push_conic, gradient
 

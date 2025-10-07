@@ -91,16 +91,16 @@ using LinearAlgebra
         affine = scale * euclidean
         @test affine isa AffineMat{Float64}
         
-        # Test materialization
-        mat_euclidean = materialize(euclidean)
+        # Test to_homogeneous (materialization)
+        mat_euclidean = to_homogeneous(euclidean)
         @test mat_euclidean isa EuclideanMat{Float64}
         @test size(mat_euclidean) == (3, 3)
         
-        mat_affine = materialize(affine)
+        mat_affine = to_homogeneous(affine)
         @test mat_affine isa AffineMat{Float64}
         @test size(mat_affine) == (3, 3)
         
-        # Verify materialized matrices work correctly
+        # Verify homogeneous matrices work correctly
         test_point = [1.0, 1.0, 1.0]
         result1 = mat_euclidean * test_point
         # Note: Transform objects only work on conics, not points directly
@@ -114,15 +114,30 @@ using LinearAlgebra
         scale_iso = to_homogeneous(LinearMap(2.0 * I(2)))
         scale_aniso = to_homogeneous(LinearMap(Diagonal(SVector(2.0, 0.5))))
         
+        # Euclidean combinations
         @test result_type(typeof(rot), typeof(trans)) == EuclideanMat
         @test result_type(typeof(trans), typeof(rot)) == EuclideanMat
-        @test result_type(typeof(scale_iso), typeof(rot)) == AffineMat
+        
+        # Similarity combinations (uniform scaling preserves similarity)
+        @test result_type(typeof(scale_iso), typeof(rot)) == SimilarityMat
+        @test result_type(typeof(rot), typeof(scale_iso)) == SimilarityMat
+        @test result_type(typeof(scale_iso), typeof(trans)) == SimilarityMat
+        @test result_type(typeof(trans), typeof(scale_iso)) == SimilarityMat
+        
+        # Anisotropic scaling breaks similarity → Affine
+        @test result_type(typeof(scale_aniso), typeof(rot)) == AffineMat
         @test result_type(typeof(scale_aniso), typeof(trans)) == AffineMat
+        @test result_type(typeof(rot), typeof(scale_aniso)) == AffineMat
+        @test result_type(typeof(trans), typeof(scale_aniso)) == AffineMat
         
         # Test actual multiplication results
         @test (rot * trans) isa EuclideanMat{Float64}
         @test (trans * rot) isa EuclideanMat{Float64}
-        @test (scale_iso * rot) isa AffineMat{Float64}
+        @test (scale_iso * rot) isa SimilarityMat{Float64}
+        @test (rot * scale_iso) isa SimilarityMat{Float64}
+        @test (scale_iso * trans) isa SimilarityMat{Float64}
+        @test (trans * scale_iso) isa SimilarityMat{Float64}
+        @test (scale_aniso * rot) isa AffineMat{Float64}
         @test (scale_aniso * trans) isa AffineMat{Float64}
     end
     
