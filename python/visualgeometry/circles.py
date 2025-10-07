@@ -64,12 +64,18 @@ class Circle:
         points : ndarray, shape (n_points, 2)
             Points on circle boundary
         """
-        theta = np.linspace(0, 2*np.pi, n_points, endpoint=False)
-        
-        x = self._center[0] + self._radius * np.cos(theta)
-        y = self._center[1] + self._radius * np.sin(theta)
-        
-        return np.column_stack([x, y])
+        try:
+            # Try to use Julia decompose for better accuracy
+            from .decompose import decompose_circle
+            return decompose_circle(self._center, self._radius, n_points)
+        except Exception:
+            # Fallback to pure Python implementation
+            theta = np.linspace(0, 2*np.pi, n_points, endpoint=False)
+            
+            x = self._center[0] + self._radius * np.cos(theta)
+            y = self._center[1] + self._radius * np.sin(theta)
+            
+            return np.column_stack([x, y])
     
     def contains_point(self, point):
         """

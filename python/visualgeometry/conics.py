@@ -73,10 +73,8 @@ class Ellipse:
             if semi_axes.shape != (2,):
                 raise ValueError("Semi-axes must be 2D")
                 
-            julia_center = VisualGeometryCore.numpy_to_julia(center)
-            julia_axes = VisualGeometryCore.numpy_to_julia(semi_axes)
-            
-            self._julia_obj = jl.Ellipse(julia_center, julia_axes, angle)
+            # Create Julia Ellipse using proper constructor
+            self._julia_obj = jl.seval(f"Ellipse(Point2f({center[0]}, {center[1]}), {semi_axes[0]}f0, {semi_axes[1]}f0, {angle}f0)")
         else:
             raise ValueError("Either (center, semi_axes) or julia_ellipse must be provided")
     
@@ -114,30 +112,36 @@ class Ellipse:
         points : ndarray, shape (n_points, 2)
             Points on ellipse boundary
         """
-        theta = np.linspace(0, 2*np.pi, n_points, endpoint=False)
-        
-        # Generate points on unit circle
-        x = np.cos(theta)
-        y = np.sin(theta)
-        
-        # Scale by semi-axes
-        a, b = self.semi_axes
-        x *= a
-        y *= b
-        
-        # Rotate
-        cos_angle = np.cos(self.angle)
-        sin_angle = np.sin(self.angle)
-        
-        x_rot = x * cos_angle - y * sin_angle
-        y_rot = x * sin_angle + y * cos_angle
-        
-        # Translate to center
-        cx, cy = self.center
-        x_rot += cx
-        y_rot += cy
-        
-        return np.column_stack([x_rot, y_rot])
+        try:
+            # Try to use Julia decompose for better accuracy
+            from .decompose import decompose_ellipse
+            return decompose_ellipse(self.center, self.semi_axes, self.angle, n_points)
+        except Exception:
+            # Fallback to pure Python implementation
+            theta = np.linspace(0, 2*np.pi, n_points, endpoint=False)
+            
+            # Generate points on unit circle
+            x = np.cos(theta)
+            y = np.sin(theta)
+            
+            # Scale by semi-axes
+            a, b = self.semi_axes
+            x *= a
+            y *= b
+            
+            # Rotate
+            cos_angle = np.cos(self.angle)
+            sin_angle = np.sin(self.angle)
+            
+            x_rot = x * cos_angle - y * sin_angle
+            y_rot = x * sin_angle + y * cos_angle
+            
+            # Translate to center
+            cx, cy = self.center
+            x_rot += cx
+            y_rot += cy
+            
+            return np.column_stack([x_rot, y_rot])
     
     def __repr__(self):
         return f"Ellipse(center={self.center}, semi_axes={self.semi_axes}, angle={self.angle:.3f})"

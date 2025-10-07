@@ -48,9 +48,9 @@ def demo_with_julia_backend():
         circle = Circle(center=[0.0, 0.0], radius=1.0)
         print(f"Created circle: {circle}")
         
-        # Generate points on circle
+        # Generate points on circle using Julia decompose
         circle_points = circle.points(100)
-        print(f"Generated {len(circle_points)} points on circle boundary")
+        print(f"Generated {len(circle_points)} points on circle boundary using Julia decompose")
         
         # Step 2: Convert to HomogeneousConic
         print("\n2. Converting to HomogeneousConic")
@@ -180,7 +180,11 @@ import numpy as np
 
 # 1. Create circle
 circle = Circle(center=[0.0, 0.0], radius=1.0)
-circle_points = circle.points(100)
+circle_points = circle.points(100)  # Uses Julia GeometryBasics.decompose
+
+# Alternative: use decompose functions directly
+from visualgeometry import decompose_circle, decompose_ellipse
+circle_points_direct = decompose_circle([0, 0], 1.0, 100)
 
 # 2. Convert to homogeneous conic
 conic = circle.to_homogeneous_conic()

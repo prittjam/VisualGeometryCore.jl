@@ -58,7 +58,10 @@ class VisualGeometryCore:
         """Convert NumPy array to Julia array"""
         VisualGeometryCore.ensure_initialized()
         if arr.ndim == 1:
-            return jl.SVector[tuple(arr)]
+            if len(arr) == 2:
+                return jl.seval(f"SVector({arr[0]}, {arr[1]})")
+            else:
+                return jl.seval(f"SVector({', '.join(map(str, arr))})")
         else:
             return jl.SMatrix[arr.T]  # Julia is column-major
     

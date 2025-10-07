@@ -9,6 +9,7 @@ from .core import VisualGeometryCore
 from .conics import Ellipse, HomogeneousConic
 from .circles import Circle
 from .transforms import to_homogeneous, to_euclidean
+from .decompose import decompose, decompose_circle, decompose_ellipse
 
 __version__ = "0.1.0"
 __all__ = [
@@ -18,4 +19,7 @@ __all__ = [
     "Circle",
     "to_homogeneous",
     "to_euclidean",
+    "decompose",
+    "decompose_circle", 
+    "decompose_ellipse",
 ]
