@@ -35,7 +35,7 @@ export HomRotMat, HomTransMat, HomScaleIsoMat, HomScaleAnisoMat, EuclideanMat, S
 export EuclideanMap
 export to_homogeneous, to_euclidean, result_type
 export HomogeneousConic, Ellipse
-export push_conic, gradient
+export push_conic, gradient, plotellipses
 
 include("utils.jl")        # Units, Size2, geometry utilities
 include("blobs.jl")        # Blob types and operations

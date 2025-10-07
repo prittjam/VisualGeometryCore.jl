@@ -313,9 +313,122 @@ function GeometryBasics.decompose(PT::Type{Point{2,T}}, e::Ellipse{S}; resolutio
     return [Point{2,T}((T(transform(p)[1]), T(transform(p)[2]))) for p in unit_circle_points]
 end
 
+# ---------- Plotting Support ----------
+
+# Convert arguments for ellipses using SpecApi
+Makie.used_attributes(::Type{<:Plot}, ::Vector{<:Ellipse}) = (:color, :linewidth, :linestyle, :fillcolor, :fillalpha, :resolution)
+
+"""
+    Makie.convert_arguments(::Type{<:AbstractPlot}, ellipses::Vector{<:Ellipse}; kwargs...)
+
+Convert ellipses to PlotSpec vector for Makie recipe integration.
+Allows users to call: plot(ellipses; color=:red, linewidth=2.0) or plot!(ellipses; ...)
+"""
+function Makie.convert_arguments(::Type{<:AbstractPlot}, ellipses::Vector{<:Ellipse};
+                                color=:blue, linewidth::Float64=2.0, linestyle=:solid,
+                                fillcolor=nothing, fillalpha::Float64=0.2,
+                                resolution::Int=64)
+    return plotellipses(ellipses; color=color, linewidth=linewidth, linestyle=linestyle,
+                       fillcolor=fillcolor, fillalpha=fillalpha, resolution=resolution)
+end
+
+# Single ellipse convenience
+Makie.used_attributes(::Type{<:Plot}, ::Ellipse) = (:color, :linewidth, :linestyle, :fillcolor, :fillalpha, :resolution)
+
+function Makie.convert_arguments(::Type{<:AbstractPlot}, ellipse::Ellipse;
+                                color=:blue, linewidth::Float64=2.0, linestyle=:solid,
+                                fillcolor=nothing, fillalpha::Float64=0.2,
+                                resolution::Int=64)
+    return plotellipses([ellipse]; color=color, linewidth=linewidth, linestyle=linestyle,
+                       fillcolor=fillcolor, fillalpha=fillalpha, resolution=resolution)
+end
+
+# Multi-argument convert_arguments for image + ellipses composition
+Makie.used_attributes(::Type{<:Plot}, ::AbstractMatrix{<:Colorant}, ::Vector{<:Ellipse}) = 
+    (:interpolate, :color, :linewidth, :linestyle, :fillcolor, :fillalpha, :resolution)
+
+"""
+    Makie.convert_arguments(::Type{<:AbstractPlot}, img::AbstractMatrix{<:Colorant}, ellipses::Vector{<:Ellipse}; kwargs...)
+
+Convert image and ellipses to composed GridLayout with overlay.
+"""
+function Makie.convert_arguments(::Type{<:AbstractPlot}, img::AbstractMatrix{<:Colorant}, ellipses::Vector{<:Ellipse};
+                                interpolate=false, color=:red, linewidth::Float64=2.0, linestyle=:solid,
+                                fillcolor=nothing, fillalpha::Float64=0.2, resolution::Int=64)
+    # Compose by calling through to simpler functions
+    lscene = imshow(img; interpolate=interpolate)
+    ellipse_specs = plotellipses(ellipses; color=color, linewidth=linewidth, linestyle=linestyle,
+                                fillcolor=fillcolor, fillalpha=fillalpha, resolution=resolution)
+    append!(lscene.plots, ellipse_specs)
+    return Spec.GridLayout([lscene]; rowgaps=Fixed(0), colgaps=Fixed(0))
+end
+
+"""
+    plotellipses(ellipses; color=:blue, linewidth=2.0, linestyle=:solid, fillcolor=nothing, fillalpha=0.2, resolution=64)
+
+Create plot specs for ellipse visualization (outlines and optional fills).
+
+# Arguments
+- `ellipses`: Vector of Ellipse objects
+
+# Keyword Arguments
+- `color=:blue`: Color for ellipse outlines
+- `linewidth=2.0`: Width of ellipse outlines
+- `linestyle=:solid`: Line style (:solid, :dash, :dot, etc.)
+- `fillcolor=nothing`: Fill color (nothing for no fill, or any color)
+- `fillalpha=0.2`: Alpha transparency for fill (0.0 = transparent, 1.0 = opaque)
+- `resolution=64`: Number of points to use for ellipse approximation
+
+Returns a vector of PlotSpec objects that can be composed with SpecApi.
+
+# Examples
+```julia
+ellipses = [Ellipse(Point2(100.0, 100.0), 50.0, 30.0, π/4)]
+
+# Just outlines
+specs = plotellipses(ellipses; color=:red, linewidth=3.0)
+
+# With fill
+specs = plotellipses(ellipses; color=:blue, fillcolor=:lightblue, fillalpha=0.3)
+
+# Compose with image
+lscene = imshow(img)
+append!(lscene.plots, plotellipses(ellipses))
+plot(Spec.GridLayout([lscene]))
+```
+"""
+function plotellipses(ellipses;
+                     color=:blue,
+                     linewidth::Float64=2.0,
+                     linestyle=:solid,
+                     fillcolor=nothing,
+                     fillalpha::Float64=0.2,
+                     resolution::Int=64)
+    plot_specs = Makie.PlotSpec[]
+    
+    if !isempty(ellipses)
+        for ellipse in ellipses
+            # Generate ellipse boundary points using GeometryBasics decompose
+            points = GeometryBasics.decompose(Point2f, ellipse; resolution=resolution)
+            
+            # Add fill if requested
+            if fillcolor !== nothing
+                fill_spec = Spec.Poly(points; color=fillcolor, alpha=fillalpha)
+                push!(plot_specs, fill_spec)
+            end
+            
+            # Add outline
+            # Close the ellipse by adding the first point at the end
+            closed_points = vcat(points, [points[1]])
+            outline_spec = Spec.Lines(closed_points; color=color, linewidth=linewidth, linestyle=linestyle)
+            push!(plot_specs, outline_spec)
+        end
+    end
+    
+    return plot_specs
+end
+
 # ---------- Utilities ----------
-
-
 
 """
     gradient(u::Point2{T}, Q::HomogeneousConic{T}) -> Point2{T}
