@@ -37,12 +37,27 @@ export to_homogeneous, to_euclidean, result_type
 export HomogeneousConic, Ellipse
 export push_conic, gradient, plotellipses
 
-include("utils.jl")        # Units, Size2, geometry utilities
-include("blobs.jl")        # Blob types and operations
-include("types.jl")        # Other types and StructTypes
-include("transforms.jl")   # Homogeneous 2D transforms
-include("conics.jl")       # Conics and ellipses
-include("plotting.jl")     # Plotting functionality for blobs and patterns
+# Include units first (defines custom units and types)
+include("units/types.jl")
+include("units/conversions.jl")
+
+# Include utilities (depends on units)
+include("utils.jl")
+
+# Include other types (EuclideanMap needed by conversions)
+include("types.jl")
+
+# Include geometry (core mathematical operations)
+include("geometry/transforms.jl")
+include("geometry/conversions.jl")
+include("geometry/conics.jl")
+include("geometry/blobs.jl")
+
+# Include plotting (depends on geometry)
+include("plotting/specs.jl")
+include("plotting/recipes.jl")
+
+# Include API
 include("api.jl")
 
 function __init__()

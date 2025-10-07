@@ -1,9 +1,5 @@
 # =============================================================================
-# Utilities - Units, Size2, Geometry, and Helper Functions
-# =============================================================================
-
-# =============================================================================
-# Custom Units and Type Aliases
+# General Utilities and Helper Functions
 # =============================================================================
 
 """
@@ -12,84 +8,11 @@
 Default multiple of σ used to define an effective blob radius/area.
 Used by utilities like `radius` and `area` when not explicitly provided.
 """
-# Constants used across the package
 const SIGMA_CUTOFF = 3.0
-const CLEAN_TOL = 1e-9  # tolerance for snapping near integers/zero in JSON and helpers
 
 # =============================================================================
-# Coordinate Conversion Functions
+# JSON3 and StructTypes Support
 # =============================================================================
-
-"""
-    to_homogeneous(v::AbstractVector{T}) -> SVector{N+1,T}
-
-Convert N-dimensional vector to homogeneous coordinates by appending w=1.
-Uses `push` for efficient static vector construction on the stack.
-
-# Examples
-```julia
-to_homogeneous(SVector(1.0, 2.0))     # -> SVector(1.0, 2.0, 1.0)
-to_homogeneous(Point2(3.0, 4.0))      # -> SVector(3.0, 4.0, 1.0)
-```
-"""
-@inline to_homogeneous(v::AbstractVector{T}) where {T} = push(SVector{length(v),T}(v), one(T))
-
-"""
-    to_euclidean(v::AbstractVector{T}) -> SVector{N-1,T}
-
-Convert homogeneous coordinates to euclidean by perspective division (removing last component).
-Uses `pop` for efficient static vector construction on the stack.
-
-# Examples
-```julia
-to_euclidean(SVector(2.0, 4.0, 2.0))  # -> SVector(1.0, 2.0)  [divides by w=2.0]
-to_euclidean(SVector(3.0, 6.0, 3.0))  # -> SVector(1.0, 2.0)  [divides by w=3.0]
-```
-"""
-@inline to_euclidean(v::AbstractVector{T}) where {T} = pop(SVector{length(v),T}(v)) ./ v[end]
-
-# Define a dimensionless dimension for pixels/dots
-@dimension 𝐍 "𝐍" LogicalUnits   
-
-"""
-    pd
-
-Logical dot unit for pattern coordinates (dimension 𝐍). One `px` equals `1pd`.
-"""
-@refunit pd "pd" Dot 𝐍 false
-
-"""
-    px
-
-Logical pixel unit alias (`1px == 1pd`). Useful for expressing image sizes.
-"""
-@unit px "px" Pixel 1*pd false
-
-"""
-    dpi
-
-Dots-per-inch as a logical density unit (𝐍/𝐋). Common values are `150dpi`, `300dpi`.
-"""
-@unit dpi "dpi" DotsPerInch 1*pd/inch false
-
-"""
-    pt
-
-Typography point unit (1/72 inch). Used for precise vector export scaling.
-"""
-@unit pt "pt" Point (1//72)*inch false
-
-# Type aliases for convenience
-const LogicalDensity{T<:Real} = Quantity{T, 𝐍/𝐋, <:Unitful.Units}
-const LogicalWidth{T<:Real} = Quantity{T, 𝐍, <:Unitful.Units}
-const LogicalCount{T<:Integer} = Quantity{T, 𝐍, <:Unitful.Units}
-const PixelCount{T<:Integer} = Quantity{T, 𝐍, typeof(px)}
-
-# Dimensional type aliases (shorthand)
-const Len{T} = Quantity{T, 𝐋, <:Unitful.Units}
-const Met{T} = Quantity{T, 𝐋, typeof(m)}
-const Deg{T} = Quantity{T, Unitful.NoDims, typeof(°)}
-const Rad{T} = Quantity{T, Unitful.NoDims, typeof(rad)}
 
 StructTypes.StructType(::Type{<:Unitful.Quantity}) = StructTypes.CustomStruct()
 
@@ -105,60 +28,7 @@ function StructTypes.construct(::Type{<:Unitful.Quantity}, obj)
     return v * u
 end
 
-# Type conversion utilities for working with Unitful quantities
-integer(::Type{Quantity{T,D,U}}) where {T,D,U} = Quantity{Int, D, U}
-integer(::Type{<:AbstractArray{<:Quantity{T,D,U}}}) where {T,D,U} = Quantity{Int, D, U}
-
-Unitful.float(::Type{<:AbstractArray{<:Quantity{T,D,U}}}) where {T,D,U} = Quantity{Float64, D, U}
-
-# =============================================================================
-# Size2 Type
-# =============================================================================
-
-"""
-    Size2{T}
-
-Width/height container with unit-carrying elements for image and canvas sizes.
-
-- `width`: columns (x-axis)
-- `height`: rows (y-axis)
-
-Constructors:
-- `Size2(; width, height)` keyword constructor
-- `Size2(matrix)` from a matrix's `(width, height)`
-- `Size2(scene::LScene)` from a Makie scene size
-
-Examples:
-```julia
-Size2(width=800, height=600)
-Size2(width=210mm, height=297mm)
-Size2(width=800pd, height=600pd)
-```
-"""
-struct Size2{T} <: FieldVector{2, T}
-    width::T   # columns, x-axis
-    height::T  # rows, y-axis
-end
-
-# Private inner constructor
-Size2(; width, height) =  Size2(width, height)
-Size2(matrix::AbstractMatrix) = Size2(reverse(size(matrix))...)
-
-# Preserve Size2 type under broadcasting operations like ustrip.()
-# This follows the same pattern as GeometryBasics.Point
-StaticArrays.similar_type(::Type{Size2{T}}, ::Type{T2}, s::StaticArrays.Size{(2,)}) where {T, T2} = Size2{T2}
-StaticArrays.similar_type(::Type{Size2{T}}, ::Type{T2}) where {T, T2} = Size2{T2}
-
-# Computed properties for Size2
-Base.getproperty(s::Size2, name::Symbol) = begin
-    if name === :aspect_ratio
-        return s.width / s.height
-    elseif name === :area
-        return s.width * s.height
-    else
-        return getfield(s, name)
-    end
-end
+# ScalarOrQuantity is defined in types.jl
 
 # JSON3 serialization support for Size2
 # Use CustomStruct to handle the FieldVector serialization properly
@@ -305,13 +175,6 @@ function filter_kwargs(::Type{T}; kwargs...) where {T}
     
     return NamedTuple{keep}(keep_values), NamedTuple{drop}(drop_values)
 end
-
-# Quantity rounding/snap helpers
-snap(x; tol=CLEAN_TOL) = (isfinite(x) && abs(x - round(x)) ≤ tol) ? round(x) : (abs(x) ≤ tol ? zero(x) : x)
-snapq(q; tol=CLEAN_TOL) = snap(ustrip(q); tol=tol) * unit(q)
-roundq(q; digits::Integer=6) = round(ustrip(q); digits=digits) * unit(q)
-
-
 
 """
     validate_dir(dir::AbstractString; create::Bool=false)
