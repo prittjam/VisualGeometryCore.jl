@@ -28,9 +28,16 @@ A high-performance Julia package for computational geometry, computer vision, an
 - **Interactive Plots**: Real-time visualization of geometric transformations
 - **Export Capabilities**: High-quality output for publications and presentations
 
+### Blob Features
+- **IsoBlob**: Isotropic blob representation with center and scale
+- **Blob Detection**: Support for blob detection with response scores and polarity
+- **Circle Conversion**: Convert blobs to geometric circles with configurable cutoff
+- **ML Integration**: PyTorch tensor export and matplotlib patch conversion
+
 ### Python Integration
 - **Seamless Interoperability**: Full Python interface with automatic type conversion
 - **NumPy Compatibility**: Direct integration with NumPy arrays and matplotlib
+- **PyTorch Support**: Direct tensor conversion for machine learning workflows
 - **High Performance**: Julia backend with Python convenience
 
 ## 📦 Installation
@@ -251,6 +258,7 @@ points = GeometryBasics.decompose(Point2f, circle)
 
 VisualGeometryCore.jl provides a seamless Python interface that combines Julia's performance with Python's ecosystem:
 
+### Basic Geometry
 ```python
 from visualgeometry import Circle, Ellipse
 import numpy as np
@@ -271,12 +279,50 @@ plt.plot(points[:, 0], points[:, 1], 'b-', linewidth=2)
 plt.title('Circle (Julia Backend)')
 plt.axis('equal')
 
-plt.subplot(1, 2, 2)  
+plt.subplot(1, 2, 2)
 plt.plot(ellipse_points[:, 0], ellipse_points[:, 1], 'r-', linewidth=2)
 plt.title('Ellipse (Julia Backend)')
 plt.axis('equal')
 
 plt.show()
+```
+
+### Blob Features and ML Integration
+```python
+from visualgeometry import IsoBlob
+import torch
+import matplotlib.pyplot as plt
+
+# Create blob
+blob = IsoBlob(center=[100, 200], sigma=5.0)
+
+# Convert to Circle with 3σ radius
+circle = blob.to_circle(cutoff=3.0)
+
+# Export to PyTorch tensor [x, y, r] for ML
+tensor = blob.to_torch_tensor(cutoff=3.0)
+print(tensor)  # tensor([100., 200., 15.])
+
+# Quick matplotlib visualization
+fig, ax = plt.subplots()
+patch = blob.to_mpl_circle(cutoff=3.0, fill=False, edgecolor='r')
+ax.add_patch(patch)
+plt.show()
+
+# Batch processing for neural networks
+blobs = [IsoBlob(center=[x, y], sigma=s)
+         for x, y, s in zip(x_coords, y_coords, scales)]
+batch = torch.stack([b.to_torch_tensor(3.0) for b in blobs])
+```
+
+### Ellipse ML Integration
+```python
+# Ellipse to PyTorch tensor [x, y, a, b, θ]
+ellipse = Ellipse(center=[100, 200], semi_axes=[20, 10], angle=np.pi/4)
+tensor = ellipse.to_torch_tensor()
+
+# Matplotlib patch for visualization
+patch = ellipse.to_mpl_ellipse(fill=False, edgecolor='b')
 ```
 
 For complete Python documentation, see [`python/README.md`](python/README.md).

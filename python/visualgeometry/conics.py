@@ -164,12 +164,12 @@ class Ellipse:
     def evaluate_points(self, points):
         """
         Evaluate ellipse equation at given points
-        
+
         Parameters:
         -----------
         points : ndarray, shape (n, 2)
             Points to evaluate
-            
+
         Returns:
         --------
         values : ndarray, shape (n,)
@@ -178,20 +178,89 @@ class Ellipse:
         points = np.asarray(points)
         if points.ndim == 1:
             points = points.reshape(1, -1)
-        
+
         # Translate to ellipse center
         centered = points - self.center
-        
+
         # Rotate by -angle to align with axes
         cos_angle = np.cos(-self.rotation)
         sin_angle = np.sin(-self.rotation)
-        
+
         x_aligned = centered[:, 0] * cos_angle - centered[:, 1] * sin_angle
         y_aligned = centered[:, 0] * sin_angle + centered[:, 1] * cos_angle
-        
+
         # Evaluate ellipse equation: (x/a)² + (y/b)² - 1
         a, b = self.semi_axes
         return (x_aligned / a) ** 2 + (y_aligned / b) ** 2 - 1
-    
+
+    def to_torch_tensor(self):
+        """
+        Convert ellipse to PyTorch tensor [x, y, a, b, θ] for ML workflows
+
+        Returns:
+        --------
+        torch.Tensor
+            Tensor with shape (5,) containing [center_x, center_y, semi_major, semi_minor, rotation_radians]
+
+        Example:
+        --------
+        >>> ellipse = Ellipse(center=[100, 200], semi_axes=[20, 10], angle=np.pi/4)
+        >>> tensor = ellipse.to_torch_tensor()
+        >>> tensor
+        tensor([100.0000, 200.0000, 20.0000, 10.0000, 0.7854])
+        """
+        try:
+            import torch
+        except ImportError:
+            raise ImportError("PyTorch is required for to_torch_tensor(). Install with: pip install torch")
+
+        return torch.tensor([
+            self.center[0],
+            self.center[1],
+            self.semi_axes[0],
+            self.semi_axes[1],
+            self.rotation
+        ])
+
+    def to_mpl_ellipse(self, **kwargs):
+        """
+        Convert to matplotlib Ellipse patch for quick plotting
+
+        Parameters:
+        -----------
+        **kwargs
+            Additional arguments passed to matplotlib.patches.Ellipse
+            (e.g., facecolor, edgecolor, alpha, fill)
+
+        Returns:
+        --------
+        matplotlib.patches.Ellipse
+            Ellipse patch ready for adding to matplotlib axes
+
+        Example:
+        --------
+        >>> import matplotlib.pyplot as plt
+        >>> import numpy as np
+        >>> ellipse = Ellipse(center=[100, 200], semi_axes=[20, 10], angle=np.pi/4)
+        >>> fig, ax = plt.subplots()
+        >>> patch = ellipse.to_mpl_ellipse(fill=False, edgecolor='b')
+        >>> ax.add_patch(patch)
+        >>> plt.show()
+        """
+        try:
+            from matplotlib.patches import Ellipse as MPLEllipse
+        except ImportError:
+            raise ImportError("Matplotlib is required for to_mpl_ellipse(). Install with: pip install matplotlib")
+
+        # matplotlib.patches.Ellipse takes (xy, width, height, angle_degrees)
+        # width = 2*a, height = 2*b, angle in degrees
+        return MPLEllipse(
+            self.center,
+            2 * self.semi_axes[0],  # width = 2*a
+            2 * self.semi_axes[1],  # height = 2*b
+            angle=np.degrees(self.rotation),  # convert radians to degrees
+            **kwargs
+        )
+
     def __repr__(self):
         return f"Ellipse(center={self.center}, semi_axes={self.semi_axes}, rotation={self.rotation:.3f})"

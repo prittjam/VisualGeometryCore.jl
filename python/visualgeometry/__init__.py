@@ -43,18 +43,21 @@ plt.show()
 from .core import VisualGeometryCore
 from .conics import Ellipse, HomogeneousConic
 from .circles import Circle
+from .blobs import IsoBlob, IsoBlobDetection
 from .transforms import to_homogeneous, to_euclidean
 from .decompose import decompose, decompose_circle, decompose_ellipse
 
 __version__ = "0.1.0"
 __all__ = [
     "VisualGeometryCore",
-    "Ellipse", 
+    "Ellipse",
     "HomogeneousConic",
     "Circle",
+    "IsoBlob",
+    "IsoBlobDetection",
     "to_homogeneous",
     "to_euclidean",
     "decompose",
-    "decompose_circle", 
+    "decompose_circle",
     "decompose_ellipse",
 ]
