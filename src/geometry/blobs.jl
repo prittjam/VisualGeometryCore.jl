@@ -82,12 +82,19 @@ intersects(c1::GeometryBasics.Circle, c2::GeometryBasics.Circle) =
     norm(c1.center - c2.center) < (c1.r + c2.r)
 
 """
-    intersects(p::AbstractBlob, q::AbstractBlob, cutoff=SIGMA_CUTOFF) -> Bool
+    intersects(p::AbstractBlob, q::AbstractBlob, cutoff::Real) -> Bool
 
 Check if two blobs intersect by constructing circles with radius `cutoff*σ` and testing intersection.
+The `cutoff` parameter determines the effective radius as a multiple of σ (e.g., 3.0 for 3σ radius).
 Constructs GeometryBasics.Circle objects with unitless centers and radii.
+
+# Example
+```julia
+# Test if blobs overlap at 3σ radius
+intersects(blob1, blob2, 3.0)
+```
 """
-function intersects(p::AbstractBlob, q::AbstractBlob, cutoff=SIGMA_CUTOFF)
+function intersects(p::AbstractBlob, q::AbstractBlob, cutoff::Real)
     c1 = GeometryBasics.Circle(Point2(float.(ustrip.(p.center))...), float(ustrip(cutoff * p.σ)))
     c2 = GeometryBasics.Circle(Point2(float.(ustrip.(q.center))...), float(ustrip(cutoff * q.σ)))
     return intersects(c1, c2)

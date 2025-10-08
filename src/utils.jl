@@ -2,14 +2,6 @@
 # General Utilities and Helper Functions
 # =============================================================================
 
-"""
-    SIGMA_CUTOFF
-
-Default multiple of σ used to define an effective blob radius/area.
-Used by utilities like `radius` and `area` when not explicitly provided.
-"""
-const SIGMA_CUTOFF = 3.0
-
 # =============================================================================
 # JSON3 and StructTypes Support
 # =============================================================================
