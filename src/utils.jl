@@ -106,16 +106,43 @@ Create a Rect from a Size2 with origin at (0,0) and widths filled from the size 
 """
 Rect(s::Size2{T}) where T = Rect(Point2{T}(zero(T), zero(T)), Vec2{T}(s.width, s.height))
 
-Base.CartesianIndices(bounds::Tuple{Point2{Int}, Point2{Int}}) =
-    return CartesianIndices((bounds[1][2]:bounds[2][2], bounds[1][1]:bounds[2][1]))
+"""
+    cartesian_ranges(p1::StaticVector{N,<:Integer}, p2::StaticVector{N,<:Integer}) -> NTuple{N, UnitRange{<:Integer}}
 
-Base.CartesianIndices(bounds::Tuple{Point2{<:LogicalCount}, Point2{<:LogicalCount}}) = CartesianIndices(ustrip.(bounds))
+Convert two N-dimensional integer points to a tuple of ranges suitable for CartesianIndices.
 
-# Generic constructor for any StaticVector (handles both Point2 and Vec2)
-Base.CartesianIndices(bounds::Tuple{StaticVector{2,Int}, StaticVector{2,Int}}) =
-    return CartesianIndices((bounds[1][2]:bounds[2][2], bounds[1][1]:bounds[2][1]))
+Creates ranges p1[i]:p2[i] for each dimension i, which can be passed directly to
+CartesianIndices to create array indices.
 
-Base.CartesianIndices(bounds::Tuple{StaticVector{2,<:LogicalCount}, StaticVector{2,<:LogicalCount}}) = CartesianIndices(ustrip.(bounds))
+# Arguments
+- `p1`: Lower bound point (each component becomes start of range)
+- `p2`: Upper bound point (each component becomes end of range)
+
+# Returns
+Tuple of UnitRange objects, one per dimension
+
+# Examples
+```julia
+# 2D example
+lo = Point2(1, 3)
+hi = Point2(5, 10)
+ranges = cartesian_ranges(lo, hi)  # Returns (1:5, 3:10)
+ci = CartesianIndices(ranges)
+
+# 3D example
+lo = Point3(1, 2, 3)
+hi = Point3(5, 6, 7)
+ranges = cartesian_ranges(lo, hi)  # Returns (1:5, 2:6, 3:7)
+ci = CartesianIndices(ranges)
+
+# Can also use Vec instead of Point
+lo = Vec2(1, 3)
+hi = Vec2(5, 10)
+ci = CartesianIndices(cartesian_ranges(lo, hi))
+```
+"""
+cartesian_ranges(p1::StaticVector{N,<:Integer}, p2::StaticVector{N,<:Integer}) where N =
+    ntuple(i -> p1[i]:p2[i], N)
 
 """
     CartesianIndices(r::Rect)

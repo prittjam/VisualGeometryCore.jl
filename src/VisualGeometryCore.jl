@@ -29,6 +29,7 @@ using GLMakie
 
 # Export geometry basics
 export Point2, Rect, Vec2, HyperRectangle, Circle, Point2f
+export cartesian_ranges
 
 # Export transforms and conics functionality
 export HomRotMat, HomTransMat, HomScaleIsoMat, HomScaleAnisoMat, EuclideanMat, SimilarityMat, AffineMat
