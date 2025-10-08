@@ -8,6 +8,9 @@ export pd, mm, inch, dpi, px, pt, μm # Core units: pixels/dots, millimeters, in
 # Unit conversion functions
 export to_logical_units, to_physical_units  # Convert IsoBlob between logical and physical units
 
+# Coordinate convention conversion
+export apply_pixel_convention, shift_origin  # Generic pixel coordinate convention conversion
+
 # Additional types and constants needed by BlobBoards
 export PixelCount, Len, LogicalCount, LogicalDensity, LogicalWidth
 export CLEAN_TOL

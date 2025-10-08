@@ -144,6 +144,94 @@ ci = CartesianIndices(cartesian_ranges(lo, hi))
 cartesian_ranges(p1::StaticVector{N,<:Integer}, p2::StaticVector{N,<:Integer}) where N =
     ntuple(i -> p1[i]:p2[i], N)
 
+# =============================================================================
+# Pixel Coordinate Convention Conversion
+# =============================================================================
+
+"""
+    apply_pixel_convention(primitive, convention::Symbol) -> typeof(primitive)
+
+Apply pixel coordinate convention shift to any GeometryBasics primitive that supports `origin()`.
+
+This generic helper shifts the position of geometric primitives to match different pixel
+coordinate conventions used across computer vision systems.
+
+# Pixel Coordinate Conventions
+
+Different computer vision systems use different conventions for pixel coordinates:
+
+- **Native/Makie** (`:native`): First pixel center at (0.5, 0.5), corner at (0, 0)
+- **MATLAB** (`:matlab`): First pixel center at (1, 1), corner at (0.5, 0.5)
+- **OpenCV** (`:opencv`): First pixel center at (0, 0), corner at (-0.5, -0.5)
+
+# Arguments
+- `primitive`: Any GeometryBasics type with `origin()` method (Circle, Sphere, Rect, IsoBlob, etc.)
+- `convention::Symbol`: Target pixel coordinate convention
+
+# Returns
+New primitive of same type with shifted origin
+
+# Examples
+```julia
+using VisualGeometryCore
+using GeometryBasics
+
+# Works with any GeometryBasics primitive
+circle = Circle(Point2(10.0, 20.0), 5.0)
+circle_matlab = apply_pixel_convention(circle, :matlab)  # center at (10.5, 20.5)
+circle_opencv = apply_pixel_convention(circle, :opencv)  # center at (9.5, 19.5)
+
+# Works with units
+blob = IsoBlob(Point2(10.0pd, 20.0pd), 2.0pd)
+blob_matlab = apply_pixel_convention(blob, :matlab)  # center at (10.5pd, 20.5pd)
+
+# Can broadcast over collections
+blobs = [IsoBlob(Point2(i, i), 1.0) for i in 1:5]
+blobs_opencv = apply_pixel_convention.(blobs, :opencv)
+```
+"""
+function apply_pixel_convention(primitive, convention::Symbol)
+    if convention == :native
+        return primitive  # No shift needed
+    elseif convention == :matlab
+        # MATLAB: first pixel center at (1, 1) - add 0.5 offset
+        pos = origin(primitive)
+        offset = (0.5, 0.5) .* unit(eltype(pos))
+        return shift_origin(primitive, offset)
+    elseif convention == :opencv
+        # OpenCV: first pixel center at (0, 0) - subtract 0.5 offset
+        pos = origin(primitive)
+        offset = (0.5, 0.5) .* unit(eltype(pos))
+        return shift_origin(primitive, .-offset)
+    else
+        error("Unknown convention :$convention. Valid options: :native, :matlab, :opencv")
+    end
+end
+
+"""
+    shift_origin(primitive, offset) -> typeof(primitive)
+
+Shift the origin of a geometric primitive by the given offset.
+
+This is an internal helper function used by `apply_pixel_convention`.
+Add specialized methods for custom types that don't follow standard GeometryBasics patterns.
+
+# Arguments
+- `primitive`: Geometric primitive to shift
+- `offset`: Offset to add to origin (Point, Vec, or tuple with units)
+
+# Examples
+```julia
+# Default implementation for GeometryBasics Circle
+circle = Circle(Point2(10.0, 20.0), 5.0)
+shifted = shift_origin(circle, Point2(0.5, 0.5))  # center at (10.5, 20.5)
+```
+"""
+function shift_origin(primitive::GeometryBasics.HyperSphere, offset)
+    new_center = origin(primitive) .+ offset
+    return typeof(primitive)(new_center, primitive.r)
+end
+
 """
     CartesianIndices(r::Rect)
 
