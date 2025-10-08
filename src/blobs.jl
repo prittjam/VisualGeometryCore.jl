@@ -192,6 +192,20 @@ end
 # =============================================================================
 
 """
+    GeometryBasics.origin(blob::AbstractBlob) -> Point2
+
+Get the center of a blob as its origin, making it compatible with generic
+GeometryBasics primitives for coordinate convention conversion.
+
+# Example
+```julia
+blob = IsoBlob(Point2(10.0pd, 20.0pd), 2.0pd)
+pos = origin(blob)  # Returns Point2(10.0pd, 20.0pd)
+```
+"""
+GeometryBasics.origin(blob::AbstractBlob) = blob.center
+
+"""
     shift_origin(blob::AbstractBlob, offset) -> typeof(blob)
 
 Shift the center of a blob by the given offset.
