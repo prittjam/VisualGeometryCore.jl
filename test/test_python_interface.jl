@@ -21,13 +21,13 @@ using LinearAlgebra
         radius = 1.5f0
         circle = GeometryBasics.Circle(center, radius)
         
-        # Test decomposition with different resolutions
-        for resolution in [8, 16, 32, 64]
-            points = GeometryBasics.decompose(Point2f, circle; resolution=resolution)
-            
-            @test length(points) == resolution
-            @test all(p -> isa(p, Point2f), points)
-            
+        # Test coordinates with different resolutions
+        for nvertices in [8, 16, 32, 64]
+            points = GeometryBasics.coordinates(circle, nvertices)
+
+            @test length(points) == nvertices
+            @test all(p -> isa(p, Point2f) || isa(p, Point{2,Float64}), points)
+
             # Verify points are on circle boundary
             distances = [norm(p - center) for p in points]
             max_error = maximum(abs.(distances .- radius))
@@ -43,12 +43,12 @@ using LinearAlgebra
         
         ellipse = Ellipse(center, a, b, θ)
         
-        # Test decomposition
-        for resolution in [8, 16, 32]
-            points = GeometryBasics.decompose(Point2f, ellipse; resolution=resolution)
-            
-            @test length(points) == resolution
-            @test all(p -> isa(p, Point2f), points)
+        # Test coordinates
+        for nvertices in [8, 16, 32]
+            points = GeometryBasics.coordinates(ellipse, nvertices)
+
+            @test length(points) == nvertices
+            @test all(p -> isa(p, Point2f) || isa(p, Point{2,Float32}), points)
             
             # Verify points satisfy ellipse equation
             # Transform to canonical form and check
@@ -124,14 +124,14 @@ using LinearAlgebra
         
         circle = GeometryBasics.Circle(Point2f(0.0, 0.0), 1.0f0)
         
-        # Time circle decomposition
-        @time points = GeometryBasics.decompose(Point2f, circle; resolution=64)
+        # Time circle coordinates generation
+        @time points = GeometryBasics.coordinates(circle, 64)
         @test length(points) == 64
-        
+
         ellipse = Ellipse(Point2f(0.0, 0.0), 2.0f0, 1.0f0, π/4)
-        
-        # Time ellipse decomposition
-        @time ellipse_points = GeometryBasics.decompose(Point2f, ellipse; resolution=64)
+
+        # Time ellipse coordinates generation
+        @time ellipse_points = GeometryBasics.coordinates(ellipse, 64)
         @test length(ellipse_points) == 64
         
         # These should complete quickly (< 1ms typically)

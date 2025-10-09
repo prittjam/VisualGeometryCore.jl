@@ -1,9 +1,12 @@
 """
-Python interface for GeometryBasics decompose functionality
+Python interface for GeometryBasics point generation
 
-This module provides high-performance point generation for geometric primitives
-using Julia's GeometryBasics.decompose function. It offers significant performance
-improvements over pure Python implementations while maintaining NumPy compatibility.
+This module provides high-performance boundary point generation for geometric primitives
+using Julia's GeometryBasics.coordinates function (following proper GeometryBasics convention).
+It offers significant performance improvements over pure Python implementations while maintaining
+NumPy compatibility.
+
+Note: Module name 'decompose' is kept for backward compatibility, but uses coordinates() internally.
 
 # Performance Benefits
 - Julia backend: ~50-100 μs for 64 points
@@ -21,9 +24,9 @@ from .core import VisualGeometryCore, jl
 
 def decompose_circle(center, radius, resolution=32):
     """
-    Decompose a circle into boundary points using Julia GeometryBasics
-    
-    Uses Julia's high-performance GeometryBasics.decompose for optimal point generation.
+    Generate circle boundary points using Julia GeometryBasics
+
+    Uses Julia's GeometryBasics.coordinates (proper convention) for optimal point generation.
     Provides machine-precision accuracy and significant performance improvements over
     pure Python implementations.
     
@@ -65,8 +68,8 @@ def decompose_circle(center, radius, resolution=32):
     julia_center = VisualGeometryCore.numpy_to_julia(center)
     julia_circle = jl.seval(f"GeometryBasics.Circle(Point2f({center[0]}, {center[1]}), {radius}f0)")
     
-    # Use GeometryBasics decompose
-    julia_points = jl.seval(f"GeometryBasics.decompose(Point2f, circle; resolution={resolution})", circle=julia_circle)
+    # Use GeometryBasics coordinates (proper convention)
+    julia_points = jl.seval(f"GeometryBasics.coordinates(circle, {resolution})", circle=julia_circle)
     
     # Convert back to NumPy
     points = []
@@ -78,10 +81,10 @@ def decompose_circle(center, radius, resolution=32):
 
 def decompose_ellipse(center, semi_axes, angle, resolution=32):
     """
-    Decompose an ellipse into boundary points using Julia GeometryBasics
-    
-    Uses Julia's VisualGeometryCore.Ellipse and GeometryBasics.decompose for 
-    high-precision point generation with proper handling of rotation and scaling.
+    Generate ellipse boundary points using Julia GeometryBasics
+
+    Uses Julia's VisualGeometryCore.Ellipse and GeometryBasics.coordinates (proper convention)
+    for high-precision point generation with proper handling of rotation and scaling.
     
     Parameters:
     -----------
@@ -125,8 +128,8 @@ def decompose_ellipse(center, semi_axes, angle, resolution=32):
     # Create Julia Ellipse - need to convert center to Point2f
     julia_ellipse = jl.seval(f"Ellipse(Point2f({center[0]}, {center[1]}), {semi_axes[0]}f0, {semi_axes[1]}f0, {angle}f0)")
     
-    # Use GeometryBasics decompose
-    julia_points = jl.seval(f"GeometryBasics.decompose(Point2f, ellipse; resolution={resolution})", ellipse=julia_ellipse)
+    # Use GeometryBasics coordinates (proper convention)
+    julia_points = jl.seval(f"GeometryBasics.coordinates(ellipse, {resolution})", ellipse=julia_ellipse)
     
     # Convert back to NumPy
     points = []

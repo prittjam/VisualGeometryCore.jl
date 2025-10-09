@@ -10,7 +10,7 @@ This example demonstrates the complete workflow of VisualGeometryCore's Python i
 4. Analyzing transformation properties
 
 Features demonstrated:
-- Julia GeometryBasics.decompose for high-precision point generation
+- Julia GeometryBasics.coordinates for high-precision point generation
 - Custom transformation matrices
 - Scientific visualization with matplotlib
 - Performance analysis and statistics
@@ -77,7 +77,7 @@ def main():
         print("\n1. Creating original circle...")
         circle = Circle([0.0, 0.0], 1.0)
         circle_points = circle.points(64)  # High resolution for smooth curve
-        print(f"✓ Generated {len(circle_points)} points using Julia GeometryBasics.decompose")
+        print(f"✓ Generated {len(circle_points)} points using Julia GeometryBasics.coordinates")
         
         # 2. Create transformation matrix
         print("\n2. Creating transformation matrix...")
@@ -154,7 +154,7 @@ def main():
 • Scale: x×{T[0,0]:.1f}, y×{T[1,1]:.1f}
 • Rotation: {np.pi/4*180/np.pi:.0f}°
 • Translation: [{translation[0]:.1f}, {translation[1]:.1f}]
-• Points: {len(circle_points)} (Julia GeometryBasics.decompose)"""
+• Points: {len(circle_points)} (Julia GeometryBasics.coordinates)"""
         
         fig.text(0.02, 0.02, transform_text, fontsize=9, 
                 bbox=dict(boxstyle="round,pad=0.5", facecolor="lightblue", alpha=0.8))
@@ -193,7 +193,7 @@ def main():
         
         print(f"\nJulia Backend Performance:")
         print(f"  • Points generated: {len(circle_points)}")
-        print(f"  • Backend: GeometryBasics.decompose")
+        print(f"  • Backend: GeometryBasics.coordinates")
         print(f"  • OpenSSL conflicts: RESOLVED ✓")
         
         return True
@@ -214,7 +214,7 @@ if __name__ == "__main__":
     if success:
         print("\n🎉 SUCCESS!")
         print("✓ Julia backend integration working perfectly")
-        print("✓ Circle generation using GeometryBasics.decompose")
+        print("✓ Circle generation using GeometryBasics.coordinates")
         print("✓ Transformation and visualization complete")
         print("✓ Plot saved as 'circle_ellipse_transformation.png'")
     else:

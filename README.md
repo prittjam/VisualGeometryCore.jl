@@ -69,14 +69,17 @@ center = Point2f(2.0, 3.0)
 radius = 1.5f0
 circle = GeometryBasics.Circle(center, radius)
 
-# Generate boundary points using high-performance decompose
-points = GeometryBasics.decompose(Point2f, circle; resolution=64)
+# Generate boundary points using coordinates (GeometryBasics convention)
+points = GeometryBasics.coordinates(circle, 64)
 println("Generated $(length(points)) points")
 
 # Create an ellipse using VisualGeometryCore
 ellipse = Ellipse(Point2f(0, 0), 3.0f0, 2.0f0, π/4)
-ellipse_points = GeometryBasics.decompose(Point2f, ellipse; resolution=32)
+ellipse_points = GeometryBasics.coordinates(ellipse, 32)
 println("Generated $(length(ellipse_points)) ellipse points")
+
+# decompose also works (calls coordinates internally)
+decomposed = GeometryBasics.decompose(Point2f, circle)  # default 64 points
 ```
 
 ### Coordinate Transformations
@@ -174,7 +177,7 @@ using LinearAlgebra
 
 # Create original circle
 circle = GeometryBasics.Circle(Point2f(0, 0), 1.0f0)
-circle_points = GeometryBasics.decompose(Point2f, circle)
+circle_points = GeometryBasics.coordinates(circle, 64)
 
 # Define transformation matrix (scale + rotate)
 scale_x, scale_y = 2.5, 1.2
@@ -200,8 +203,8 @@ ellipses = [
     Ellipse(Point2f(-2, 2), 1.2f0, 2.0f0, π/2)
 ]
 
-# Generate points for all ellipses
-all_points = [decompose(Point2f, ellipse; resolution=32) for ellipse in ellipses]
+# Generate points for all ellipses using coordinates
+all_points = [GeometryBasics.coordinates(ellipse, 32) for ellipse in ellipses]
 
 # Calculate properties
 for (i, ellipse) in enumerate(ellipses)
@@ -232,7 +235,7 @@ end
 # Apply to geometry
 transform = create_transform_pipeline(1.5, π/6, [2.0, 1.0])
 circle = GeometryBasics.Circle(Point2f(0, 0), 1.0f0)
-points = GeometryBasics.decompose(Point2f, circle)
+points = GeometryBasics.coordinates(circle, 64)
 transformed_points = [transform * p for p in points]
 ```
 
@@ -240,15 +243,15 @@ transformed_points = [transform * p for p in points]
 ```julia
 using BenchmarkTools
 
-# Benchmark point generation
+# Benchmark point generation using coordinates
 circle = GeometryBasics.Circle(Point2f(0, 0), 1.0f0)
 
-@benchmark GeometryBasics.decompose(Point2f, $circle) samples=1000
+@benchmark GeometryBasics.coordinates($circle, 64) samples=1000
 # Typical result: ~10-50 μs for 64 points
 
 # Benchmark transformations
 transform = EuclideanMat(π/4, [1.0, 2.0])
-points = GeometryBasics.decompose(Point2f, circle)
+points = GeometryBasics.coordinates(circle, 64)
 
 @benchmark [$transform * p for p in $points] samples=1000
 # Typical result: ~5-20 μs for 64 points
@@ -266,7 +269,7 @@ import matplotlib.pyplot as plt
 
 # Create circle using Julia backend
 circle = Circle([0, 0], 1.0)
-points = circle.points(64)  # Uses Julia GeometryBasics.decompose
+points = circle.points(64)  # Uses Julia GeometryBasics.coordinates
 
 # Transform to ellipse
 ellipse = circle.to_ellipse()

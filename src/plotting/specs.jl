@@ -192,8 +192,8 @@ function plotellipses(ellipses;
     
     if !isempty(ellipses)
         for ellipse in ellipses
-            # Generate ellipse boundary points using GeometryBasics decompose
-            points = GeometryBasics.decompose(Point2f, ellipse; resolution=resolution)
+            # Generate ellipse boundary points using GeometryBasics coordinates
+            points = GeometryBasics.coordinates(ellipse, resolution)
             
             # Add fill if requested
             if fillcolor !== nothing

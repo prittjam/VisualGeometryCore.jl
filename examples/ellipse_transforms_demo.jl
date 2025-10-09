@@ -91,9 +91,10 @@ major_radius = radius(test_ellipse)
 println("  Center: $(center)")
 println("  Major radius: $(major_radius)")
 
-# Point decomposition for visualization
-points_f64 = decompose(Point{2,Float64}, test_ellipse; resolution=12)
-points_f32 = decompose(Point2f, test_ellipse; resolution=8)
+# Generate boundary points for visualization using coordinates
+points_f64 = GeometryBasics.coordinates(test_ellipse, 12)
+# Test decompose also works (it calls coordinates internally and converts types)
+points_f32 = GeometryBasics.decompose(Point2f, test_ellipse)  # uses default 32 vertices
 
 println("  Generated $(length(points_f64)) Float64 points")
 println("  Generated $(length(points_f32)) Float32 points")

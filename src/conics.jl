@@ -284,12 +284,8 @@ end
 
 # ---------- GeometryBasics Interface ----------
 
-"""
-    GeometryBasics.coordinates(e::Ellipse)
-
-Return the center coordinates of the ellipse as required by GeometryBasics interface.
-"""
-GeometryBasics.coordinates(e::Ellipse) = e.center
+# Note: We don't define coordinates(ellipse) without nvertices argument
+# because GeometryBasics expects coordinates(primitive, nvertices) for boundary points
 
 """
     GeometryBasics.radius(e::Ellipse)
@@ -298,20 +294,8 @@ Return the major axis radius of the ellipse as required by GeometryBasics interf
 """
 GeometryBasics.radius(e::Ellipse) = max(e.a, e.b)  # Major axis radius
 
-# GeometryBasics decompose method for ellipse to points
-function GeometryBasics.decompose(PT::Type{Point{2,T}}, e::Ellipse{S}; resolution::Int=32) where {T,S}
-    # Generate points on unit circle
-    θs = range(zero(S), 2π; length=resolution+1)[1:end-1]
-    unit_circle_points = [@SVector [cos(θ), sin(θ)] for θ in θs]
-    
-    # Build the same transform as in HomogeneousConic constructor
-    transform = CoordinateTransformations.Translation(e.center) ∘ 
-                CoordinateTransformations.LinearMap(Rotations.RotMatrix{2,S}(e.θ)) ∘ 
-                CoordinateTransformations.LinearMap(@SMatrix [e.a 0; 0 e.b])
-    
-    # Apply transform and convert to Points
-    return [Point{2,T}((T(transform(p)[1]), T(transform(p)[2]))) for p in unit_circle_points]
-end
+# Note: GeometryBasics coordinates and decompose methods for Ellipse
+# are defined in geometry/conics.jl to avoid duplication
 
 # ---------- Plotting Support ----------
 
@@ -408,8 +392,8 @@ function plotellipses(ellipses;
     
     if !isempty(ellipses)
         for ellipse in ellipses
-            # Generate ellipse boundary points using GeometryBasics decompose
-            points = GeometryBasics.decompose(Point2f, ellipse; resolution=resolution)
+            # Generate ellipse boundary points using GeometryBasics coordinates
+            points = GeometryBasics.coordinates(ellipse, resolution)
             
             # Add fill if requested
             if fillcolor !== nothing

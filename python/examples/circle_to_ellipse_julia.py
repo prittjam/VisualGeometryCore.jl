@@ -46,9 +46,9 @@ def main():
     circle = Circle(center=[0.0, 0.0], radius=1.0)
     print(f"Created circle: {circle}")
     
-    # Generate points on circle using Julia decompose
+    # Generate points on circle using Julia GeometryBasics.coordinates
     circle_points = circle.points(100)
-    print(f"Generated {len(circle_points)} points on circle boundary using Julia decompose")
+    print(f"Generated {len(circle_points)} points on circle boundary using Julia coordinates")
     
     # Step 2: Convert to HomogeneousConic
     print("\n2. Converting to HomogeneousConic")

@@ -52,10 +52,15 @@ using Rotations
         @test coordinates(ellipse) == Point2(0.0, 0.0)
         @test radius(ellipse) == 2.0
         
-        # Test point decomposition
-        points = decompose(Point{2,Float64}, ellipse; resolution=8)
+        # Test point generation via coordinates
+        points = GeometryBasics.coordinates(ellipse, 8)
         @test length(points) == 8
         @test all(p -> p isa Point{2,Float64}, points)
+
+        # Test that decompose also works (calls coordinates internally)
+        points2 = GeometryBasics.decompose(Point{2,Float64}, ellipse)
+        @test length(points2) == 32  # default nvertices
+        @test all(p -> p isa Point{2,Float64}, points2)
         
         # Verify points lie on ellipse
         conic = HomogeneousConic(ellipse)
