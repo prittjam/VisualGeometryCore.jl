@@ -38,6 +38,12 @@ export to_homogeneous, to_euclidean, result_type
 export HomogeneousConic, Ellipse
 export push_conic, gradient, plotellipses
 
+# Export scale space functionality
+export ScaleLevel, ScaleSpace
+export HessianScaleSpace, LaplacianScaleSpace
+export populate_scale_space!, populate_hessian_scale_space!, populate_laplacian_scale_space!
+export get_level, get_scale_level
+
 # Include units first (defines custom units and types)
 include("units/types.jl")
 include("units/conversions.jl")
@@ -53,6 +59,9 @@ include("geometry/transforms.jl")
 include("geometry/conversions.jl")
 include("geometry/conics.jl")
 include("geometry/blobs.jl")
+
+# Include scale space
+include("scalespace.jl")
 
 # Include plotting (depends on geometry)
 include("plotting/specs.jl")
