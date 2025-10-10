@@ -97,13 +97,36 @@ end
 # Public constructors
 """
     ScaleSpace(; size=nothing, width=0, height=0, octave_resolution=3,
-               base_sigma=1.6, assumed_camera_sigma=0.5, element_type=Float32)
+               base_sigma=1.6, assumed_camera_sigma=0.5,
+               data_type=:matrix, element_type=Float32)
 
-Create a scale space for storing smoothed images with default geometry.
+Create a scale space with default geometry.
+
+# Arguments
+- `size` or `width`/`height`: Image dimensions
+- `octave_resolution`: Number of scale subdivisions per octave (default: 3)
+- `base_sigma`: Base smoothing scale (default: 1.6)
+- `assumed_camera_sigma`: Assumed input smoothing (default: 0.5)
+- `data_type`: Type of data to store (`:matrix`, `:hessian`, `:laplacian`)
+- `element_type`: Numeric type for matrix elements (default: Float32)
+
+# Examples
+```julia
+# Gaussian scale space
+ss = ScaleSpace(width=256, height=256)
+
+# Hessian scale space
+hess_ss = ScaleSpace(width=256, height=256, data_type=:hessian)
+
+# Laplacian scale space
+lap_ss = ScaleSpace(width=256, height=256, data_type=:laplacian)
+```
 """
 function ScaleSpace(; size::Union{Size2{Int}, Nothing}=nothing, width::Int=0, height::Int=0,
                    octave_resolution::Int=3, base_sigma::Float64=1.6,
-                   assumed_camera_sigma::Float64=0.5, element_type::Type{T}=Float32) where T
+                   assumed_camera_sigma::Float64=0.5,
+                   data_type::Symbol=:matrix,
+                   element_type::Type{T}=Float32) where T
     if size === nothing
         size = Size2(width, height)
     end
@@ -114,9 +137,19 @@ function ScaleSpace(; size::Union{Size2{Int}, Nothing}=nothing, width::Int=0, he
     # VLFeat applies base_sigma scaling: baseScale = 1.6 * 2^(1/octaveResolution)
     adjusted_base_sigma = base_sigma * 2.0^(1.0 / octave_resolution)
 
+    # Select level factory based on data type
+    level_factory = if data_type == :hessian
+        sz -> (Ixx = Matrix{T}(undef, sz.height, sz.width),
+              Iyy = Matrix{T}(undef, sz.height, sz.width),
+              Ixy = Matrix{T}(undef, sz.height, sz.width))
+    elseif data_type == :laplacian || data_type == :matrix
+        sz -> Matrix{T}(undef, sz.height, sz.width)
+    else
+        error("Unknown data_type: $data_type. Use :matrix, :hessian, or :laplacian")
+    end
+
     return ScaleSpace(0, last_octave, octave_resolution, 0, octave_resolution - 1,
-                     adjusted_base_sigma, assumed_camera_sigma, size,
-                     sz -> Matrix{T}(undef, sz.height, sz.width))
+                     adjusted_base_sigma, assumed_camera_sigma, size, level_factory)
 end
 
 function Base.similar(ss::ScaleSpace, level_factory::Function)
@@ -125,62 +158,6 @@ function Base.similar(ss::ScaleSpace, level_factory::Function)
                      ss.base_sigma, ss.assumed_camera_sigma, ss.input_size,
                      level_factory)
 end
-
-"""
-    HessianScaleSpace(; size=nothing, width=0, height=0, ...)
-
-Create a scale space for storing Hessian components (Ixx, Iyy, Ixy).
-"""
-function HessianScaleSpace(; size::Union{Size2{Int}, Nothing}=nothing, width::Int=0, height::Int=0,
-                          octave_resolution::Int=3, base_sigma::Float64=1.6,
-                          assumed_camera_sigma::Float64=0.5, element_type::Type{T}=Float32) where T
-    if size === nothing
-        size = Size2(width, height)
-    end
-
-    min_dim = min(size.width, size.height)
-    last_octave = max(floor(Int, log2(min_dim)) - 3, 0)
-
-    # VLFeat applies base_sigma scaling: baseScale = 1.6 * 2^(1/octaveResolution)
-    adjusted_base_sigma = base_sigma * 2.0^(1.0 / octave_resolution)
-
-    return ScaleSpace(0, last_octave, octave_resolution, 0, octave_resolution - 1,
-                     adjusted_base_sigma, assumed_camera_sigma, size,
-                     sz -> (Ixx = Matrix{T}(undef, sz.height, sz.width),
-                           Iyy = Matrix{T}(undef, sz.height, sz.width),
-                           Ixy = Matrix{T}(undef, sz.height, sz.width)))
-end
-
-HessianScaleSpace(ss::ScaleSpace{<:AbstractMatrix}, element_type::Type{T}=Float32) where T =
-    similar(ss, sz -> (Ixx = Matrix{T}(undef, sz.height, sz.width),
-                       Iyy = Matrix{T}(undef, sz.height, sz.width),
-                       Ixy = Matrix{T}(undef, sz.height, sz.width)))
-
-"""
-    LaplacianScaleSpace(; size=nothing, width=0, height=0, ...)
-
-Create a scale space for storing Laplacian responses.
-"""
-function LaplacianScaleSpace(; size::Union{Size2{Int}, Nothing}=nothing, width::Int=0, height::Int=0,
-                            octave_resolution::Int=3, base_sigma::Float64=1.6,
-                            assumed_camera_sigma::Float64=0.5, element_type::Type{T}=Float32) where T
-    if size === nothing
-        size = Size2(width, height)
-    end
-
-    min_dim = min(size.width, size.height)
-    last_octave = max(floor(Int, log2(min_dim)) - 3, 0)
-
-    # VLFeat applies base_sigma scaling: baseScale = 1.6 * 2^(1/octaveResolution)
-    adjusted_base_sigma = base_sigma * 2.0^(1.0 / octave_resolution)
-
-    return ScaleSpace(0, last_octave, octave_resolution, 0, octave_resolution - 1,
-                     adjusted_base_sigma, assumed_camera_sigma, size,
-                     sz -> Matrix{T}(undef, sz.height, sz.width))
-end
-
-LaplacianScaleSpace(ss::ScaleSpace, element_type::Type{T}=Float32) where T =
-    similar(ss, sz -> Matrix{T}(undef, sz.height, sz.width))
 
 # Accessors
 get_level(ss::ScaleSpace, octave::Int, scale::Int) = ss.levels.data[level_index(ss, octave, scale)]
@@ -269,55 +246,136 @@ end
 # Scale space population - Functor interface
 
 """
-    (ss::ScaleSpace{<:AbstractMatrix})(input_image::AbstractMatrix, filter_fn::Function)
+    (ss::ScaleSpace)(input::Union{AbstractMatrix, ScaleSpace}, filters...)
 
-Populate the scale space with an image using the provided filter function.
+Populate the scale space by applying a chain of filters in sequence.
 
 # Arguments
-- `input_image`: The input image to process
-- `filter_fn`: Filter function with signature `(data, sigma) -> filtered_data`
+- `input`: Input image (AbstractMatrix) or source scale space
+- `filters...`: One or more filter functions to apply in sequence
 
-# Example
+# Filter Chain Behavior
+- **1 filter**: Builds scale space pyramid directly (e.g., Gaussian smoothing)
+- **2 filters**: Builds intermediate pyramid with first filter, applies second filter to populate target
+- **3+ filters**: Builds intermediate pyramids for each step, final filter populates target
+
+# Examples
 ```julia
+# Gaussian scale space (1 filter)
 ss = ScaleSpace(width=128, height=128)
-ss(image, gaussian_filter)  # Use Gaussian filtering
+ss(image, gaussian_filter)
+
+# Hessian scale space (2 filters)
+hess_ss = ScaleSpace(width=128, height=128, data_type=:hessian)
+hess_ss(image, gaussian_filter, hessian_filter)
+
+# Laplacian scale space (3 filters)
+lap_ss = ScaleSpace(width=128, height=128, data_type=:laplacian)
+lap_ss(image, gaussian_filter, hessian_filter, laplacian_filter)
 ```
 """
-function (ss::ScaleSpace{<:AbstractMatrix})(input_image::AbstractMatrix, filter_fn::Function)
-    input_h, input_w = size(input_image)
-    @assert input_h == ss.input_size.height && input_w == ss.input_size.width
+function (ss::ScaleSpace)(input::Union{AbstractMatrix, ScaleSpace}, filters...)
+    isempty(filters) && error("At least one filter must be provided")
 
-    # Process first octave
-    _populate_octave_from_image!(ss, input_image, ss.first_octave, filter_fn)
+    if length(filters) == 1
+        # Direct population with single filter
+        filter_fn = filters[1]
 
-    # Process remaining octaves
-    for o in (ss.first_octave + 1):ss.last_octave
-        _populate_octave_from_previous!(ss, o, filter_fn)
+        if input isa AbstractMatrix
+            # Building from image - use the octave-based population
+            input_h, input_w = size(input)
+            @assert input_h == ss.input_size.height && input_w == ss.input_size.width
+
+            _populate_octave_from_image!(ss, input, ss.first_octave, filter_fn)
+            for o in (ss.first_octave + 1):ss.last_octave
+                _populate_octave_from_previous!(ss, o, filter_fn)
+            end
+        else
+            # Building from another scale space - apply filter level-by-level
+            for i in eachindex(ss.levels)
+                src_level = input.levels.data[i]
+                dst_level = ss.levels.data[i]
+
+                # Handle different filter signatures
+                if applicable(filter_fn, dst_level, src_level)
+                    filter_fn(dst_level, src_level)
+                else
+                    error("Filter not applicable for transformation between scale spaces")
+                end
+            end
+        end
+    else
+        # Multi-filter chain - build intermediate scale spaces
+        # First, build the first intermediate scale space
+        if input isa AbstractMatrix
+            # Create intermediate scale space with same geometry as target
+            # Use inner constructor to avoid double-adjusting base_sigma
+            level_factory = sz -> Matrix{eltype(input)}(undef, sz.height, sz.width)
+            intermediate_ss = ScaleSpace(
+                ss.first_octave, ss.last_octave, ss.octave_resolution,
+                ss.octave_first_subdivision, ss.octave_last_subdivision,
+                ss.base_sigma, ss.assumed_camera_sigma, ss.input_size, level_factory
+            )
+            intermediate_ss(input, filters[1])
+        else
+            intermediate_ss = input
+        end
+
+        # Apply intermediate filters
+        for filter_idx in 2:(length(filters) - 1)
+            # Determine what type of intermediate we need based on the filter
+            level_factory = if filter_idx == 2 && applicable(filters[filter_idx], zeros(2,2), zeros(2,2), zeros(2,2), zeros(2,2))
+                # Hessian filter - needs NamedTuple storage
+                T = eltype(intermediate_ss.levels.data[1])
+                sz -> (Ixx = Matrix{T}(undef, sz.height, sz.width),
+                      Iyy = Matrix{T}(undef, sz.height, sz.width),
+                      Ixy = Matrix{T}(undef, sz.height, sz.width))
+            else
+                # Matrix storage
+                T = eltype(intermediate_ss.levels.data[1])
+                sz -> Matrix{T}(undef, sz.height, sz.width)
+            end
+
+            next_ss = ScaleSpace(
+                ss.first_octave, ss.last_octave, ss.octave_resolution,
+                ss.octave_first_subdivision, ss.octave_last_subdivision,
+                ss.base_sigma, ss.assumed_camera_sigma, ss.input_size, level_factory
+            )
+
+            # Populate intermediate scale space
+            for i in eachindex(next_ss.levels)
+                src_level = intermediate_ss.levels.data[i]
+                dst_level = next_ss.levels.data[i]
+
+                if dst_level isa NamedTuple
+                    # Hessian-like filter
+                    filters[filter_idx](dst_level.Ixx, dst_level.Iyy, dst_level.Ixy, src_level)
+                else
+                    filters[filter_idx](dst_level, src_level)
+                end
+            end
+
+            intermediate_ss = next_ss
+        end
+
+        # Apply final filter to populate target scale space
+        final_filter = filters[end]
+        for i in eachindex(ss.levels)
+            src_level = intermediate_ss.levels.data[i]
+            dst_level = ss.levels.data[i]
+
+            # Handle different filter signatures
+            if dst_level isa NamedTuple && haskey(dst_level, :Ixx)
+                # Hessian-like filter
+                final_filter(dst_level.Ixx, dst_level.Iyy, dst_level.Ixy, src_level)
+            else
+                # Standard filter
+                final_filter(dst_level, src_level)
+            end
+        end
     end
 
     return ss
-end
-
-"""
-    (hess_ss::ScaleSpace)(smooth_ss::ScaleSpace{<:AbstractMatrix}, filter_fn::Function)
-
-Populate a Hessian scale space from a smoothed scale space using the provided filter.
-
-# Example
-```julia
-smooth_ss = ScaleSpace(width=128, height=128)
-smooth_ss(image, gaussian_filter)
-hess_ss = HessianScaleSpace(smooth_ss)
-hess_ss(smooth_ss, hessian_filter)
-```
-"""
-function (hess_ss::ScaleSpace)(smooth_ss::ScaleSpace{<:AbstractMatrix}, filter_fn::Function)
-    for i in eachindex(hess_ss.levels)
-        smooth_level = smooth_ss.levels.data[i]
-        hess_level = hess_ss.levels.data[i]
-        filter_fn(hess_level.Ixx, hess_level.Iyy, hess_level.Ixy, smooth_level)
-    end
-    return hess_ss
 end
 
 # Internal population functions
@@ -414,30 +472,6 @@ Compute Laplacian from Hessian components by summing Ixx + Iyy.
 function laplacian_filter(lap_data::AbstractMatrix, hess_level::NamedTuple)
     lap_data .= hess_level.Ixx .+ hess_level.Iyy
     return nothing
-end
-
-"""
-    (lap_ss::ScaleSpace{<:AbstractMatrix})(hess_ss::ScaleSpace, filter_fn::Function)
-
-Populate a Laplacian scale space from a Hessian scale space.
-
-# Example
-```julia
-smooth_ss = ScaleSpace(width=128, height=128)
-smooth_ss(image, gaussian_filter)
-hess_ss = HessianScaleSpace(smooth_ss)
-hess_ss(smooth_ss, hessian_filter)
-lap_ss = LaplacianScaleSpace(smooth_ss)
-lap_ss(hess_ss, laplacian_filter)
-```
-"""
-function (lap_ss::ScaleSpace{<:AbstractMatrix})(hess_ss::ScaleSpace, filter_fn::Function)
-    for i in eachindex(lap_ss.levels)
-        hess_level = hess_ss.levels.data[i]
-        lap_level = lap_ss.levels.data[i]
-        filter_fn(lap_level, hess_level)
-    end
-    return lap_ss
 end
 
 # Image saving utilities
