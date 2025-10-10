@@ -48,40 +48,40 @@ struct ScaleSpace{T}
     assumed_camera_sigma::Float64
     levels::StructArray{ScaleLevel{T}}
     input_size::Size2{Int}
-end
 
-# Core internal function for building scale space
-function _build_scale_space(first_octave::Int, last_octave::Int, octave_resolution::Int,
-                           octave_first_subdivision::Int, octave_last_subdivision::Int,
-                           base_sigma::Float64, assumed_camera_sigma::Float64,
-                           input_size::Size2{Int}, level_factory::Function)
-    octave_range = first_octave:last_octave
-    scale_range = octave_first_subdivision:octave_last_subdivision
+    # Inner constructor for building scale space with level factory
+    function ScaleSpace(first_octave::Int, last_octave::Int, octave_resolution::Int,
+                       octave_first_subdivision::Int, octave_last_subdivision::Int,
+                       base_sigma::Float64, assumed_camera_sigma::Float64,
+                       input_size::Size2{Int}, level_factory::Function)
+        octave_range = first_octave:last_octave
+        scale_range = octave_first_subdivision:octave_last_subdivision
 
-    combinations = Iterators.product(octave_range, scale_range)
-    octaves = [combo[1] for combo in combinations]
-    scales = [combo[2] for combo in combinations]
+        combinations = Iterators.product(octave_range, scale_range)
+        octaves = [combo[1] for combo in combinations]
+        scales = [combo[2] for combo in combinations]
 
-    sigmas = base_sigma .* 2.0 .^ (octaves .+ scales ./ octave_resolution)
-    step_values = 2.0 .^ octaves
-    sizes = [Size2(max(1, round(Int, input_size.width * 2.0^(-o))),
-                   max(1, round(Int, input_size.height * 2.0^(-o)))) for o in octaves]
+        sigmas = base_sigma .* 2.0 .^ (octaves .+ scales ./ octave_resolution)
+        step_values = 2.0 .^ octaves
+        sizes = [Size2(max(1, round(Int, input_size.width * 2.0^(-o))),
+                       max(1, round(Int, input_size.height * 2.0^(-o)))) for o in octaves]
 
-    data_arrays = level_factory.(sizes)
+        data_arrays = level_factory.(sizes)
 
-    T = eltype(data_arrays)
-    levels = StructArray{ScaleLevel{T}}((
-        data = data_arrays,
-        octave = octaves,
-        scale = scales,
-        sigma = sigmas,
-        step = step_values,
-        size = sizes
-    ))
+        T = eltype(data_arrays)
+        levels = StructArray{ScaleLevel{T}}((
+            data = data_arrays,
+            octave = octaves,
+            scale = scales,
+            sigma = sigmas,
+            step = step_values,
+            size = sizes
+        ))
 
-    return ScaleSpace(first_octave, last_octave, octave_resolution,
+        return new{T}(first_octave, last_octave, octave_resolution,
                      octave_first_subdivision, octave_last_subdivision,
                      base_sigma, assumed_camera_sigma, levels, input_size)
+    end
 end
 
 # Public constructors
@@ -104,16 +104,16 @@ function ScaleSpace(; size::Union{Size2{Int}, Nothing}=nothing, width::Int=0, he
     # VLFeat applies base_sigma scaling: baseScale = 1.6 * 2^(1/octaveResolution)
     adjusted_base_sigma = base_sigma * 2.0^(1.0 / octave_resolution)
 
-    return _build_scale_space(0, last_octave, octave_resolution, 0, octave_resolution - 1,
-                             adjusted_base_sigma, assumed_camera_sigma, size,
-                             sz -> Matrix{T}(undef, sz.height, sz.width))
+    return ScaleSpace(0, last_octave, octave_resolution, 0, octave_resolution - 1,
+                     adjusted_base_sigma, assumed_camera_sigma, size,
+                     sz -> Matrix{T}(undef, sz.height, sz.width))
 end
 
 function Base.similar(ss::ScaleSpace, level_factory::Function)
-    return _build_scale_space(ss.first_octave, ss.last_octave, ss.octave_resolution,
-                             ss.octave_first_subdivision, ss.octave_last_subdivision,
-                             ss.base_sigma, ss.assumed_camera_sigma, ss.input_size,
-                             level_factory)
+    return ScaleSpace(ss.first_octave, ss.last_octave, ss.octave_resolution,
+                     ss.octave_first_subdivision, ss.octave_last_subdivision,
+                     ss.base_sigma, ss.assumed_camera_sigma, ss.input_size,
+                     level_factory)
 end
 
 """
@@ -134,11 +134,11 @@ function HessianScaleSpace(; size::Union{Size2{Int}, Nothing}=nothing, width::In
     # VLFeat applies base_sigma scaling: baseScale = 1.6 * 2^(1/octaveResolution)
     adjusted_base_sigma = base_sigma * 2.0^(1.0 / octave_resolution)
 
-    return _build_scale_space(0, last_octave, octave_resolution, 0, octave_resolution - 1,
-                             adjusted_base_sigma, assumed_camera_sigma, size,
-                             sz -> (Ixx = Matrix{T}(undef, sz.height, sz.width),
-                                   Iyy = Matrix{T}(undef, sz.height, sz.width),
-                                   Ixy = Matrix{T}(undef, sz.height, sz.width)))
+    return ScaleSpace(0, last_octave, octave_resolution, 0, octave_resolution - 1,
+                     adjusted_base_sigma, assumed_camera_sigma, size,
+                     sz -> (Ixx = Matrix{T}(undef, sz.height, sz.width),
+                           Iyy = Matrix{T}(undef, sz.height, sz.width),
+                           Ixy = Matrix{T}(undef, sz.height, sz.width)))
 end
 
 HessianScaleSpace(ss::ScaleSpace{<:AbstractMatrix}, element_type::Type{T}=Float32) where T =
@@ -164,9 +164,9 @@ function LaplacianScaleSpace(; size::Union{Size2{Int}, Nothing}=nothing, width::
     # VLFeat applies base_sigma scaling: baseScale = 1.6 * 2^(1/octaveResolution)
     adjusted_base_sigma = base_sigma * 2.0^(1.0 / octave_resolution)
 
-    return _build_scale_space(0, last_octave, octave_resolution, 0, octave_resolution - 1,
-                             adjusted_base_sigma, assumed_camera_sigma, size,
-                             sz -> Matrix{T}(undef, sz.height, sz.width))
+    return ScaleSpace(0, last_octave, octave_resolution, 0, octave_resolution - 1,
+                     adjusted_base_sigma, assumed_camera_sigma, size,
+                     sz -> Matrix{T}(undef, sz.height, sz.width))
 end
 
 LaplacianScaleSpace(ss::ScaleSpace, element_type::Type{T}=Float32) where T =
