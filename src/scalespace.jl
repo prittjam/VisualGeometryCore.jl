@@ -286,9 +286,76 @@ function (ss::ScaleSpace)(input::Union{AbstractMatrix, ScaleSpace}, filters...)
             input_h, input_w = size(input)
             @assert input_h == ss.input_size.height && input_w == ss.input_size.width
 
-            _populate_octave_from_image!(ss, input, ss.first_octave, filter_fn)
+            # Populate first octave from input image
+            o = ss.first_octave
+            first_level = get_scale_level(ss, o, ss.octave_first_subdivision)
+
+            # Downsample/upsample input image to this octave's resolution
+            if o >= 0
+                step = 2^o
+                first_level.data .= input[1:step:end, 1:step:end]
+            else
+                scale_factor = 2.0^(-o)
+                h, w = size(input)
+                new_size = (round(Int, h * scale_factor), round(Int, w * scale_factor))
+                first_level.data .= imresize(input, new_size)
+            end
+
+            # Apply smoothing to reach target sigma
+            target_sigma = first_level.sigma
+            image_sigma = ss.assumed_camera_sigma
+
+            if target_sigma > image_sigma
+                delta_sigma = sqrt(target_sigma^2 - image_sigma^2)
+                kernel_sigma = delta_sigma / first_level.step
+                first_level.data .= filter_fn(first_level.data, kernel_sigma)
+            end
+
+            # Fill rest of first octave by incremental smoothing
+            for s in (ss.octave_first_subdivision + 1):ss.octave_last_subdivision
+                curr_level = get_scale_level(ss, o, s)
+                prev_level = get_scale_level(ss, o, s - 1)
+
+                target_sigma = curr_level.sigma
+                prev_sigma = prev_level.sigma
+                delta_sigma = sqrt(target_sigma^2 - prev_sigma^2)
+                kernel_sigma = delta_sigma / curr_level.step
+                curr_level.data .= filter_fn(prev_level.data, kernel_sigma)
+            end
+
+            # Populate remaining octaves from previous octave
             for o in (ss.first_octave + 1):ss.last_octave
-                _populate_octave_from_previous!(ss, o, filter_fn)
+                # Pick the level from previous octave to downsample
+                prev_scale_idx = min(ss.octave_first_subdivision + ss.octave_resolution,
+                                    ss.octave_last_subdivision)
+
+                prev_level = get_scale_level(ss, o - 1, prev_scale_idx)
+                curr_level = get_scale_level(ss, o, ss.octave_first_subdivision)
+
+                # Downsample by simple decimation
+                curr_level.data .= prev_level.data[1:2:end, 1:2:end]
+
+                # Apply additional smoothing if needed
+                target_sigma = curr_level.sigma
+                prev_sigma = prev_level.sigma
+
+                if target_sigma > prev_sigma
+                    delta_sigma = sqrt(target_sigma^2 - prev_sigma^2)
+                    kernel_sigma = delta_sigma / curr_level.step
+                    curr_level.data .= filter_fn(curr_level.data, kernel_sigma)
+                end
+
+                # Fill rest of octave
+                for s in (ss.octave_first_subdivision + 1):ss.octave_last_subdivision
+                    curr_level = get_scale_level(ss, o, s)
+                    prev_level = get_scale_level(ss, o, s - 1)
+
+                    target_sigma = curr_level.sigma
+                    prev_sigma = prev_level.sigma
+                    delta_sigma = sqrt(target_sigma^2 - prev_sigma^2)
+                    kernel_sigma = delta_sigma / curr_level.step
+                    curr_level.data .= filter_fn(prev_level.data, kernel_sigma)
+                end
             end
         else
             # Building from another scale space - apply filter level-by-level
@@ -376,92 +443,6 @@ function (ss::ScaleSpace)(input::Union{AbstractMatrix, ScaleSpace}, filters...)
     end
 
     return ss
-end
-
-# Internal population functions
-
-"""
-Initialize and fill an octave starting from the input image.
-"""
-function _populate_octave_from_image!(ss::ScaleSpace{<:AbstractMatrix},
-                                      input_image::AbstractMatrix, o::Int, filter_fn::Function)
-    # Get first level of this octave
-    first_level = get_scale_level(ss, o, ss.octave_first_subdivision)
-
-    # Downsample/upsample input image to this octave's resolution
-    if o >= 0
-        # Downsample by simple decimation (sample every 2^o pixels)
-        step = 2^o
-        first_level.data .= input_image[1:step:end, 1:step:end]
-    else
-        # Upsample (not typically used, but VLFeat supports it)
-        scale_factor = 2.0^(-o)
-        h, w = size(input_image)
-        new_size = (round(Int, h * scale_factor), round(Int, w * scale_factor))
-        first_level.data .= imresize(input_image, new_size)
-    end
-
-    # Apply smoothing to reach target sigma
-    target_sigma = first_level.sigma
-    image_sigma = ss.assumed_camera_sigma
-
-    if target_sigma > image_sigma
-        delta_sigma = sqrt(target_sigma^2 - image_sigma^2)
-        # Sigma is in absolute coordinates, but we're working in octave coordinates
-        # so divide by step
-        kernel_sigma = delta_sigma / first_level.step
-        first_level.data .= filter_fn(first_level.data, kernel_sigma)
-    end
-
-    # Fill rest of octave by incremental smoothing
-    _fill_octave!(ss, o, filter_fn)
-end
-
-"""
-Initialize and fill an octave from the previous octave.
-"""
-function _populate_octave_from_previous!(ss::ScaleSpace{<:AbstractMatrix}, o::Int, filter_fn::Function)
-    # Pick the level from previous octave that's closest to octaveResolution steps up
-    # This is min(octaveFirstSubdivision + octaveResolution, octaveLastSubdivision)
-    prev_scale_idx = min(ss.octave_first_subdivision + ss.octave_resolution,
-                        ss.octave_last_subdivision)
-
-    prev_level = get_scale_level(ss, o - 1, prev_scale_idx)
-    curr_level = get_scale_level(ss, o, ss.octave_first_subdivision)
-
-    # Downsample by simple decimation (take every other pixel)
-    curr_level.data .= prev_level.data[1:2:end, 1:2:end]
-
-    # Apply additional smoothing if needed
-    target_sigma = curr_level.sigma
-    prev_sigma = prev_level.sigma
-
-    if target_sigma > prev_sigma
-        delta_sigma = sqrt(target_sigma^2 - prev_sigma^2)
-        kernel_sigma = delta_sigma / curr_level.step
-        curr_level.data .= filter_fn(curr_level.data, kernel_sigma)
-    end
-
-    # Fill rest of octave
-    _fill_octave!(ss, o, filter_fn)
-end
-
-"""
-Fill an octave by incrementally smoothing from the first subdivision.
-"""
-function _fill_octave!(ss::ScaleSpace{<:AbstractMatrix}, o::Int, filter_fn::Function)
-    for s in (ss.octave_first_subdivision + 1):ss.octave_last_subdivision
-        curr_level = get_scale_level(ss, o, s)
-        prev_level = get_scale_level(ss, o, s - 1)
-
-        target_sigma = curr_level.sigma
-        prev_sigma = prev_level.sigma
-        delta_sigma = sqrt(target_sigma^2 - prev_sigma^2)
-
-        # Sigma in octave coordinates
-        kernel_sigma = delta_sigma / curr_level.step
-        curr_level.data .= filter_fn(prev_level.data, kernel_sigma)
-    end
 end
 
 """
