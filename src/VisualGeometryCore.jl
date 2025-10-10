@@ -40,12 +40,11 @@ export push_conic, gradient, plotellipses
 
 # Export scale space functionality
 export ScaleLevel, ScaleSpace
-export HessianScaleSpace, LaplacianScaleSpace
 export get_level, get_scale_level
 export save_images
 
 # Export filter functions
-export gaussian_filter, hessian_filter, laplacian_filter
+export hessian_filter
 
 # Include units first (defines custom units and types)
 include("units/types.jl")

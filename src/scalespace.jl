@@ -214,15 +214,6 @@ end
 # Filter functions
 
 """
-    gaussian_filter(data::AbstractMatrix, sigma::Float64) -> filtered::AbstractMatrix
-
-Apply Gaussian filtering with the specified sigma.
-This is the default filter for scale space construction.
-"""
-gaussian_filter(data::AbstractMatrix, sigma::Float64) =
-    imfilter(data, Kernel.gaussian(sigma), "reflect")
-
-"""
     hessian_filter(Ixx::AbstractMatrix, Iyy::AbstractMatrix, Ixy::AbstractMatrix, image::AbstractMatrix)
 
 Compute Hessian components using central differences.
@@ -263,15 +254,20 @@ Populate the scale space by applying a chain of filters in sequence.
 ```julia
 # Gaussian scale space (1 filter)
 ss = ScaleSpace(width=128, height=128)
-ss(image, gaussian_filter)
+ss(image, (data, sigma) -> imfilter(data, Kernel.gaussian(sigma), "reflect"))
 
 # Hessian scale space (2 filters)
 hess_ss = ScaleSpace(width=128, height=128, data_type=:hessian)
-hess_ss(image, gaussian_filter, hessian_filter)
+hess_ss(image,
+    (data, sigma) -> imfilter(data, Kernel.gaussian(sigma), "reflect"),
+    hessian_filter)
 
 # Laplacian scale space (3 filters)
 lap_ss = ScaleSpace(width=128, height=128, data_type=:laplacian)
-lap_ss(image, gaussian_filter, hessian_filter, laplacian_filter)
+lap_ss(image,
+    (data, sigma) -> imfilter(data, Kernel.gaussian(sigma), "reflect"),
+    hessian_filter,
+    (lap_data, hess_level) -> lap_data .= hess_level.Ixx .+ hess_level.Iyy)
 ```
 """
 function (ss::ScaleSpace)(input::Union{AbstractMatrix, ScaleSpace}, filters...)
@@ -443,16 +439,6 @@ function (ss::ScaleSpace)(input::Union{AbstractMatrix, ScaleSpace}, filters...)
     end
 
     return ss
-end
-
-"""
-    laplacian_filter(lap_data::AbstractMatrix, hess_level::NamedTuple)
-
-Compute Laplacian from Hessian components by summing Ixx + Iyy.
-"""
-function laplacian_filter(lap_data::AbstractMatrix, hess_level::NamedTuple)
-    lap_data .= hess_level.Ixx .+ hess_level.Iyy
-    return nothing
 end
 
 # Image saving utilities

@@ -2,6 +2,7 @@
 
 using VisualGeometryCore
 using TestImages
+using ImageFiltering: Kernel, imfilter
 
 println("Testing unified scale space API with filter chains\n")
 
@@ -11,6 +12,10 @@ img_gray = Float32.(img)
 
 h, w = size(img_gray)
 println("Test image size: $(w)x$(h)")
+
+# Define filter functions
+gaussian_filter = (data, sigma) -> imfilter(data, Kernel.gaussian(sigma), "reflect")
+laplacian_filter = (lap_data, hess_level) -> lap_data .= hess_level.Ixx .+ hess_level.Iyy
 
 # Test 1: Gaussian scale space with single filter
 println("\n=== Test 1: Gaussian scale space (1 filter) ===")
