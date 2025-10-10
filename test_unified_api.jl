@@ -26,10 +26,10 @@ println("  Levels: $(length(ss.levels))")
 println("  First level sigma: $(ss.levels[1].sigma)")
 println("  Last level sigma: $(ss.levels[end].sigma)")
 
-# Test 2: Hessian scale space with filter chain
-println("\n=== Test 2: Hessian scale space (2 filters) ===")
+# Test 2: Hessian scale space from Gaussian
+println("\n=== Test 2: Hessian scale space (from Gaussian) ===")
 hess_ss = ScaleSpace(width=w, height=h, data_type=:hessian)
-hess_ss(img_gray, gaussian_filter, hessian_filter)
+hess_ss(ss, hessian_filter)
 println("✓ Hessian scale space created successfully")
 println("  Levels: $(length(hess_ss.levels))")
 println("  Data type: $(typeof(hess_ss.levels.data[1]))")
@@ -41,10 +41,10 @@ println("  Ixx range: [$(minimum(first_hess.Ixx)), $(maximum(first_hess.Ixx))]")
 println("  Iyy range: [$(minimum(first_hess.Iyy)), $(maximum(first_hess.Iyy))]")
 println("  Ixy range: [$(minimum(first_hess.Ixy)), $(maximum(first_hess.Ixy))]")
 
-# Test 3: Laplacian scale space with full filter chain
-println("\n=== Test 3: Laplacian scale space (3 filters) ===")
+# Test 3: Laplacian scale space from Hessian
+println("\n=== Test 3: Laplacian scale space (from Hessian) ===")
 lap_ss = ScaleSpace(width=w, height=h, data_type=:laplacian)
-lap_ss(img_gray, gaussian_filter, hessian_filter, laplacian_filter)
+lap_ss(hess_ss, laplacian_filter)
 println("✓ Laplacian scale space created successfully")
 println("  Levels: $(length(lap_ss.levels))")
 println("  Data type: $(typeof(lap_ss.levels.data[1]))")

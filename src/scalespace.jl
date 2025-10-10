@@ -237,204 +237,142 @@ end
 # Scale space population - Functor interface
 
 """
-    (ss::ScaleSpace)(input::Union{AbstractMatrix, ScaleSpace}, filters...)
+    (ss::ScaleSpace)(input::AbstractMatrix, filter::Function)
 
-Populate the scale space by applying a chain of filters in sequence.
+Build scale space pyramid from an image using octave-based construction with smoothing.
+
+This method builds the multi-octave Gaussian pyramid by:
+1. Downsampling the input to each octave resolution
+2. Applying incremental smoothing to reach target sigma values
+3. Building each octave from the previous via decimation
 
 # Arguments
-- `input`: Input image (AbstractMatrix) or source scale space
-- `filters...`: One or more filter functions to apply in sequence
+- `input`: Input image (must match scale space dimensions)
+- `filter`: Smoothing filter with signature `(data, sigma) -> filtered_data`
 
-# Filter Chain Behavior
-- **1 filter**: Builds scale space pyramid directly (e.g., Gaussian smoothing)
-- **2 filters**: Builds intermediate pyramid with first filter, applies second filter to populate target
-- **3+ filters**: Builds intermediate pyramids for each step, final filter populates target
-
-# Examples
+# Example
 ```julia
-# Gaussian scale space (1 filter)
-ss = ScaleSpace(width=128, height=128)
+ss = ScaleSpace(width=512, height=512)
 ss(image, (data, sigma) -> imfilter(data, Kernel.gaussian(sigma), "reflect"))
-
-# Hessian scale space (2 filters)
-hess_ss = ScaleSpace(width=128, height=128, data_type=:hessian)
-hess_ss(image,
-    (data, sigma) -> imfilter(data, Kernel.gaussian(sigma), "reflect"),
-    hessian_filter)
-
-# Laplacian scale space (3 filters)
-lap_ss = ScaleSpace(width=128, height=128, data_type=:laplacian)
-lap_ss(image,
-    (data, sigma) -> imfilter(data, Kernel.gaussian(sigma), "reflect"),
-    hessian_filter,
-    (lap_data, hess_level) -> lap_data .= hess_level.Ixx .+ hess_level.Iyy)
 ```
 """
-function (ss::ScaleSpace)(input::Union{AbstractMatrix, ScaleSpace}, filters...)
-    isempty(filters) && error("At least one filter must be provided")
+function (ss::ScaleSpace)(input::AbstractMatrix, filter::Function)
+    # Verify input dimensions
+    input_h, input_w = size(input)
+    @assert input_h == ss.input_size.height && input_w == ss.input_size.width
 
-    if length(filters) == 1
-        # Direct population with single filter
-        filter_fn = filters[1]
+    # Populate first octave from input image
+    o = ss.first_octave
+    first_level = get_scale_level(ss, o, ss.octave_first_subdivision)
 
-        if input isa AbstractMatrix
-            # Building from image - use the octave-based population
-            input_h, input_w = size(input)
-            @assert input_h == ss.input_size.height && input_w == ss.input_size.width
-
-            # Populate first octave from input image
-            o = ss.first_octave
-            first_level = get_scale_level(ss, o, ss.octave_first_subdivision)
-
-            # Downsample/upsample input image to this octave's resolution
-            if o >= 0
-                step = 2^o
-                first_level.data .= input[1:step:end, 1:step:end]
-            else
-                scale_factor = 2.0^(-o)
-                h, w = size(input)
-                new_size = (round(Int, h * scale_factor), round(Int, w * scale_factor))
-                first_level.data .= imresize(input, new_size)
-            end
-
-            # Apply smoothing to reach target sigma
-            target_sigma = first_level.sigma
-            image_sigma = ss.assumed_camera_sigma
-
-            if target_sigma > image_sigma
-                delta_sigma = sqrt(target_sigma^2 - image_sigma^2)
-                kernel_sigma = delta_sigma / first_level.step
-                first_level.data .= filter_fn(first_level.data, kernel_sigma)
-            end
-
-            # Fill rest of first octave by incremental smoothing
-            for s in (ss.octave_first_subdivision + 1):ss.octave_last_subdivision
-                curr_level = get_scale_level(ss, o, s)
-                prev_level = get_scale_level(ss, o, s - 1)
-
-                target_sigma = curr_level.sigma
-                prev_sigma = prev_level.sigma
-                delta_sigma = sqrt(target_sigma^2 - prev_sigma^2)
-                kernel_sigma = delta_sigma / curr_level.step
-                curr_level.data .= filter_fn(prev_level.data, kernel_sigma)
-            end
-
-            # Populate remaining octaves from previous octave
-            for o in (ss.first_octave + 1):ss.last_octave
-                # Pick the level from previous octave to downsample
-                prev_scale_idx = min(ss.octave_first_subdivision + ss.octave_resolution,
-                                    ss.octave_last_subdivision)
-
-                prev_level = get_scale_level(ss, o - 1, prev_scale_idx)
-                curr_level = get_scale_level(ss, o, ss.octave_first_subdivision)
-
-                # Downsample by simple decimation
-                curr_level.data .= prev_level.data[1:2:end, 1:2:end]
-
-                # Apply additional smoothing if needed
-                target_sigma = curr_level.sigma
-                prev_sigma = prev_level.sigma
-
-                if target_sigma > prev_sigma
-                    delta_sigma = sqrt(target_sigma^2 - prev_sigma^2)
-                    kernel_sigma = delta_sigma / curr_level.step
-                    curr_level.data .= filter_fn(curr_level.data, kernel_sigma)
-                end
-
-                # Fill rest of octave
-                for s in (ss.octave_first_subdivision + 1):ss.octave_last_subdivision
-                    curr_level = get_scale_level(ss, o, s)
-                    prev_level = get_scale_level(ss, o, s - 1)
-
-                    target_sigma = curr_level.sigma
-                    prev_sigma = prev_level.sigma
-                    delta_sigma = sqrt(target_sigma^2 - prev_sigma^2)
-                    kernel_sigma = delta_sigma / curr_level.step
-                    curr_level.data .= filter_fn(prev_level.data, kernel_sigma)
-                end
-            end
-        else
-            # Building from another scale space - apply filter level-by-level
-            for i in eachindex(ss.levels)
-                src_level = input.levels.data[i]
-                dst_level = ss.levels.data[i]
-
-                # Handle different filter signatures
-                if applicable(filter_fn, dst_level, src_level)
-                    filter_fn(dst_level, src_level)
-                else
-                    error("Filter not applicable for transformation between scale spaces")
-                end
-            end
-        end
+    # Downsample/upsample input image to this octave's resolution
+    if o >= 0
+        step = 2^o
+        first_level.data .= input[1:step:end, 1:step:end]
     else
-        # Multi-filter chain - build intermediate scale spaces
-        # First, build the first intermediate scale space
-        if input isa AbstractMatrix
-            # Create intermediate scale space with same geometry as target
-            # Use inner constructor to avoid double-adjusting base_sigma
-            level_factory = sz -> Matrix{eltype(input)}(undef, sz.height, sz.width)
-            intermediate_ss = ScaleSpace(
-                ss.first_octave, ss.last_octave, ss.octave_resolution,
-                ss.octave_first_subdivision, ss.octave_last_subdivision,
-                ss.base_sigma, ss.assumed_camera_sigma, ss.input_size, level_factory
-            )
-            intermediate_ss(input, filters[1])
+        scale_factor = 2.0^(-o)
+        h, w = size(input)
+        new_size = (round(Int, h * scale_factor), round(Int, w * scale_factor))
+        first_level.data .= imresize(input, new_size)
+    end
+
+    # Apply smoothing to reach target sigma
+    target_sigma = first_level.sigma
+    image_sigma = ss.assumed_camera_sigma
+
+    if target_sigma > image_sigma
+        delta_sigma = sqrt(target_sigma^2 - image_sigma^2)
+        kernel_sigma = delta_sigma / first_level.step
+        first_level.data .= filter(first_level.data, kernel_sigma)
+    end
+
+    # Fill rest of first octave by incremental smoothing
+    for s in (ss.octave_first_subdivision + 1):ss.octave_last_subdivision
+        curr_level = get_scale_level(ss, o, s)
+        prev_level = get_scale_level(ss, o, s - 1)
+
+        target_sigma = curr_level.sigma
+        prev_sigma = prev_level.sigma
+        delta_sigma = sqrt(target_sigma^2 - prev_sigma^2)
+        kernel_sigma = delta_sigma / curr_level.step
+        curr_level.data .= filter(prev_level.data, kernel_sigma)
+    end
+
+    # Populate remaining octaves from previous octave
+    for o in (ss.first_octave + 1):ss.last_octave
+        # Pick the level from previous octave to downsample
+        prev_scale_idx = min(ss.octave_first_subdivision + ss.octave_resolution,
+                            ss.octave_last_subdivision)
+
+        prev_level = get_scale_level(ss, o - 1, prev_scale_idx)
+        curr_level = get_scale_level(ss, o, ss.octave_first_subdivision)
+
+        # Downsample by simple decimation
+        curr_level.data .= prev_level.data[1:2:end, 1:2:end]
+
+        # Apply additional smoothing if needed
+        target_sigma = curr_level.sigma
+        prev_sigma = prev_level.sigma
+
+        if target_sigma > prev_sigma
+            delta_sigma = sqrt(target_sigma^2 - prev_sigma^2)
+            kernel_sigma = delta_sigma / curr_level.step
+            curr_level.data .= filter(curr_level.data, kernel_sigma)
+        end
+
+        # Fill rest of octave
+        for s in (ss.octave_first_subdivision + 1):ss.octave_last_subdivision
+            curr_level = get_scale_level(ss, o, s)
+            prev_level = get_scale_level(ss, o, s - 1)
+
+            target_sigma = curr_level.sigma
+            prev_sigma = prev_level.sigma
+            delta_sigma = sqrt(target_sigma^2 - prev_sigma^2)
+            kernel_sigma = delta_sigma / curr_level.step
+            curr_level.data .= filter(prev_level.data, kernel_sigma)
+        end
+    end
+
+    return ss
+end
+
+"""
+    (ss::ScaleSpace)(input::ScaleSpace, filter::Function)
+
+Transform from one scale space to another by applying a filter level-by-level.
+
+This method performs element-wise transformations on already-smoothed scale space levels,
+such as computing derivatives (Hessian, Laplacian) or other operations on smoothed images.
+
+# Arguments
+- `input`: Source scale space (must have matching geometry)
+- `filter`: Transformation filter - signature depends on data types
+
+# Example
+```julia
+# Compute Hessian from Gaussian scale space
+smooth_ss = ScaleSpace(width=512, height=512)
+smooth_ss(image, (data, sigma) -> imfilter(data, Kernel.gaussian(sigma), "reflect"))
+
+hess_ss = ScaleSpace(width=512, height=512, data_type=:hessian)
+hess_ss(smooth_ss, hessian_filter)
+```
+"""
+function (ss::ScaleSpace)(input::ScaleSpace, filter::Function)
+    # Apply filter level-by-level
+    for i in eachindex(ss.levels)
+        src_level = input.levels.data[i]
+        dst_level = ss.levels.data[i]
+
+        # Handle different filter signatures
+        if dst_level isa NamedTuple && haskey(dst_level, :Ixx)
+            # Hessian-like filter with multiple outputs
+            filter(dst_level.Ixx, dst_level.Iyy, dst_level.Ixy, src_level)
+        elseif applicable(filter, dst_level, src_level)
+            # Standard filter
+            filter(dst_level, src_level)
         else
-            intermediate_ss = input
-        end
-
-        # Apply intermediate filters
-        for filter_idx in 2:(length(filters) - 1)
-            # Determine what type of intermediate we need based on the filter
-            level_factory = if filter_idx == 2 && applicable(filters[filter_idx], zeros(2,2), zeros(2,2), zeros(2,2), zeros(2,2))
-                # Hessian filter - needs NamedTuple storage
-                T = eltype(intermediate_ss.levels.data[1])
-                sz -> (Ixx = Matrix{T}(undef, sz.height, sz.width),
-                      Iyy = Matrix{T}(undef, sz.height, sz.width),
-                      Ixy = Matrix{T}(undef, sz.height, sz.width))
-            else
-                # Matrix storage
-                T = eltype(intermediate_ss.levels.data[1])
-                sz -> Matrix{T}(undef, sz.height, sz.width)
-            end
-
-            next_ss = ScaleSpace(
-                ss.first_octave, ss.last_octave, ss.octave_resolution,
-                ss.octave_first_subdivision, ss.octave_last_subdivision,
-                ss.base_sigma, ss.assumed_camera_sigma, ss.input_size, level_factory
-            )
-
-            # Populate intermediate scale space
-            for i in eachindex(next_ss.levels)
-                src_level = intermediate_ss.levels.data[i]
-                dst_level = next_ss.levels.data[i]
-
-                if dst_level isa NamedTuple
-                    # Hessian-like filter
-                    filters[filter_idx](dst_level.Ixx, dst_level.Iyy, dst_level.Ixy, src_level)
-                else
-                    filters[filter_idx](dst_level, src_level)
-                end
-            end
-
-            intermediate_ss = next_ss
-        end
-
-        # Apply final filter to populate target scale space
-        final_filter = filters[end]
-        for i in eachindex(ss.levels)
-            src_level = intermediate_ss.levels.data[i]
-            dst_level = ss.levels.data[i]
-
-            # Handle different filter signatures
-            if dst_level isa NamedTuple && haskey(dst_level, :Ixx)
-                # Hessian-like filter
-                final_filter(dst_level.Ixx, dst_level.Iyy, dst_level.Ixy, src_level)
-            else
-                # Standard filter
-                final_filter(dst_level, src_level)
-            end
+            error("Filter not applicable for transformation between scale spaces")
         end
     end
 
