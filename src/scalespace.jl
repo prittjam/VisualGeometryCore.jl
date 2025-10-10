@@ -10,7 +10,7 @@ This module implements Gaussian scale space similar to VLFeat, with:
 
 using LinearAlgebra
 using ImageFiltering
-using ImageFiltering: Kernel, imfilter, centered
+using ImageFiltering: Kernel, imfilter, centered, Fill
 using ImageTransformations: imresize
 using StructArrays
 using FileIO
@@ -234,86 +234,99 @@ function downsample_to_octave(img::AbstractMatrix, from_octave::Int, to_octave::
     return imresize(img, new_size)
 end
 
+# Filter functions
+
+"""
+    gaussian_filter(data::AbstractMatrix, sigma::Float64) -> filtered::AbstractMatrix
+
+Apply Gaussian filtering with the specified sigma.
+This is the default filter for scale space construction.
+"""
+gaussian_filter(data::AbstractMatrix, sigma::Float64) =
+    imfilter(data, Kernel.gaussian(sigma), "reflect")
+
+"""
+    hessian_filter(Ixx::AbstractMatrix, Iyy::AbstractMatrix, Ixy::AbstractMatrix, image::AbstractMatrix)
+
+Compute Hessian components using central differences.
+"""
+function hessian_filter(Ixx::AbstractMatrix, Iyy::AbstractMatrix, Ixy::AbstractMatrix, image::AbstractMatrix)
+    # Use full 2D kernels for second derivatives
+    # d²/dx² kernel (1D in x-direction, centered in y)
+    kernel_xx = centered([0 0 0; 1 -2 1; 0 0 0])
+    # d²/dy² kernel (1D in y-direction, centered in x)
+    kernel_yy = centered([0 1 0; 0 -2 0; 0 1 0])
+    # d²/dxdy kernel (mixed partial derivative)
+    kernel_xy = centered([0.25 0 -0.25; 0 0 0; -0.25 0 0.25])
+
+    # Apply filters
+    Ixx .= imfilter(image, kernel_xx)
+    Iyy .= imfilter(image, kernel_yy)
+    Ixy .= imfilter(image, kernel_xy)
+    return nothing
+end
+
 # Scale space population - Functor interface
 
 """
-    (ss::ScaleSpace{<:AbstractMatrix})(input_image::AbstractMatrix)
+    (ss::ScaleSpace{<:AbstractMatrix})(input_image::AbstractMatrix, filter_fn::Function)
 
-Populate the scale space with an image using the default Gaussian pyramid algorithm.
+Populate the scale space with an image using the provided filter function.
 
-# Example
-```julia
-ss = ScaleSpace(size=Size2(128, 128))
-ss(image)  # Populate with image
-```
-"""
-function (ss::ScaleSpace{<:AbstractMatrix})(input_image::AbstractMatrix)
-    return populate_gaussian_scale_space!(ss, input_image)
-end
-
-"""
-    (ss::ScaleSpace)(input_image::AbstractMatrix, populate_fn::Function)
-
-Populate the scale space using a custom population function.
+# Arguments
+- `input_image`: The input image to process
+- `filter_fn`: Filter function with signature `(data, sigma) -> filtered_data`
 
 # Example
 ```julia
-ss = ScaleSpace(size=Size2(128, 128))
-ss(image, populate_gaussian_scale_space!)  # Custom population
+ss = ScaleSpace(width=128, height=128)
+ss(image, gaussian_filter)  # Use Gaussian filtering
 ```
 """
-function (ss::ScaleSpace)(input_image::AbstractMatrix, populate_fn::Function)
-    return populate_fn(ss, input_image)
-end
-
-"""
-    (hess_ss::ScaleSpace)(smooth_ss::ScaleSpace{<:AbstractMatrix})
-
-Populate a Hessian scale space from a smoothed scale space.
-
-# Example
-```julia
-smooth_ss = ScaleSpace(size=Size2(128, 128))
-smooth_ss(image)
-hess_ss = HessianScaleSpace(smooth_ss)
-hess_ss(smooth_ss)  # Compute Hessian from smoothed
-```
-"""
-function (hess_ss::ScaleSpace)(smooth_ss::ScaleSpace{<:AbstractMatrix})
-    return populate_hessian_scale_space!(hess_ss, smooth_ss)
-end
-
-"""
-    populate_gaussian_scale_space!(ss::ScaleSpace{<:AbstractMatrix}, input_image::AbstractMatrix)
-
-Populate the entire scale space with incremental Gaussian filtering.
-Follows VLFeat's octave-by-octave approach.
-
-This is the default population function for Gaussian scale spaces.
-"""
-function populate_gaussian_scale_space!(ss::ScaleSpace{<:AbstractMatrix}, input_image::AbstractMatrix)
+function (ss::ScaleSpace{<:AbstractMatrix})(input_image::AbstractMatrix, filter_fn::Function)
     input_h, input_w = size(input_image)
     @assert input_h == ss.input_size.height && input_w == ss.input_size.width
 
     # Process first octave
-    _populate_octave_from_image!(ss, input_image, ss.first_octave)
+    _populate_octave_from_image!(ss, input_image, ss.first_octave, filter_fn)
 
     # Process remaining octaves
     for o in (ss.first_octave + 1):ss.last_octave
-        _populate_octave_from_previous!(ss, o)
+        _populate_octave_from_previous!(ss, o, filter_fn)
     end
 
     return ss
 end
 
-# Keep the old name for backward compatibility
-const populate_scale_space! = populate_gaussian_scale_space!
+"""
+    (hess_ss::ScaleSpace)(smooth_ss::ScaleSpace{<:AbstractMatrix}, filter_fn::Function)
+
+Populate a Hessian scale space from a smoothed scale space using the provided filter.
+
+# Example
+```julia
+smooth_ss = ScaleSpace(width=128, height=128)
+smooth_ss(image, gaussian_filter)
+hess_ss = HessianScaleSpace(smooth_ss)
+hess_ss(smooth_ss, hessian_filter)
+```
+"""
+function (hess_ss::ScaleSpace)(smooth_ss::ScaleSpace{<:AbstractMatrix}, filter_fn::Function)
+    for i in eachindex(hess_ss.levels)
+        smooth_level = smooth_ss.levels.data[i]
+        hess_level = hess_ss.levels.data[i]
+        filter_fn(hess_level.Ixx, hess_level.Iyy, hess_level.Ixy, smooth_level)
+    end
+    return hess_ss
+end
+
+# Internal population functions
 
 """
 Initialize and fill an octave starting from the input image.
 """
 function _populate_octave_from_image!(ss::ScaleSpace{<:AbstractMatrix},
-                                      input_image::AbstractMatrix, o::Int)
+                                      input_image::AbstractMatrix, o::Int, filter_fn::Function)
     # Get first level of this octave
     first_level = get_scale_level(ss, o, ss.octave_first_subdivision)
 
@@ -339,17 +352,17 @@ function _populate_octave_from_image!(ss::ScaleSpace{<:AbstractMatrix},
         # Sigma is in absolute coordinates, but we're working in octave coordinates
         # so divide by step
         kernel_sigma = delta_sigma / first_level.step
-        first_level.data .= imfilter(first_level.data, Kernel.gaussian(kernel_sigma), "reflect")
+        first_level.data .= filter_fn(first_level.data, kernel_sigma)
     end
 
     # Fill rest of octave by incremental smoothing
-    _fill_octave!(ss, o)
+    _fill_octave!(ss, o, filter_fn)
 end
 
 """
 Initialize and fill an octave from the previous octave.
 """
-function _populate_octave_from_previous!(ss::ScaleSpace{<:AbstractMatrix}, o::Int)
+function _populate_octave_from_previous!(ss::ScaleSpace{<:AbstractMatrix}, o::Int, filter_fn::Function)
     # Pick the level from previous octave that's closest to octaveResolution steps up
     # This is min(octaveFirstSubdivision + octaveResolution, octaveLastSubdivision)
     prev_scale_idx = min(ss.octave_first_subdivision + ss.octave_resolution,
@@ -368,17 +381,17 @@ function _populate_octave_from_previous!(ss::ScaleSpace{<:AbstractMatrix}, o::In
     if target_sigma > prev_sigma
         delta_sigma = sqrt(target_sigma^2 - prev_sigma^2)
         kernel_sigma = delta_sigma / curr_level.step
-        curr_level.data .= imfilter(curr_level.data, Kernel.gaussian(kernel_sigma), "reflect")
+        curr_level.data .= filter_fn(curr_level.data, kernel_sigma)
     end
 
     # Fill rest of octave
-    _fill_octave!(ss, o)
+    _fill_octave!(ss, o, filter_fn)
 end
 
 """
 Fill an octave by incrementally smoothing from the first subdivision.
 """
-function _fill_octave!(ss::ScaleSpace{<:AbstractMatrix}, o::Int)
+function _fill_octave!(ss::ScaleSpace{<:AbstractMatrix}, o::Int, filter_fn::Function)
     for s in (ss.octave_first_subdivision + 1):ss.octave_last_subdivision
         curr_level = get_scale_level(ss, o, s)
         prev_level = get_scale_level(ss, o, s - 1)
@@ -389,49 +402,41 @@ function _fill_octave!(ss::ScaleSpace{<:AbstractMatrix}, o::Int)
 
         # Sigma in octave coordinates
         kernel_sigma = delta_sigma / curr_level.step
-        curr_level.data .= imfilter(prev_level.data, Kernel.gaussian(kernel_sigma), "reflect")
+        curr_level.data .= filter_fn(prev_level.data, kernel_sigma)
     end
 end
 
 """
-    compute_hessian_components!(Ixx, Iyy, Ixy, image)
+    laplacian_filter(lap_data::AbstractMatrix, hess_level::NamedTuple)
 
-Compute Hessian components using central differences.
+Compute Laplacian from Hessian components by summing Ixx + Iyy.
 """
-function compute_hessian_components!(Ixx::AbstractMatrix, Iyy::AbstractMatrix, Ixy::AbstractMatrix,
-                                   image::AbstractMatrix)
-    kernel_xx = centered([1 -2 1]')
-    kernel_yy = centered([1; -2; 1])
-    kernel_xy = centered([0.25 0 -0.25; 0 0 0; -0.25 0 0.25])
-
-    imfilter!(Ixx, image, kernel_xx, "reflect")
-    imfilter!(Iyy, image, kernel_yy, "reflect")
-    imfilter!(Ixy, image, kernel_xy, "reflect")
-
+function laplacian_filter(lap_data::AbstractMatrix, hess_level::NamedTuple)
+    lap_data .= hess_level.Ixx .+ hess_level.Iyy
     return nothing
 end
 
 """
-    populate_hessian_scale_space!(hess_ss, smooth_ss)
+    (lap_ss::ScaleSpace{<:AbstractMatrix})(hess_ss::ScaleSpace, filter_fn::Function)
 
-Populate a Hessian scale space from a smoothed scale space.
+Populate a Laplacian scale space from a Hessian scale space.
+
+# Example
+```julia
+smooth_ss = ScaleSpace(width=128, height=128)
+smooth_ss(image, gaussian_filter)
+hess_ss = HessianScaleSpace(smooth_ss)
+hess_ss(smooth_ss, hessian_filter)
+lap_ss = LaplacianScaleSpace(smooth_ss)
+lap_ss(hess_ss, laplacian_filter)
+```
 """
-function populate_hessian_scale_space!(hess_ss::ScaleSpace, smooth_ss::ScaleSpace{<:AbstractMatrix})
-    for i in eachindex(hess_ss.levels)
-        smooth_level = smooth_ss.levels.data[i]
+function (lap_ss::ScaleSpace{<:AbstractMatrix})(hess_ss::ScaleSpace, filter_fn::Function)
+    for i in eachindex(lap_ss.levels)
         hess_level = hess_ss.levels.data[i]
-        compute_hessian_components!(hess_level.Ixx, hess_level.Iyy, hess_level.Ixy, smooth_level)
+        lap_level = lap_ss.levels.data[i]
+        filter_fn(lap_level, hess_level)
     end
-    return hess_ss
-end
-
-"""
-    populate_laplacian_scale_space!(lap_ss, hess_ss)
-
-Populate a Laplacian scale space from a Hessian scale space by computing Ixx + Iyy.
-"""
-function populate_laplacian_scale_space!(lap_ss::ScaleSpace{<:AbstractMatrix}, hess_ss::ScaleSpace)
-    lap_ss.levels.data .= hess_ss.levels.data.Ixx .+ hess_ss.levels.data.Iyy
     return lap_ss
 end
 
