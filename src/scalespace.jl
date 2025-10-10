@@ -13,6 +13,8 @@ using ImageFiltering
 using ImageFiltering: Kernel, imfilter, centered
 using ImageTransformations: imresize
 using StructArrays
+using FileIO
+using Colors: Gray
 
 """
     ScaleLevel{T}
@@ -57,9 +59,17 @@ struct ScaleSpace{T}
         octave_range = first_octave:last_octave
         scale_range = octave_first_subdivision:octave_last_subdivision
 
-        combinations = Iterators.product(octave_range, scale_range)
-        octaves = [combo[1] for combo in combinations]
-        scales = [combo[2] for combo in combinations]
+        # Create combinations in the order expected by level_index:
+        # (o0,s0), (o0,s1), (o0,s2), (o1,s0), (o1,s1), (o1,s2), ...
+        # NOT (o0,s0), (o1,s0), (o2,s0), (o0,s1), ... which is what product(octave, scale) gives
+        octaves = Int[]
+        scales = Int[]
+        for o in octave_range
+            for s in scale_range
+                push!(octaves, o)
+                push!(scales, s)
+            end
+        end
 
         sigmas = base_sigma .* 2.0 .^ (octaves .+ scales ./ octave_resolution)
         step_values = 2.0 .^ octaves
@@ -224,14 +234,64 @@ function downsample_to_octave(img::AbstractMatrix, from_octave::Int, to_octave::
     return imresize(img, new_size)
 end
 
-# Scale space population
+# Scale space population - Functor interface
+
 """
-    populate_scale_space!(ss::ScaleSpace{<:AbstractMatrix}, input_image::AbstractMatrix)
+    (ss::ScaleSpace{<:AbstractMatrix})(input_image::AbstractMatrix)
+
+Populate the scale space with an image using the default Gaussian pyramid algorithm.
+
+# Example
+```julia
+ss = ScaleSpace(size=Size2(128, 128))
+ss(image)  # Populate with image
+```
+"""
+function (ss::ScaleSpace{<:AbstractMatrix})(input_image::AbstractMatrix)
+    return populate_gaussian_scale_space!(ss, input_image)
+end
+
+"""
+    (ss::ScaleSpace)(input_image::AbstractMatrix, populate_fn::Function)
+
+Populate the scale space using a custom population function.
+
+# Example
+```julia
+ss = ScaleSpace(size=Size2(128, 128))
+ss(image, populate_gaussian_scale_space!)  # Custom population
+```
+"""
+function (ss::ScaleSpace)(input_image::AbstractMatrix, populate_fn::Function)
+    return populate_fn(ss, input_image)
+end
+
+"""
+    (hess_ss::ScaleSpace)(smooth_ss::ScaleSpace{<:AbstractMatrix})
+
+Populate a Hessian scale space from a smoothed scale space.
+
+# Example
+```julia
+smooth_ss = ScaleSpace(size=Size2(128, 128))
+smooth_ss(image)
+hess_ss = HessianScaleSpace(smooth_ss)
+hess_ss(smooth_ss)  # Compute Hessian from smoothed
+```
+"""
+function (hess_ss::ScaleSpace)(smooth_ss::ScaleSpace{<:AbstractMatrix})
+    return populate_hessian_scale_space!(hess_ss, smooth_ss)
+end
+
+"""
+    populate_gaussian_scale_space!(ss::ScaleSpace{<:AbstractMatrix}, input_image::AbstractMatrix)
 
 Populate the entire scale space with incremental Gaussian filtering.
 Follows VLFeat's octave-by-octave approach.
+
+This is the default population function for Gaussian scale spaces.
 """
-function populate_scale_space!(ss::ScaleSpace{<:AbstractMatrix}, input_image::AbstractMatrix)
+function populate_gaussian_scale_space!(ss::ScaleSpace{<:AbstractMatrix}, input_image::AbstractMatrix)
     input_h, input_w = size(input_image)
     @assert input_h == ss.input_size.height && input_w == ss.input_size.width
 
@@ -245,6 +305,9 @@ function populate_scale_space!(ss::ScaleSpace{<:AbstractMatrix}, input_image::Ab
 
     return ss
 end
+
+# Keep the old name for backward compatibility
+const populate_scale_space! = populate_gaussian_scale_space!
 
 """
 Initialize and fill an octave starting from the input image.
@@ -370,4 +433,71 @@ Populate a Laplacian scale space from a Hessian scale space by computing Ixx + I
 function populate_laplacian_scale_space!(lap_ss::ScaleSpace{<:AbstractMatrix}, hess_ss::ScaleSpace)
     lap_ss.levels.data .= hess_ss.levels.data.Ixx .+ hess_ss.levels.data.Iyy
     return lap_ss
+end
+
+# Image saving utilities
+
+"""
+    save_images(ss::ScaleSpace{<:AbstractMatrix}, output_dir::String; prefix="level")
+
+Save all levels of a scale space as grayscale images for debugging and visualization.
+
+# Arguments
+- `ss`: The scale space to save
+- `output_dir`: Directory to save images to (will be created if it doesn't exist)
+- `prefix`: Filename prefix (default: "level")
+
+# Example
+```julia
+ss = ScaleSpace(size=Size2(128, 128))
+ss(image)
+save_images(ss, "scalespace_debug")
+```
+
+Each image is saved as `<prefix>_o<octave>_s<scale>.png` with filenames indicating
+octave and scale indices. The images are saved as 8-bit grayscale with automatic
+normalization to [0, 1] range.
+"""
+function save_images(ss::ScaleSpace{<:AbstractMatrix}, output_dir::String; prefix::String="level")
+    # Create output directory if it doesn't exist
+    mkpath(output_dir)
+
+    saved_count = 0
+    skipped_count = 0
+
+    # Save each level
+    for level in ss.levels
+        data = level.data
+
+        # Skip uninitialized levels with NaN values
+        if any(isnan, data)
+            println("Skipped: o=$(level.octave), s=$(level.scale) (contains NaN values - uninitialized)")
+            skipped_count += 1
+            continue
+        end
+
+        # Normalize to [0, 1] for display
+        min_val, max_val = extrema(data)
+
+        # Handle constant images
+        if min_val == max_val
+            normalized = fill(Gray(0.5f0), size(data))
+        else
+            normalized = Gray.((data .- min_val) ./ (max_val - min_val))
+        end
+
+        # Create filename
+        filename = joinpath(output_dir, "$(prefix)_o$(level.octave)_s$(level.scale).png")
+
+        # Save image
+        save(filename, normalized)
+
+        println("Saved: $filename (σ=$(round(level.sigma, digits=3)), size=$(level.size.width)×$(level.size.height), range=[$min_val, $max_val])")
+        saved_count += 1
+    end
+
+    println("\n✓ Saved $saved_count/$((length(ss.levels))) scale space images to $output_dir")
+    if skipped_count > 0
+        println("⚠ Skipped $skipped_count uninitialized levels")
+    end
 end

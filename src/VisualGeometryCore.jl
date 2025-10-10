@@ -43,6 +43,7 @@ export ScaleLevel, ScaleSpace
 export HessianScaleSpace, LaplacianScaleSpace
 export populate_scale_space!, populate_hessian_scale_space!, populate_laplacian_scale_space!
 export get_level, get_scale_level
+export save_images
 
 # Include units first (defines custom units and types)
 include("units/types.jl")
