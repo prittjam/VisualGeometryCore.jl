@@ -21,7 +21,7 @@ export intersects
 
 # Scale space exports
 export OctaveGeometry, ScaleLevel, ScaleSpace
-export get_level, get_scale_level, get_octave_geometry, get_octave_levels, get_sigma
+export get_octave_geometry, get_octave_levels, get_sigma
 export memory_usage, valid_octave_range, valid_scale_range, level_exists, iterate_levels, iterate_scale_levels
 export filter_by_octave, filter_by_sigma_range, apply_to_all_levels!
 export scale_coordinates, octave_to_input_coordinates, input_to_octave_coordinates

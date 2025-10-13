@@ -4,6 +4,7 @@ module VisualGeometryCore
 using GeometryBasics
 using GeometryBasics: Point2, Rect, Vec2, HyperRectangle, Circle, Point2f
 using StaticArrays
+using StaticArrays: SMatrix, SVector
 using LinearAlgebra
 using CoordinateTransformations
 using Rotations
@@ -21,11 +22,22 @@ using ConstructionBase
 
 # Plotting functionality
 using Makie
-using Makie: campixel!, Fixed
+using Makie: campixel!
 import Makie.SpecApi as Spec
+import Makie: Fixed as MakieFixed
 using Colors
-using Colors: Colorant
+using Colors: Colorant, Gray
+using FixedPointNumbers
+using FixedPointNumbers: N0f8, N0f16
 using GLMakie
+
+# Scale space and image processing functionality
+using ImageFiltering
+using ImageFiltering: Kernel, imfilter, centered, Fill, imfilter!, kernelfactors
+using ImageTransformations: imresize
+using ImageCore: channelview
+using StructArrays
+using FileIO: save
 
 # Export geometry basics
 export Point2, Rect, Vec2, HyperRectangle, Circle, Point2f
@@ -39,12 +51,24 @@ export HomogeneousConic, Ellipse
 export push_conic, gradient, plotellipses
 
 # Export scale space functionality
-export ScaleLevel, ScaleSpace
-export get_level, get_scale_level
-export save_images
+export AbstractScaleSpace, ScaleLevel, ScaleSpace, ScaleSpaceResponse
+export ScaleOctave, ScaleLevelView
 
-# Export filter functions
-export hessian_filter
+export GaussianImage, HessianImages, LaplacianImage
+export Size2
+export Gray, N0f8, N0f16
+
+# Export local features (kernels and derivatives)
+export HESSIAN_KERNELS, DERIVATIVE_KERNELS, LAPLACIAN_KERNEL
+export LAPLACIAN_DIRECT, HESSIAN_DIRECT
+export laplacian, hessian_determinant
+export Extremum3D, detect_extrema, find_extrema_3d, refine_extremum_3d
+
+# Export image processing utilities
+export vlfeat_upsample
+export vlfeat_hessian_det!, vlfeat_hessian_det
+
+
 
 # Include units first (defines custom units and types)
 include("units/types.jl")
@@ -64,6 +88,12 @@ include("geometry/blobs.jl")
 
 # Include scale space
 include("scalespace.jl")
+
+# Include local features
+include("local_features/scalespace_response.jl")
+include("local_features/kernels.jl")
+include("local_features/vlfeat_responses.jl")
+include("local_features/extrema.jl")
 
 # Include plotting (depends on geometry)
 include("plotting/specs.jl")
