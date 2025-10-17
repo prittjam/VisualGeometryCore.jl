@@ -12,7 +12,7 @@ using Rotations
 
 # Units and physical quantities
 using Unitful
-using Unitful: m, mm, cm, inch, @refunit, @unit, @dimension, uconvert, unit, 𝐋, Quantity, μm, rad, °, dimension
+using Unitful: m, mm, cm, inch, ft, @refunit, @unit, @dimension, uconvert, unit, 𝐋, Quantity, μm, rad, °, dimension
 
 # Data structures and serialization
 using JSON3, StructTypes

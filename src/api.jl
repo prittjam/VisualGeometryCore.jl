@@ -3,7 +3,7 @@ export Size2                    # For specifying pattern dimensions
 export IsoBlob                  # Blob objects returned by pattern functions
 
 # Essential units for measurements
-export pd, mm, inch, dpi, px, pt, μm # Core units: pixels/dots, millimeters, inches, dots-per-inch, pixels, points
+export pd, mm, cm, m, inch, ft, dpi, px, pt, μm # Core units: pixels/dots, length units (mm, cm, m, inch, ft), density (dpi), pixels, points, micrometers
 
 # Unit conversion functions
 export to_logical_units, to_physical_units  # Convert IsoBlob between logical and physical units
