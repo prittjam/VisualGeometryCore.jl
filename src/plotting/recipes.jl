@@ -17,7 +17,7 @@ function Makie.convert_arguments(::Type{<:AbstractPlot}, img::AbstractMatrix{<:C
                                  interpolate=false)
     # Use imshow to get proper y-axis flipping
     lscene = imshow(img; interpolate=interpolate)
-    return Spec.GridLayout([lscene]; rowgaps=Fixed(0), colgaps=Fixed(0))
+    return Spec.GridLayout([lscene]; rowgaps=MakieFixed(0), colgaps=MakieFixed(0))
 end
 
 # ========================================================================
@@ -48,7 +48,7 @@ function Makie.convert_arguments(::Type{<:AbstractPlot}, img::AbstractMatrix{<:C
     blob_specs = plotblobs(blobs; color=color, scale_factor=scale_factor,
                           marker=marker, markersize=markersize, linewidth=linewidth)
     append!(lscene.plots, blob_specs)
-    return Spec.GridLayout([lscene]; rowgaps=Fixed(0), colgaps=Fixed(0))
+    return Spec.GridLayout([lscene]; rowgaps=MakieFixed(0), colgaps=MakieFixed(0))
 end
 
 # Three-argument convert_arguments for image + detections + ground truth
@@ -93,7 +93,7 @@ function Makie.convert_arguments(::Type{<:AbstractPlot}, img::AbstractMatrix{<:C
                          linewidth=linewidth, linestyle=detection_linestyle)
     append!(lscene.plots, det_specs)
 
-    return Spec.GridLayout([lscene]; rowgaps=Fixed(0), colgaps=Fixed(0))
+    return Spec.GridLayout([lscene]; rowgaps=MakieFixed(0), colgaps=MakieFixed(0))
 end
 
 # Convert arguments for PlotSpec integration with recipes
@@ -185,5 +185,5 @@ function Makie.convert_arguments(::Type{<:AbstractPlot}, img::AbstractMatrix{<:C
     ellipse_specs = plotellipses(ellipses; color=color, linewidth=linewidth, linestyle=linestyle,
                                 fillcolor=fillcolor, fillalpha=fillalpha, resolution=resolution)
     append!(lscene.plots, ellipse_specs)
-    return Spec.GridLayout([lscene]; rowgaps=Fixed(0), colgaps=Fixed(0))
+    return Spec.GridLayout([lscene]; rowgaps=MakieFixed(0), colgaps=MakieFixed(0))
 end

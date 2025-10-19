@@ -60,7 +60,7 @@ function imshow(pattern; interpolate=false)
     end
 
     lscene = Spec.LScene(plots=[image_spec], show_axis=false,
-                         width=Fixed(pattern_width), height=Fixed(pattern_height),
+                         width=MakieFixed(pattern_width), height=MakieFixed(pattern_height),
                          tellwidth=false, tellheight=false,
                          scenekw=(camera=campixel!,
                                   limits=(0, pattern_width, 0, pattern_height)))
