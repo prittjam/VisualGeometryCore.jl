@@ -3,7 +3,7 @@ module VisualGeometryCore
 # Geometry and coordinate systems
 using GeometryBasics
 using GeometryBasics: Vec2, HyperRectangle, Point2f
-import GeometryBasics: Point2, Rect, Circle
+import GeometryBasics: Point2, Point2i, Rect, Circle
 using StaticArrays
 using StaticArrays: SMatrix, SVector
 using LinearAlgebra
