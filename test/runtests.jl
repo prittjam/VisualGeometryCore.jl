@@ -7,4 +7,5 @@ using Test
     include("test_transforms.jl")
     include("test_integration.jl")
     include("test_python_interface.jl")
+    include("test_vlfeat_comparison.jl")
 end

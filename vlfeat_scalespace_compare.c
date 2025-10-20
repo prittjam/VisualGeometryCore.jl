@@ -190,10 +190,77 @@ int main(int argc, char **argv) {
     printf("  - Gaussian: vlfeat_comparison/vlfeat_gaussian/\n");
     printf("  - Hessian determinant: vlfeat_comparison/vlfeat_hessian_det/\n");
 
+    /* Get detected features from VLFeat */
+    printf("\n=== VLFeat Feature Detection ===\n");
+    vl_size num_features = vl_covdet_get_num_features(covdet);
+    VlCovDetFeature *features = (VlCovDetFeature *)vl_covdet_get_features(covdet);
+
+    printf("✓ VLFeat detected %zu features\n", num_features);
+
+    /* Save features to JSON */
+    FILE *fp = fopen("vlfeat_detections.json", "w");
+    if (fp) {
+        fprintf(fp, "{\n");
+        fprintf(fp, "  \"num_features\": %zu,\n", num_features);
+        fprintf(fp, "  \"detector\": \"VL_COVDET_METHOD_HESSIAN\",\n");
+        fprintf(fp, "  \"parameters\": {\n");
+        fprintf(fp, "    \"first_octave\": %ld,\n", gss_geom.firstOctave);
+        fprintf(fp, "    \"octave_resolution\": %zu,\n", gss_geom.octaveResolution);
+        fprintf(fp, "    \"base_scale\": %.6f,\n", gss_geom.baseScale);
+        fprintf(fp, "    \"peak_threshold\": %.6f,\n", vl_covdet_get_peak_threshold(covdet));
+        fprintf(fp, "    \"edge_threshold\": %.6f\n", vl_covdet_get_edge_threshold(covdet));
+        fprintf(fp, "  },\n");
+        fprintf(fp, "  \"features\": [\n");
+
+        for (vl_size i = 0; i < num_features; i++) {
+            VlCovDetFeature *f = &features[i];
+            /* Compute scale from ellipse: sigma = sqrt(a11^2 + a21^2) */
+            double a11 = f->frame.a11;
+            double a21 = f->frame.a21;
+            double sigma = sqrt(a11*a11 + a21*a21);
+
+            fprintf(fp, "    {\n");
+            fprintf(fp, "      \"x\": %.6f,\n", f->frame.x);
+            fprintf(fp, "      \"y\": %.6f,\n", f->frame.y);
+            fprintf(fp, "      \"sigma\": %.6f,\n", sigma);
+            fprintf(fp, "      \"a11\": %.6f,\n", a11);
+            fprintf(fp, "      \"a12\": %.6f,\n", f->frame.a12);
+            fprintf(fp, "      \"a21\": %.6f,\n", a21);
+            fprintf(fp, "      \"a22\": %.6f,\n", f->frame.a22);
+            fprintf(fp, "      \"peakScore\": %.6e,\n", f->peakScore);
+            fprintf(fp, "      \"edgeScore\": %.6e\n", f->edgeScore);
+            fprintf(fp, "    }%s\n", (i < num_features - 1) ? "," : "");
+        }
+
+        fprintf(fp, "  ]\n");
+        fprintf(fp, "}\n");
+        fclose(fp);
+        printf("✓ Saved VLFeat detections to vlfeat_detections.json\n");
+    }
+
+    /* Print statistics */
+    if (num_features > 0) {
+        printf("\nVLFeat Feature Statistics:\n");
+        printf("  Total features: %zu\n", num_features);
+
+        printf("\nFirst 10 features:\n");
+        for (vl_size i = 0; i < (num_features < 10 ? num_features : 10); i++) {
+            VlCovDetFeature *f = &features[i];
+            /* Compute scale from ellipse */
+            double a11 = f->frame.a11;
+            double a21 = f->frame.a21;
+            double sigma = sqrt(a11*a11 + a21*a21);
+
+            printf("  %2zu: (%.2f, %.2f) σ=%.3f peak=%.6e edge=%.3f\n",
+                   i+1, f->frame.x, f->frame.y, sigma,
+                   f->peakScore, f->edgeScore);
+        }
+    }
+
     /* Cleanup */
     vl_covdet_delete(covdet);
     free(input_image);
 
-    printf("\nNext step: Update Julia to compute Hessian determinant for comparison\n");
+    printf("\n=== Done ===\n");
     return 0;
 }
