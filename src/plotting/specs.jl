@@ -84,6 +84,7 @@ Create plot specs for blob visualization (centers and scale circles).
 - `colormap=nothing`: Colormap for blob coloring by index (e.g., :viridis, :plasma, :turbo).
   When provided, blobs are colored by their order in the vector. Since blobs are saved
   in column-major order, this visualizes their spatial ordering.
+  **Note**: When both `color` and `colormap` are specified, `colormap` takes precedence.
 - `scale_factor=3.0`: Scaling factor for blob circles
 - `marker=:cross`: Marker style for blob centers
 - `markersize=15.0`: Size of center markers
@@ -99,6 +100,9 @@ plotblobs(blobs; color=:red)
 
 # Color by index using viridis colormap (shows column-major spatial ordering)
 plotblobs(blobs; colormap=:viridis)
+
+# colormap takes precedence over color
+plotblobs(blobs; color=:red, colormap=:turbo)  # uses turbo colormap, not red
 
 # Compose with image
 lscene = imshow(img)
