@@ -52,40 +52,47 @@ struct ScaleSpaceResponse{T} <: AbstractScaleSpace
     transform::T
     octaves::Vector{ScaleOctave}
 
-    function ScaleSpaceResponse(template::ScaleSpace, transform::T) where T
+    function ScaleSpaceResponse(template::Union{ScaleSpace, ScaleSpaceResponse}, transform::T) where T
         # Validate template is not empty
-        @assert !isempty(template.levels) "Template ScaleSpace must have levels defined"
-        
+        @assert !isempty(template.levels) "Template must have levels defined"
+
+        # Get octaves from template (works for both ScaleSpace and ScaleSpaceResponse)
+        template_octaves = if template isa ScaleSpace
+            template.octaves
+        else
+            template.octaves
+        end
+
         # Create response octave objects with 3D cubes matching template octaves
         response_octaves = ScaleOctave[]
-        
-        for template_octave in template.octaves
+
+        for template_octave in template_octaves
             # Create response cube with same dimensions as template
             H_o, W_o, num_levels = size(template_octave.G)
             # Use Gray{Float32} to match ScaleOctave interface
             cube = Array{Gray{Float32},3}(undef, H_o, W_o, num_levels)
-            
-            response_octave = ScaleOctave(cube, template_octave.octave, 
-                                        template_octave.subdivisions, 
-                                        template_octave.sigmas, 
+
+            response_octave = ScaleOctave(cube, template_octave.octave,
+                                        template_octave.subdivisions,
+                                        template_octave.sigmas,
                                         template_octave.step)
             push!(response_octaves, response_octave)
         end
-        
+
         # Create SubArray views into response octave cubes matching template structure
         data_arrays = SubArray{Gray{Float32},2,Array{Gray{Float32},3}}[]
-        
+
         for (i, template_level) in enumerate(template.levels)
             # Find corresponding response octave
             response_octave = response_octaves[findfirst(oct -> oct.octave == template_level.octave, response_octaves)]
-            
+
             # Create view with same slice index as template
             first_sub = first(response_octave.subdivisions)
             slice_idx = (template_level.subdivision - first_sub) + 1
             view_data = @view response_octave.G[:, :, slice_idx]
             push!(data_arrays, view_data)
         end
-        
+
         # Create StructArray reusing template's metadata
         levels = StructArray{ResponseLevelView}((
             data = data_arrays,
@@ -149,33 +156,57 @@ end
 
 
 
-"""
-    apply_transform_batch!(response::ScaleSpaceResponse, source::ScaleSpace, octave_filter=nothing)
+# =============================================================================
+# HELPER - DISPATCH ON HOW TO APPLY (KERNEL VS FUNCTION)
+# =============================================================================
 
-Apply transform to multiple levels efficiently using StructArray operations.
-Optionally filter by octave for partial computation.
 """
-function apply_transform_batch!(response::ScaleSpaceResponse{T}, source::ScaleSpace, octave_filter=nothing) where T
-    # Determine which indices to process
-    indices = if octave_filter !== nothing
-        findall(response.levels.octave .== octave_filter)
-    else
-        1:length(response.levels)
+    apply_one!(dst, src, kernel::Union{AbstractArray, Tuple}, border_policy)
+
+Apply kernel (array or factored tuple) using imfilter.
+"""
+apply_one!(dst, src, kernel::Union{AbstractArray, Tuple}, border_policy) =
+    imfilter!(dst, src, kernel, border_policy)
+
+"""
+    apply_one!(dst, src, func::Function, border_policy)
+
+Apply function transform directly (ignores border_policy).
+"""
+apply_one!(dst, src, func::Function, border_policy) =
+    func(dst, src)
+
+# =============================================================================
+# DISPATCH ON DIMENSIONALITY (2D = LEVELS, 3D = OCTAVES)
+# =============================================================================
+
+"""
+    apply_transform!(response, source, transform::Union{Tuple{T1,T2}, AbstractArray{T,2}, Function})
+
+Process 2D transforms by looping over levels.
+"""
+function apply_transform!(response::ScaleSpaceResponse, source::AbstractScaleSpace,
+                         transform::Union{Tuple{T1,T2}, AbstractArray{T,2}, Function}) where {T1,T2,T}
+    border_pol = hasproperty(source, :border_policy) ? source.border_policy : "replicate"
+
+    for idx in 1:length(response.levels)
+        apply_one!(response.levels[idx].data, source.levels[idx].data, transform, border_pol)
     end
 
-    # Process each level
-    for idx in indices
-        src_level = source.levels[idx]
-        dst_level = response.levels[idx]
+    return response
+end
 
-        # Apply transform (kernel or function)
-        if response.transform isa AbstractArray
-            # Kernel: use imfilter with border policy
-            imfilter!(dst_level.data, src_level.data, response.transform, source.border_policy)
-        else
-            # Function: apply directly (transform handles data format)
-            response.transform(dst_level.data, src_level.data)
-        end
+"""
+    apply_transform!(response, source, transform::Union{Tuple{T1,T2,T3}, AbstractArray{T,3}})
+
+Process 3D transforms by looping over octaves.
+"""
+function apply_transform!(response::ScaleSpaceResponse, source::AbstractScaleSpace,
+                         transform::Union{Tuple{T1,T2,T3}, AbstractArray{T,3}}) where {T1,T2,T3,T}
+    border_pol = hasproperty(source, :border_policy) ? source.border_policy : "replicate"
+
+    for octave_num in unique(response.levels.octave)
+        apply_one!(response[octave_num].G, source[octave_num].G, transform, border_pol)
     end
 
     return response
@@ -186,12 +217,12 @@ end
 # =============================================================================
 
 """
-    (response::ScaleSpaceResponse)(source::ScaleSpace)
+    (response::ScaleSpaceResponse)(source::Union{ScaleSpace, ScaleSpaceResponse})
 
-Compute responses from a source ScaleSpace using the stored transform.
+Compute responses from a source using the stored transform.
 
 # Arguments
-- `source`: Source ScaleSpace (must have compatible geometry and be populated)
+- `source`: Source ScaleSpace or ScaleSpaceResponse (must have compatible geometry and be populated)
 
 # Returns
 - The ScaleSpaceResponse instance with computed response data
@@ -200,15 +231,19 @@ Compute responses from a source ScaleSpace using the stored transform.
 ```julia
 # Create response structure and compute responses
 ixx_resp = ScaleSpaceResponse(template, compute_ixx)
-ixx_resp(gaussian_scalespace)  # Compute Ixx responses
+ixx_resp(gaussian_scalespace)  # Compute Ixx responses from ScaleSpace
+
+# Or compute derivative of a response
+dx_resp = ScaleSpaceResponse(hessian_resp, DERIVATIVE_KERNELS_3D.dx)
+dx_resp(hessian_resp)  # Compute ∇x from Hessian determinant response
 ```
 """
-function (response::ScaleSpaceResponse{T})(source::ScaleSpace) where T
+function (response::ScaleSpaceResponse{T})(source::Union{ScaleSpace, ScaleSpaceResponse}) where T
     # Check compatibility between response and source
     check_compatibility(response, source)
 
-    # Apply transform to all levels using batch processing
-    apply_transform_batch!(response, source)
+    # Apply transform using multiple dispatch based on transform type
+    apply_transform!(response, source, response.transform)
 
     return response
 end
@@ -218,13 +253,13 @@ end
 # =============================================================================
 
 """
-    check_compatibility(response::ScaleSpaceResponse, source::ScaleSpace)
+    check_compatibility(response::ScaleSpaceResponse, source::Union{ScaleSpace, ScaleSpaceResponse})
 
-Check that a ScaleSpaceResponse and ScaleSpace are compatible for computation.
+Check that a ScaleSpaceResponse and source are compatible for computation.
 
 # Arguments
 - `response`: ScaleSpaceResponse instance
-- `source`: Source ScaleSpace instance
+- `source`: Source ScaleSpace or ScaleSpaceResponse instance
 
 # Throws
 - `ArgumentError` if the structures are incompatible
@@ -234,10 +269,10 @@ Check that a ScaleSpaceResponse and ScaleSpace are compatible for computation.
 - Response and source must have the same number of levels
 - Levels must have matching geometry (octaves, subdivisions, sigmas)
 """
-function check_compatibility(response::ScaleSpaceResponse{T}, source::ScaleSpace) where T
+function check_compatibility(response::ScaleSpaceResponse{T}, source::Union{ScaleSpace, ScaleSpaceResponse}) where T
     # Check that source has levels
     if isempty(source.levels)
-        throw(ArgumentError("Source ScaleSpace must have levels. Create ScaleSpace first using ScaleSpace constructor."))
+        throw(ArgumentError("Source must have levels defined."))
     end
 
     # Check geometry compatibility
@@ -273,57 +308,6 @@ function check_compatibility(response::ScaleSpaceResponse{T}, source::ScaleSpace
     end
 
     return true
-end
-
-# =============================================================================
-# SAVE FUNCTIONALITY
-# =============================================================================
-
-function save_responses(ss::AbstractScaleSpace, output_dir::String; prefix::String="level")
-    mkpath(output_dir)
-    saved_count = 0
-    skipped_count = 0
-
-    for level in ss.levels
-        saved, skipped = save_level_data(level.data, level, output_dir, prefix)
-        saved_count += saved
-        skipped_count += skipped
-    end
-
-    println("\n✓ Saved $saved_count images to $output_dir")
-    if skipped_count > 0
-        println("⚠ Skipped $skipped_count uninitialized levels")
-    end
-end
-
-function save_level_data(data::Matrix{Gray{Float32}}, level, output_dir::String, prefix::String)
-    if any(isnan, channelview(data))
-        println("Skipped: o=$(level.octave), s=$(level.subdivision) (contains NaN values - uninitialized)")
-        return 0, 1
-    end
-
-    min_val, max_val = extrema(channelview(data))
-    filename = joinpath(output_dir, "$(prefix)_o$(level.octave)_s$(level.subdivision).tif")
-    save(filename, data)
-
-    sz = level_size(level)
-    println("Saved: $filename (σ=$(round(level.sigma, digits=3)), size=$(sz.width)×$(sz.height), range=[$min_val, $max_val])")
-    return 1, 0
-end
-
-function save_level_data(data::SubArray{Gray{Float32},2,Array{Gray{Float32},3}}, level, output_dir::String, prefix::String)
-    if any(isnan, channelview(data))
-        println("Skipped: o=$(level.octave), s=$(level.subdivision) (contains NaN values - uninitialized)")
-        return 0, 1
-    end
-
-    min_val, max_val = extrema(channelview(data))
-    filename = joinpath(output_dir, "$(prefix)_o$(level.octave)_s$(level.subdivision).tif")
-    save(filename, data)
-
-    sz = level_size(level)
-    println("Saved: $filename (σ=$(round(level.sigma, digits=3)), size=$(sz.width)×$(sz.height), range=[$min_val, $max_val])")
-    return 1, 0
 end
 
 # =============================================================================

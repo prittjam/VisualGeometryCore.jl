@@ -1,13 +1,28 @@
 """
     FeaturePolarity
 
-Polarity of an image feature or blob response.
-- `PositiveFeature`: bright-on-dark response
-- `NegativeFeature`: dark-on-bright response
+Structure type of a detected feature based on Hessian determinant sign.
+
+- `BlobFeature`: Blob-like structure (positive det(H), both eigenvalues same sign)
+  - Includes both bright blobs (intensity peaks) and dark blobs (intensity valleys)
+  - det(H) = Lxx*Lyy - Lxy² > 0
+
+- `SaddleFeature`: Saddle/edge-like structure (negative det(H), eigenvalues opposite signs)
+  - Ridges, valleys, corners, and edge-like structures
+  - det(H) = Lxx*Lyy - Lxy² < 0
+
+# Distinguishing Bright vs Dark Blobs
+
+To distinguish bright blobs from dark blobs, use the Laplacian (trace of Hessian):
+- Laplacian = Lxx + Lyy < 0: bright blob (intensity peak, both Lxx and Lyy negative)
+- Laplacian = Lxx + Lyy > 0: dark blob (intensity valley, both Lxx and Lyy positive)
+
+Note: VLFeat's basic Hessian detector does not distinguish bright vs dark blobs.
+Use `VL_COVDET_METHOD_HESSIAN_LAPLACE` for Laplacian-based bright/dark classification.
 """
 @enum FeaturePolarity begin
-    PositiveFeature
-    NegativeFeature
+    BlobFeature      # Positive det(H) - blob-like structure
+    SaddleFeature    # Negative det(H) - saddle/edge-like structure
 end
 
 abstract type ImageFeature end
@@ -135,27 +150,36 @@ end
 """
     IsoBlobDetection{T} <: AbstractBlob
 
-Detected isotropic blob with a response score and `FeaturePolarity`.
+Detected isotropic blob with complete Hessian-based characterization.
 Both center and σ use the same type for consistency.
 
 Fields
-- `center::Point2{T}`
-- `σ::T`
-- `response::Float64`
-- `polarity::FeaturePolarity`
+- `center::Point2{T}`: Blob center in input image coordinates
+- `σ::T`: Scale parameter (standard deviation of Gaussian)
+- `response::Float64`: Absolute value of peak response (|det(H)|)
+- `edge_score::Float64`: Edge score (lower = more blob-like, higher = more edge-like)
+- `laplacian_sign::Int`: Intensity polarity via Laplacian sign
+  - `-1`: Bright blob (intensity peak, Lxx + Lyy < 0)
+  - `+1`: Dark blob (intensity valley, Lxx + Lyy > 0)
+  - `0`: Neutral/saddle (Laplacian near zero)
+- `polarity::FeaturePolarity`: Structure type
+  - `BlobFeature`: Blob-like (positive det(H))
+  - `SaddleFeature`: Saddle/edge-like (negative det(H))
 """
 struct IsoBlobDetection{T} <: AbstractBlob
     center::Point2{T}
     σ::T
     response::Float64
+    edge_score::Float64
+    laplacian_sign::Int  # Sign of Laplacian: -1 (bright blob), +1 (dark blob), 0 (neutral)
     polarity::FeaturePolarity
 
-    function IsoBlobDetection(center::Point2{S}, σ::T, response::Float64, polarity::FeaturePolarity) where {S,T}
+    function IsoBlobDetection(center::Point2{S}, σ::T, response::Float64, edge_score::Float64, laplacian_sign::Int, polarity::FeaturePolarity) where {S,T}
         # Promote types to common type
         U = promote_type(S, T)
         center_promoted = Point2(convert(U, center[1]), convert(U, center[2]))
         σ_promoted = convert(U, σ)
-        new{U}(center_promoted, σ_promoted, response, polarity)
+        new{U}(center_promoted, σ_promoted, response, edge_score, laplacian_sign, polarity)
     end
 end
 

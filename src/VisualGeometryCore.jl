@@ -60,10 +60,10 @@ export Size2
 export Gray, N0f8, N0f16
 
 # Export local features (kernels and derivatives)
-export HESSIAN_KERNELS, DERIVATIVE_KERNELS, LAPLACIAN_KERNEL
+export HESSIAN_KERNELS, DERIVATIVE_KERNELS, DERIVATIVE_KERNELS_3D, LAPLACIAN_KERNEL
 export LAPLACIAN_DIRECT, HESSIAN_DIRECT
 export laplacian, hessian_determinant
-export Extremum3D, detect_extrema, find_extrema_3d, refine_extremum_3d
+export Extremum3D, detect_extrema, find_extrema_3d, refine_extremum_3d, refine_extremum_3d_manual
 
 # Export image processing utilities
 export vlfeat_upsample
@@ -95,6 +95,7 @@ include("local_features/scalespace_response.jl")
 include("local_features/kernels.jl")
 include("local_features/vlfeat_responses.jl")
 include("local_features/extrema.jl")
+include("local_features/io.jl")
 
 # Include plotting (depends on geometry)
 include("plotting/specs.jl")

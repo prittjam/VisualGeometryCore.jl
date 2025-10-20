@@ -69,3 +69,58 @@ function vlfeat_hessian_det(gaussian_img::AbstractMatrix{Gray{Float32}}, sigma::
     det_out = Matrix{Float32}(undef, size(gaussian_img))
     return vlfeat_hessian_det!(det_out, gaussian_img, sigma, step)
 end
+
+"""
+    vlfeat_laplacian!(lap_out::Matrix{Float32}, gaussian_img::AbstractMatrix{Gray{Float32}},
+                      sigma::Float64, step::Float64)
+
+Compute VLFeat-compatible Laplacian (trace of Hessian) with scale normalization.
+
+The Laplacian is the trace of the Hessian: Laplacian = Lxx + Lyy
+
+# Arguments
+- `lap_out`: Preallocated output matrix for Laplacian
+- `gaussian_img`: Input Gaussian-smoothed image
+- `sigma`: Scale (sigma) of the Gaussian level
+- `step`: Sampling step (2^octave)
+
+# Sign Convention
+- Laplacian < 0: Bright blob (intensity peak, both Lxx and Lyy negative)
+- Laplacian > 0: Dark blob (intensity valley, both Lxx and Lyy positive)
+
+The scale normalization factor is σ² (not σ⁴ like the determinant).
+"""
+function vlfeat_laplacian!(lap_out::Matrix{Float32}, gaussian_img::AbstractMatrix{Gray{Float32}},
+                          sigma::Float64, step::Float64)
+    # Scale normalization factor for Laplacian
+    factor = Float32((sigma / step)^2)
+
+    # Second derivative kernels
+    # Using [1, -2, 1] gives: left + right - 2*center
+    # For dark blob [high, low, high]: result = high + high - 2*low = positive ✓
+    # For bright blob [low, high, low]: result = low + low - 2*high = negative ✓
+    Lxx_kernel = centered(SMatrix{1,3}([1, -2, 1]))
+    Lyy_kernel = centered(SMatrix{3,1}([1, -2, 1]))
+
+    # Extract numeric data
+    img_data = channelview(gaussian_img)
+
+    # Compute Hessian diagonal components
+    Lxx = imfilter(img_data, Lxx_kernel, "replicate")
+    Lyy = imfilter(img_data, Lyy_kernel, "replicate")
+
+    # Compute trace (Laplacian) with scale normalization
+    @. lap_out = (Lxx + Lyy) * factor
+
+    return lap_out
+end
+
+"""
+    vlfeat_laplacian(gaussian_img::Matrix{Gray{Float32}}, sigma::Float64, step::Float64)
+
+Non-mutating version that allocates output.
+"""
+function vlfeat_laplacian(gaussian_img::AbstractMatrix{Gray{Float32}}, sigma::Float64, step::Float64)
+    lap_out = Matrix{Float32}(undef, size(gaussian_img))
+    return vlfeat_laplacian!(lap_out, gaussian_img, sigma, step)
+end

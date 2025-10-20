@@ -60,26 +60,26 @@ end
     @testset "Coordinate Conversion" begin
         # Test octave space to input space conversion
         # Formula: input_coord = (octave_coord - 1) * step
-        
+
         # Octave -1 (2× upsampled): step = 0.5
-        extremum = Extremum3D(-1, 100, 100, 2, 105.5, 111.5, 2.5, 
-                             1.0, 0.5, 0.01, 2.0)
+        extremum = Extremum3D(-1, 100, 100, 2, 105.5, 111.5, 2.5,
+                             1.0, 0.5, 0.01, 2.0, 0.0)
         input_x = (extremum.x - 1) * extremum.step
         input_y = (extremum.y - 1) * extremum.step
         @test input_x ≈ 52.25
         @test input_y ≈ 55.25
-        
+
         # Octave 0 (original): step = 1.0
-        extremum = Extremum3D(0, 50, 60, 2, 50.5, 60.5, 2.5, 
-                             1.0, 1.0, 0.01, 2.0)
+        extremum = Extremum3D(0, 50, 60, 2, 50.5, 60.5, 2.5,
+                             1.0, 1.0, 0.01, 2.0, 0.0)
         input_x = (extremum.x - 1) * extremum.step
         input_y = (extremum.y - 1) * extremum.step
         @test input_x ≈ 49.5
         @test input_y ≈ 59.5
-        
+
         # Octave 1 (2× downsampled): step = 2.0
-        extremum = Extremum3D(1, 25, 30, 2, 25.5, 30.5, 2.5, 
-                             1.0, 2.0, 0.01, 2.0)
+        extremum = Extremum3D(1, 25, 30, 2, 25.5, 30.5, 2.5,
+                             1.0, 2.0, 0.01, 2.0, 0.0)
         input_x = (extremum.x - 1) * extremum.step
         input_y = (extremum.y - 1) * extremum.step
         @test input_x ≈ 49.0
@@ -97,9 +97,9 @@ end
             octave_3d[5+dy, 5+dx, 2+dz] = Gray{Float32}(val)
         end
         
-        # Refine extremum
-        result, converged = refine_extremum_3d(octave_3d, 5, 5, 2,
-                                              0, -1, 3, 1.6, 1.0)
+        # Refine extremum (use manual version for unit test)
+        result, converged = refine_extremum_3d_manual(octave_3d, 5, 5, 2,
+                                                      0, -1, 3, 1.6, 1.0)
         
         # Should converge for this simple case
         @test converged == true
@@ -244,6 +244,24 @@ end
                         @test all(edge_errors .< 5e-3)  # Slightly larger than peak due to sqrt in formula
                         @test maximum(edge_errors) < 5e-3
                         @test sum(edge_errors) / length(edge_errors) < 5e-4  # Mean should be very small
+
+                        # Test: RMS errors against ground truth
+                        rms_position = sqrt(sum(pos_errors.^2) / length(pos_errors))
+                        rms_sigma = sqrt(sum(sigma_errors.^2) / length(sigma_errors))
+                        rms_peak = sqrt(sum(peak_errors.^2) / length(peak_errors))
+                        rms_edge = sqrt(sum(edge_errors.^2) / length(edge_errors))
+
+                        @test rms_position < 1e-4  # RMS position error < 0.1 milli-pixels
+                        @test rms_sigma < 1e-4     # RMS sigma error < 0.0001
+                        @test rms_peak < 2e-7      # RMS peak score error (Float32/Float64 precision)
+                        @test rms_edge < 1e-3      # RMS edge score error
+
+                        # Print RMS errors for reference
+                        println("  RMS errors vs VLFeat ground truth:")
+                        println("    Position: $(rms_position)")
+                        println("    Sigma:    $(rms_sigma)")
+                        println("    Peak:     $(rms_peak)")
+                        println("    Edge:     $(rms_edge)")
                     end
                 end
             end
