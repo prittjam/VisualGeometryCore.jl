@@ -1,18 +1,15 @@
 module VisualGeometryCore
 
 # Geometry and coordinate systems
-using GeometryBasics
-using GeometryBasics: Vec2, HyperRectangle, Point2f
+using GeometryBasics: GeometryBasics, Vec2, HyperRectangle, Point2f
 import GeometryBasics: Point2, Point2i, Rect, Circle
 using StaticArrays
-using StaticArrays: SMatrix, SVector
 using LinearAlgebra
 using CoordinateTransformations
 using Rotations
 
 # Units and physical quantities
-using Unitful
-using Unitful: m, mm, cm, inch, ft, @refunit, @unit, @dimension, uconvert, unit, 𝐋, Quantity, μm, rad, °, dimension
+using Unitful: Unitful, m, mm, cm, inch, ft, @refunit, @unit, @dimension, uconvert, unit, 𝐋, Quantity, μm, rad, °, dimension
 
 # Data structures and serialization
 using JSON3, StructTypes
@@ -22,19 +19,15 @@ using Accessors
 using ConstructionBase
 
 # Plotting functionality
-using Makie
-using Makie: campixel!
+using Makie: Makie, campixel!
 import Makie.SpecApi as Spec
 import Makie: Fixed as MakieFixed
-using Colors
-using Colors: Colorant, Gray
-using FixedPointNumbers
-using FixedPointNumbers: N0f8, N0f16
+using Colors: Colors, Colorant, Gray
+using FixedPointNumbers: FixedPointNumbers, N0f8, N0f16
 using GLMakie
 
 # Scale space and image processing functionality
-using ImageFiltering
-using ImageFiltering: Kernel, imfilter, centered, Fill, imfilter!, kernelfactors
+using ImageFiltering: ImageFiltering, Kernel, imfilter, centered, Fill, imfilter!, kernelfactors
 using ImageTransformations: imresize
 using ImageCore: channelview
 using StructArrays
