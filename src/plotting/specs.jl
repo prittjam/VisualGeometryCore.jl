@@ -3,67 +3,88 @@
 # ========================================================================
 
 """
-    imshow(pattern; interpolate=false) -> LScene
+    imshow(pattern; interpolate=false, rasterize=true, bounds=nothing, scene_size=nothing) -> LScene
 
 Create an LScene spec for displaying an image with proper orientation (y-axis flipped).
 
 # Arguments
 - `pattern`: Image matrix (AbstractMatrix{<:Colorant})
+
+# Keyword Arguments
 - `interpolate::Bool=false`: Enable image interpolation
+- `rasterize::Bool=true`: Rasterize image for efficient PDF serialization (prevents huge PDFs)
+- `bounds::Union{Nothing, NTuple{4, Number}}=nothing`: Optional (xmin, xmax, ymin, ymax) for positioning
+  within a larger scene. If nothing, image fills the scene.
+- `scene_size::Union{Nothing, Tuple{Int,Int}}=nothing`: Optional (width, height) for LScene size.
+  If nothing, uses pattern dimensions. Use with bounds to center images in fixed-size scenes.
 
 Returns an LScene spec that can be used with SpecApi for composable plotting.
 
 # Examples
 ```julia
-# Display image
-h, w = size(img)
+# Basic usage - image fills scene
 lscene = imshow(img)
-fap = plot(Spec.GridLayout([lscene]); figure=(; size=(w, h)))
+
+# Rasterized for PDF (default)
+lscene = imshow(img; rasterize=true)
+
+# Center 100x100 image in 200x200 scene
+lscene = imshow(img; bounds=(50, 150, 50, 150), scene_size=(200, 200))
 
 # Add overlays using SpecApi
 lscene = imshow(img)
 push!(lscene.plots, Spec.Scatter(x, y; color=:red))
-push!(lscene.plots, Spec.Lines(x, y; color=:blue))
-fap = plot(Spec.GridLayout([lscene]); figure=(; size=(w, h)))
-
-# Or use plotblobs helper
-lscene = imshow(img)
 append!(lscene.plots, plotblobs(blobs))
-fap = plot(Spec.GridLayout([lscene]); figure=(; size=(w, h)))
+plot(Spec.GridLayout([lscene]))
 ```
 """
-function imshow(pattern; interpolate=false)
+function imshow(pattern; interpolate=false, rasterize=true, bounds=nothing, scene_size=nothing)
     pattern_height, pattern_width = size(pattern)
-    # Transpose to convert (row, col) to (x, y): pattern[row, col] -> pattern'[col, row]
-    # This gives us (x, y) coordinates where x is column, y is row
-    image_spec = Spec.Image(transpose(pattern), interpolate=interpolate)
 
-    # We need to flip the y-axis so that row 1 (y=1) appears at the TOP
-    # In Makie's default coordinate system, y increases upward (bottom to top)
-    # In image coordinates, row index increases downward (top to bottom)
-    # Solution: Apply transformation that flips y-axis
+    # Determine scene dimensions
+    scene_width, scene_height = if scene_size !== nothing
+        scene_size
+    else
+        (pattern_width, pattern_height)
+    end
 
-    # Use then_funcs to apply transformation after scene is created
+    # Create image spec with optional bounds for positioning
+    image_spec = if bounds !== nothing
+        xmin, xmax, ymin, ymax = bounds
+        Spec.Image(
+            Makie.EndPoints(xmin, xmax),
+            Makie.EndPoints(ymin, ymax),
+            transpose(pattern);
+            interpolate=interpolate,
+            rasterize=rasterize
+        )
+    else
+        Spec.Image(transpose(pattern); interpolate=interpolate, rasterize=rasterize)
+    end
+
+    # Use then_funcs to apply y-flip transformation after scene is created
     function flip_y_axis(lscene_block)
         scene = lscene_block.scene
         # Flip y-axis by scaling y by -1 and translating
-        # For an image of height H, point at y=0 maps to y=H, point at y=H maps to y=0
+        # For a scene of height H, point at y=0 maps to y=H, point at y=H maps to y=0
         # Transformation: y' = -y + H (scale by -1, translate by H)
         scene.transformation.scale[] = (1.0, -1.0, 1.0)
-        scene.transformation.translation[] = (0.0, Float64(pattern_height), 0.0)
+        scene.transformation.translation[] = (0.0, Float64(scene_height), 0.0)
 
         # Update camera to ensure it doesn't clip
-        # The transformation is applied to the plotted data, so the camera sees
-        # the transformed coordinates. We need to ensure the camera viewport is correct.
         notify(scene.camera.projectionview)
         return
     end
 
-    lscene = Spec.LScene(plots=[image_spec], show_axis=false,
-                         width=MakieFixed(pattern_width), height=MakieFixed(pattern_height),
-                         tellwidth=false, tellheight=false,
-                         scenekw=(camera=campixel!,
-                                  limits=(0, pattern_width, 0, pattern_height)))
+    lscene = Spec.LScene(
+        plots=[image_spec],
+        show_axis=false,
+        width=MakieFixed(scene_width),
+        height=MakieFixed(scene_height),
+        tellwidth=false,
+        tellheight=false,
+        scenekw=(camera=campixel!, limits=(0, scene_width, 0, scene_height))
+    )
 
     # Add callback to flip y-axis after scene is created
     push!(lscene.then_funcs, flip_y_axis)
