@@ -76,13 +76,18 @@ end
 
 Create plot specs for blob visualization (centers and scale circles).
 
+Follows Makie conventions for color/colormap handling:
+- By default, uses uniform green coloring (matching Makie's theme-based defaults)
+- To visualize blob ordering with a colormap, explicitly set `color` to numeric indices
+- Blobs are saved in column-major order, so colormapping reveals spatial structure
+
 # Arguments
 - `blobs`: Vector of blob features
 
 # Keyword Arguments
 - `color=:green`: Color specification for blobs. Can be:
-  - A single color (e.g., `:red`, `:blue`) for uniform coloring
-  - Numeric values (e.g., `1:n`) to map through the colormap
+  - A single color (e.g., `:red`, `:blue`) for uniform coloring (default)
+  - Numeric values (e.g., `1:length(blobs)`) to map through the colormap
   - A vector of colors for per-blob custom coloring
 - `colormap=:viridis`: Colormap to use when `color` contains numeric values.
   Common options: `:viridis`, `:plasma`, `:turbo`, `:inferno`.
@@ -97,16 +102,20 @@ Returns a vector of PlotSpec objects (scatter + circles) that can be composed.
 
 # Examples
 ```julia
-# Uniform color (default)
+# Default: uniform green (no color parameter)
+plotblobs(blobs)
+
+# Uniform color
 plotblobs(blobs; color=:red)
 
 # Color by index using default viridis colormap (shows column-major spatial ordering)
+# Note: Must explicitly set color to numeric values to use colormap
 plotblobs(blobs; color=1:length(blobs))
 
 # Color by index with custom colormap
 plotblobs(blobs; color=1:length(blobs), colormap=:turbo)
 
-# Uniform color with colormap specified (colormap is ignored)
+# Uniform color with colormap specified (colormap is ignored - Makie convention)
 plotblobs(blobs; color=:red, colormap=:turbo)  # uses uniform red
 
 # Compose with image

@@ -33,13 +33,23 @@ Makie.used_attributes(::Type{<:Plot}, ::AbstractMatrix{<:Colorant}, ::Vector{<:A
 Convert image and blobs to composed GridLayout with overlay.
 Composes by calling through to imshow() and plotblobs().
 
+Follows Makie color/colormap conventions:
+- Default: uniform green color
+- For colormap visualization: explicitly set `color=1:length(blobs)` or similar numeric values
+- Blobs are saved in column-major order, so colormap reveals spatial structure
+
 # Examples
 ```julia
 img = testimage("cameraman")
 blobs = [IsoBlob(Point2(100pd, 100pd), 20pd)]
+
+# Default: uniform green
+fig, ax, pl = plot(img, blobs; scale_factor=3.0)
+
 # Uniform color
 fig, ax, pl = plot(img, blobs; color=:red, scale_factor=3.0)
-# Color by index
+
+# Color by index (shows column-major ordering)
 fig, ax, pl = plot(img, blobs; color=1:length(blobs), colormap=:turbo)
 ```
 """
