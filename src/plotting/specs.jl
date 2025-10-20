@@ -72,7 +72,7 @@ function imshow(pattern; interpolate=false)
 end
 
 """
-    plotblobs(blobs; color=:green, scale_factor=3.0, marker=:cross, markersize=15.0, linewidth=3.0)
+    plotblobs(blobs; color=:green, colormap=nothing, scale_factor=3.0, marker=:cross, markersize=15.0, linewidth=3.0)
 
 Create plot specs for blob visualization (centers and scale circles).
 
@@ -80,16 +80,35 @@ Create plot specs for blob visualization (centers and scale circles).
 - `blobs`: Vector of blob features
 
 # Keyword Arguments
-- `color=:green`: Color for blob visualization
+- `color=:green`: Color for blob visualization (used when colormap=nothing)
+- `colormap=nothing`: Colormap for blob coloring by index (e.g., :viridis, :plasma, :turbo).
+  When provided, blobs are colored by their order in the vector. Since blobs are saved
+  in column-major order, this visualizes their spatial ordering.
 - `scale_factor=3.0`: Scaling factor for blob circles
 - `marker=:cross`: Marker style for blob centers
 - `markersize=15.0`: Size of center markers
 - `linewidth=3.0`: Width of circle outlines
+- `linestyle=:solid`: Line style for circles
 
 Returns a vector of PlotSpec objects (scatter + circles) that can be composed.
+
+# Examples
+```julia
+# Single color
+plotblobs(blobs; color=:red)
+
+# Color by index using viridis colormap (shows column-major spatial ordering)
+plotblobs(blobs; colormap=:viridis)
+
+# Compose with image
+lscene = imshow(img)
+append!(lscene.plots, plotblobs(blobs; colormap=:turbo))
+plot(Spec.GridLayout([lscene]))
+```
 """
 function plotblobs(blobs;
                    color=:green,
+                   colormap=nothing,
                    scale_factor::Float64=3.0,
                    marker=:cross,
                    markersize::Float64=15.0,
@@ -100,9 +119,20 @@ function plotblobs(blobs;
         centers = [ustrip.(blob.center) for blob in blobs]
         scales = [ustrip(blob.σ) for blob in blobs]
 
+        # Determine colors based on colormap or uniform color
+        if colormap !== nothing
+            # Use colormap indexed by blob order
+            n = length(blobs)
+            cmap = Makie.to_colormap(colormap)
+            # Map indices 1:n to colormap range
+            colors = [cmap[max(1, min(length(cmap), round(Int, (i-1)/(n-1) * (length(cmap)-1) + 1)))] for i in 1:n]
+        else
+            colors = fill(color, length(blobs))
+        end
+
         # Add circles for blob scales using proper geometric circles
         if scale_factor > 0
-            for (c, s) in zip(centers, scales)
+            for (i, (c, s)) in enumerate(zip(centers, scales))
                 radius = s * scale_factor
                 center_point = Point2f(c[1], c[2])
                 circle_geom = GeometryBasics.Circle(center_point, radius)
@@ -118,18 +148,18 @@ function plotblobs(blobs;
                 # Foreground circle (colored outline)
                 foreground_circle = Spec.Lines(
                     circle_geom;
-                    color=color,
+                    color=colors[i],
                     linewidth=linewidth
                 )
                 push!(plot_specs, foreground_circle)
             end
 
-            # Center markers
+            # Center markers with per-blob colors
             center_markers = Spec.Scatter(
                 [c[1] for c in centers], [c[2] for c in centers];
                 marker=marker,
                 markersize=markersize,
-                color=color
+                color=colors
             )
             push!(plot_specs, center_markers)
         else
@@ -138,7 +168,7 @@ function plotblobs(blobs;
                 [c[1] for c in centers], [c[2] for c in centers];
                 marker=marker,
                 markersize=markersize,
-                color=color
+                color=colors
             )
             push!(plot_specs, center_markers)
         end
