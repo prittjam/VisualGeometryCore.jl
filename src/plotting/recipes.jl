@@ -37,12 +37,14 @@ Composes by calling through to imshow() and plotblobs().
 ```julia
 img = testimage("cameraman")
 blobs = [IsoBlob(Point2(100pd, 100pd), 20pd)]
+# Uniform color
 fig, ax, pl = plot(img, blobs; color=:red, scale_factor=3.0)
-fig, ax, pl = plot(img, blobs; colormap=:viridis, scale_factor=3.0)
+# Color by index
+fig, ax, pl = plot(img, blobs; color=1:length(blobs), colormap=:turbo)
 ```
 """
 function Makie.convert_arguments(::Type{<:AbstractPlot}, img::AbstractMatrix{<:Colorant}, blobs::Vector{<:AbstractBlob};
-                                 interpolate=false, color=:green, colormap=nothing, scale_factor::Float64=3.0,
+                                 interpolate=false, color=:green, colormap=:viridis, scale_factor::Float64=3.0,
                                  marker=:cross, markersize::Float64=15.0, linewidth::Float64=1.0)
     # Compose by calling through to simpler functions
     lscene = imshow(img; interpolate=interpolate)
@@ -102,14 +104,14 @@ end
 Makie.used_attributes(::Type{<:Plot}, ::Vector{<:AbstractBlob}) = (:color, :colormap, :scale_factor, :marker, :markersize, :linewidth, :linestyle)
 
 """
-    Makie.convert_arguments(::Type{<:AbstractPlot}, blobs::Vector{<:AbstractBlob}; color=:green, colormap=nothing, scale_factor=3.0, ...)
+    Makie.convert_arguments(::Type{<:AbstractPlot}, blobs::Vector{<:AbstractBlob}; color=:green, colormap=:viridis, scale_factor=3.0, ...)
 
 Convert blobs to PlotSpec vector for Makie recipe integration.
 Allows users to call: plot(blobs; color=:red, scale_factor=2.0) or plot!(blobs; ...)
-or with colormap: plot(blobs; colormap=:viridis, scale_factor=2.0)
+or with colormap: plot(blobs; color=1:length(blobs), colormap=:turbo)
 """
 function Makie.convert_arguments(::Type{<:AbstractPlot}, blobs::Vector{<:AbstractBlob};
-                                color=:green, colormap=nothing, scale_factor::Float64=3.0,
+                                color=:green, colormap=:viridis, scale_factor::Float64=3.0,
                                 marker=:cross, markersize::Float64=15.0,
                                 linewidth::Float64=1.0, linestyle=:solid)
     # Return PlotSpec vector for SpecApi integration
@@ -122,14 +124,14 @@ end
 Makie.used_attributes(::Type{<:Plot}, ::Vector{IsoBlobDetection}) = (:color, :colormap, :scale_factor, :marker, :markersize, :linewidth, :linestyle)
 
 """
-    Makie.convert_arguments(::Type{<:AbstractPlot}, detections::Vector{IsoBlobDetection}; color=:blue, colormap=nothing, linestyle=:dash, ...)
+    Makie.convert_arguments(::Type{<:AbstractPlot}, detections::Vector{IsoBlobDetection}; color=:blue, colormap=:viridis, linestyle=:dash, ...)
 
 Convert blob detections to PlotSpec vector with dashed outlines for Makie recipe integration.
 Allows users to call: plot(detections; color=:blue, linestyle=:dash) or plot!(detections; ...)
-or with colormap: plot(detections; colormap=:viridis, linestyle=:dash)
+or with colormap: plot(detections; color=1:length(detections), colormap=:plasma, linestyle=:dash)
 """
 function Makie.convert_arguments(::Type{<:AbstractPlot}, detections::Vector{IsoBlobDetection};
-                                color=:blue, colormap=nothing, scale_factor::Float64=3.0,
+                                color=:blue, colormap=:viridis, scale_factor::Float64=3.0,
                                 marker=:cross, markersize::Float64=15.0, linewidth::Float64=1.0,
                                 linestyle=:dash)
     # Extract IsoBlobs from detections and call plotblobs

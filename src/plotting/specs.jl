@@ -72,7 +72,7 @@ function imshow(pattern; interpolate=false)
 end
 
 """
-    plotblobs(blobs; color=:green, colormap=nothing, scale_factor=3.0, marker=:cross, markersize=15.0, linewidth=3.0)
+    plotblobs(blobs; color=:green, colormap=:viridis, scale_factor=3.0, marker=:cross, markersize=15.0, linewidth=3.0)
 
 Create plot specs for blob visualization (centers and scale circles).
 
@@ -80,11 +80,13 @@ Create plot specs for blob visualization (centers and scale circles).
 - `blobs`: Vector of blob features
 
 # Keyword Arguments
-- `color=:green`: Color for blob visualization (used when colormap=nothing)
-- `colormap=nothing`: Colormap for blob coloring by index (e.g., :viridis, :plasma, :turbo).
-  When provided, blobs are colored by their order in the vector. Since blobs are saved
-  in column-major order, this visualizes their spatial ordering.
-  **Note**: When both `color` and `colormap` are specified, `colormap` takes precedence.
+- `color=:green`: Color specification for blobs. Can be:
+  - A single color (e.g., `:red`, `:blue`) for uniform coloring
+  - Numeric values (e.g., `1:n`) to map through the colormap
+  - A vector of colors for per-blob custom coloring
+- `colormap=:viridis`: Colormap to use when `color` contains numeric values.
+  Common options: `:viridis`, `:plasma`, `:turbo`, `:inferno`.
+  Only used when `color` is numeric; ignored when `color` is a symbolic color.
 - `scale_factor=3.0`: Scaling factor for blob circles
 - `marker=:cross`: Marker style for blob centers
 - `markersize=15.0`: Size of center markers
@@ -95,24 +97,27 @@ Returns a vector of PlotSpec objects (scatter + circles) that can be composed.
 
 # Examples
 ```julia
-# Single color
+# Uniform color (default)
 plotblobs(blobs; color=:red)
 
-# Color by index using viridis colormap (shows column-major spatial ordering)
-plotblobs(blobs; colormap=:viridis)
+# Color by index using default viridis colormap (shows column-major spatial ordering)
+plotblobs(blobs; color=1:length(blobs))
 
-# colormap takes precedence over color
-plotblobs(blobs; color=:red, colormap=:turbo)  # uses turbo colormap, not red
+# Color by index with custom colormap
+plotblobs(blobs; color=1:length(blobs), colormap=:turbo)
+
+# Uniform color with colormap specified (colormap is ignored)
+plotblobs(blobs; color=:red, colormap=:turbo)  # uses uniform red
 
 # Compose with image
 lscene = imshow(img)
-append!(lscene.plots, plotblobs(blobs; colormap=:turbo))
+append!(lscene.plots, plotblobs(blobs; color=1:length(blobs), colormap=:turbo))
 plot(Spec.GridLayout([lscene]))
 ```
 """
 function plotblobs(blobs;
                    color=:green,
-                   colormap=nothing,
+                   colormap=:viridis,
                    scale_factor::Float64=3.0,
                    marker=:cross,
                    markersize::Float64=15.0,
@@ -123,14 +128,32 @@ function plotblobs(blobs;
         centers = [ustrip.(blob.center) for blob in blobs]
         scales = [ustrip(blob.σ) for blob in blobs]
 
-        # Determine colors based on colormap or uniform color
-        if colormap !== nothing
-            # Use colormap indexed by blob order
-            n = length(blobs)
+        # Handle color specification following Makie conventions:
+        # - If color is numeric, map through colormap
+        # - If color is a single symbolic color, use uniformly
+        # - If color is a vector of colors, use directly
+        if color isa AbstractVector{<:Number}
+            # Numeric values: map through colormap
             cmap = Makie.to_colormap(colormap)
-            # Map indices 1:n to colormap range
-            colors = [cmap[max(1, min(length(cmap), round(Int, (i-1)/(n-1) * (length(cmap)-1) + 1)))] for i in 1:n]
+            n = length(color)
+            if n != length(blobs)
+                throw(ArgumentError("color vector length ($(n)) must match blobs length ($(length(blobs)))"))
+            end
+            # Normalize color values to [0, 1] and map to colormap
+            cmin, cmax = extrema(color)
+            colors = if cmin == cmax
+                fill(cmap[1], length(blobs))
+            else
+                [cmap[max(1, min(length(cmap), round(Int, (c - cmin) / (cmax - cmin) * (length(cmap) - 1) + 1)))] for c in color]
+            end
+        elseif color isa AbstractVector
+            # Vector of colors: use directly
+            if length(color) != length(blobs)
+                throw(ArgumentError("color vector length ($(length(color))) must match blobs length ($(length(blobs)))"))
+            end
+            colors = color
         else
+            # Single color: use uniformly
             colors = fill(color, length(blobs))
         end
 
