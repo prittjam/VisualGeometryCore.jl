@@ -23,28 +23,36 @@ const ResponseLevelView = ScaleLevel{SubArray{Gray{Float32},2,Array{Gray{Float32
 Preallocated response structure for computing derivatives and filters from ScaleSpace.
 
 This type stores a single response pyramid (e.g., Ixx, Iyy, Ixy, etc.) with 3D cube storage
-and the same geometry as the source ScaleSpace. Levels are SubArray views into octave cubes.
+and the same geometry as the source. Levels are SubArray views into octave cubes.
 
 All response data uses Float32 for consistency and performance.
 
 # Fields
 - `levels`: StructArray of ResponseLevelView for response storage
-- `transform`: Transform function or filter for computing responses
-- `octaves`: Vector of ResponseOctave objects with 3D cubes
+- `transform`: Transform (kernel, factored kernel, or function) for computing responses
+- `octaves`: Vector of ScaleOctave objects with 3D cubes
+
+# Transform Types
+- **2D kernels**: Applied level-by-level (e.g., DERIVATIVE_KERNELS.xy)
+- **Factored 2D kernels**: Applied level-by-level with separation (e.g., DERIVATIVE_KERNELS.xx)
+- **3D kernels**: Applied to octave cubes (e.g., DERIVATIVE_KERNELS_3D.dx)
+- **Factored 3D kernels**: Applied to octave cubes with separation (all 3D kernels are factored)
+- **Functions**: Applied level-by-level with custom logic
 
 # Usage
 ```julia
-# Create separate response pyramids for each derivative
-template = ScaleSpace(Size2(256, 256))
+# Create response from ScaleSpace with factored kernels (efficient)
+ss = ScaleSpace(img, first_octave=-1, octave_resolution=3)
+ixx_resp = ScaleSpaceResponse(ss, DERIVATIVE_KERNELS.xx)
+ixx_resp(ss)  # Compute Ixx using factored kernel
 
-ixx_resp = ScaleSpaceResponse(template, compute_ixx)
-iyy_resp = ScaleSpaceResponse(template, compute_iyy)
-ixy_resp = ScaleSpaceResponse(template, compute_ixy)
+# Create response from another response with 3D derivatives
+∇x_resp = ScaleSpaceResponse(ixx_resp, DERIVATIVE_KERNELS_3D.dx)
+∇x_resp(ixx_resp)  # Compute ∂/∂x using 3D factored kernel
 
-# Compute responses
-ixx_resp(scalespace)
-iyy_resp(scalespace)
-ixy_resp(scalespace)
+# Custom function transforms
+custom_resp = ScaleSpaceResponse(ss, (dst, src) -> dst .= src .^ 2)
+custom_resp(ss)  # Apply custom function
 ```
 """
 struct ScaleSpaceResponse{T} <: AbstractScaleSpace
@@ -157,13 +165,21 @@ end
 
 
 # =============================================================================
-# HELPER - DISPATCH ON HOW TO APPLY (KERNEL VS FUNCTION)
+# TRANSFORM APPLICATION - TWO-LEVEL DISPATCH
 # =============================================================================
 
 """
     apply_one!(dst, src, kernel::Union{AbstractArray, Tuple}, border_policy)
 
-Apply kernel (array or factored tuple) using imfilter.
+Apply kernel to data using imfilter. Handles both dense arrays and factored kernels.
+
+# Arguments
+- `dst`: Destination array (modified in-place)
+- `src`: Source array
+- `kernel`: Kernel (2D/3D array or factored tuple from kernelfactors)
+- `border_policy`: Border handling policy (e.g., "replicate")
+
+Factored kernels from `kernelfactors` are automatically separated by imfilter for efficiency.
 """
 apply_one!(dst, src, kernel::Union{AbstractArray, Tuple}, border_policy) =
     imfilter!(dst, src, kernel, border_policy)
@@ -171,7 +187,15 @@ apply_one!(dst, src, kernel::Union{AbstractArray, Tuple}, border_policy) =
 """
     apply_one!(dst, src, func::Function, border_policy)
 
-Apply function transform directly (ignores border_policy).
+Apply function transform directly to data.
+
+# Arguments
+- `dst`: Destination array (modified in-place)
+- `src`: Source array
+- `func`: Function with signature `func(dst, src)`
+- `border_policy`: Ignored for function transforms
+
+The function should perform the transform in-place, modifying `dst`.
 """
 apply_one!(dst, src, func::Function, border_policy) =
     func(dst, src)
@@ -183,7 +207,14 @@ apply_one!(dst, src, func::Function, border_policy) =
 """
     apply_transform!(response, source, transform::Union{Tuple{T1,T2}, AbstractArray{T,2}, Function})
 
-Process 2D transforms by looping over levels.
+Apply 2D transform by looping over levels independently.
+
+Dispatches to this method for:
+- **Factored 2D kernels**: `Tuple{T1,T2}` from kernelfactors (efficient)
+- **Dense 2D kernels**: `AbstractArray{T,2}` (non-separable like xy)
+- **Functions**: Custom transform functions
+
+Each level is processed independently using `apply_one!` which dispatches on kernel vs function.
 """
 function apply_transform!(response::ScaleSpaceResponse, source::AbstractScaleSpace,
                          transform::Union{Tuple{T1,T2}, AbstractArray{T,2}, Function}) where {T1,T2,T}
@@ -199,7 +230,13 @@ end
 """
     apply_transform!(response, source, transform::Union{Tuple{T1,T2,T3}, AbstractArray{T,3}})
 
-Process 3D transforms by looping over octaves.
+Apply 3D transform by looping over octave cubes.
+
+Dispatches to this method for:
+- **Factored 3D kernels**: `Tuple{T1,T2,T3}` from kernelfactors (efficient, all 3D kernels)
+- **Dense 3D kernels**: `AbstractArray{T,3}` (for custom non-separable 3D kernels)
+
+Each octave cube is processed as a whole (spatial + scale dimensions) using `apply_one!`.
 """
 function apply_transform!(response::ScaleSpaceResponse, source::AbstractScaleSpace,
                          transform::Union{Tuple{T1,T2,T3}, AbstractArray{T,3}}) where {T1,T2,T3,T}
@@ -229,13 +266,17 @@ Compute responses from a source using the stored transform.
 
 # Example
 ```julia
-# Create response structure and compute responses
-ixx_resp = ScaleSpaceResponse(template, compute_ixx)
-ixx_resp(gaussian_scalespace)  # Compute Ixx responses from ScaleSpace
+# Create response structure and compute 2D responses with factored kernels
+ixx_resp = ScaleSpaceResponse(ss, DERIVATIVE_KERNELS.xx)
+ixx_resp(ss)  # Compute Ixx responses from ScaleSpace (uses factored kernel)
 
-# Or compute derivative of a response
+# Compute 3D derivative of a response with factored 3D kernel
 dx_resp = ScaleSpaceResponse(hessian_resp, DERIVATIVE_KERNELS_3D.dx)
-dx_resp(hessian_resp)  # Compute ∇x from Hessian determinant response
+dx_resp(hessian_resp)  # Compute ∂/∂x from Hessian determinant response
+
+# Custom function transforms
+custom_resp = ScaleSpaceResponse(ss, (dst, src) -> dst .= src .^ 2)
+custom_resp(ss)  # Apply custom function level-by-level
 ```
 """
 function (response::ScaleSpaceResponse{T})(source::Union{ScaleSpace, ScaleSpaceResponse}) where T
