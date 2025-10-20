@@ -63,7 +63,7 @@ export Gray, N0f8, N0f16
 export HESSIAN_KERNELS, DERIVATIVE_KERNELS, DERIVATIVE_KERNELS_3D, LAPLACIAN_KERNEL
 export LAPLACIAN_DIRECT, HESSIAN_DIRECT
 export laplacian, hessian_determinant
-export Extremum3D, detect_extrema, find_extrema_3d, refine_extremum_3d, refine_extremum_3d_manual
+export Extremum3D, detect_extrema, find_extrema_3d, refine_extremum_3d
 
 # Export image processing utilities
 export vlfeat_upsample

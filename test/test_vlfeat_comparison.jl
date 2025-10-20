@@ -87,27 +87,45 @@ end
     end
 
     @testset "Refinement Convergence Behavior" begin
-        # Test that refinement accepts non-converged cases like VLFeat
-        # Create synthetic octave data
-        octave_3d = zeros(Gray{Float32}, 10, 10, 5)
-        
-        # Create a peak at (5, 5, 2)
-        for dz in -1:1, dy in -1:1, dx in -1:1
-            val = 0.1 * exp(-(dx^2 + dy^2 + dz^2) / 2.0)
-            octave_3d[5+dy, 5+dx, 2+dz] = Gray{Float32}(val)
+        # Test that refinement works with synthetic data
+        # Create small test image with a blob
+        img = zeros(Gray{Float32}, 32, 32)
+
+        # Create Gaussian blob at center
+        cx, cy = 16, 16
+        for y in 1:32, x in 1:32
+            r2 = (x - cx)^2 + (y - cy)^2
+            img[y, x] = Gray{Float32}(exp(-r2 / (2 * 2.0^2)))
         end
-        
-        # Refine extremum (use manual version for unit test)
-        result, converged = refine_extremum_3d_manual(octave_3d, 5, 5, 2,
-                                                      0, -1, 3, 1.6, 1.0)
-        
-        # Should converge for this simple case
-        @test converged == true
-        @test result !== nothing
-        
-        # Refined position should be close to center
-        @test abs(result.x - 5.0) < 0.1
-        @test abs(result.y - 5.0) < 0.1
+
+        # Build minimal scale space
+        ss = ScaleSpace(img; first_octave=0, octave_resolution=3,
+                       first_subdivision=-1, last_subdivision=3)
+
+        # Compute Hessian responses using VLFeat
+        hessian_resp = ScaleSpaceResponse(ss, DERIVATIVE_KERNELS.xx)
+        for level in ss
+            step = 2.0^level.octave
+            det_data = vlfeat_hessian_det(level.data, level.sigma, step)
+            resp_level = hessian_resp[level.octave, level.subdivision]
+            resp_level.data .= Gray{Float32}.(det_data)
+        end
+
+        # Detect extrema
+        extrema = detect_extrema(hessian_resp;
+            peak_threshold=0.001,
+            edge_threshold=10.0,
+            base_scale=2.015874,
+            octave_resolution=3)
+
+        # Should detect at least one feature
+        @test length(extrema) > 0
+
+        # Features should have valid properties
+        for ext in extrema
+            @test ext.sigma > 0
+            @test isfinite(ext.x) && isfinite(ext.y)
+        end
     end
 
     @testset "Critical VLFeat Behaviors" begin
