@@ -336,15 +336,15 @@ function detect_extrema(response::ScaleSpaceResponse;
 
     # Pre-compute 3D derivatives for the entire response (GPU-friendly)
     derivatives_resp = (
-        ∇x = ScaleSpaceResponse(response, DERIVATIVE_KERNELS_3D.dx)(response),
-        ∇y = ScaleSpaceResponse(response, DERIVATIVE_KERNELS_3D.dy)(response),
-        ∇z = ScaleSpaceResponse(response, DERIVATIVE_KERNELS_3D.dz)(response),
-        ∇²xx = ScaleSpaceResponse(response, DERIVATIVE_KERNELS_3D.dxx)(response),
-        ∇²yy = ScaleSpaceResponse(response, DERIVATIVE_KERNELS_3D.dyy)(response),
-        ∇²zz = ScaleSpaceResponse(response, DERIVATIVE_KERNELS_3D.dzz)(response),
-        ∇²xy = ScaleSpaceResponse(response, DERIVATIVE_KERNELS_3D.dxy)(response),
-        ∇²xz = ScaleSpaceResponse(response, DERIVATIVE_KERNELS_3D.dxz)(response),
-        ∇²yz = ScaleSpaceResponse(response, DERIVATIVE_KERNELS_3D.dyz)(response)
+        ∇x = ScaleSpaceResponse(response, DERIVATIVE_KERNELS_3D.dx),
+        ∇y = ScaleSpaceResponse(response, DERIVATIVE_KERNELS_3D.dy),
+        ∇z = ScaleSpaceResponse(response, DERIVATIVE_KERNELS_3D.dz),
+        ∇²xx = ScaleSpaceResponse(response, DERIVATIVE_KERNELS_3D.dxx),
+        ∇²yy = ScaleSpaceResponse(response, DERIVATIVE_KERNELS_3D.dyy),
+        ∇²zz = ScaleSpaceResponse(response, DERIVATIVE_KERNELS_3D.dzz),
+        ∇²xy = ScaleSpaceResponse(response, DERIVATIVE_KERNELS_3D.dxy),
+        ∇²xz = ScaleSpaceResponse(response, DERIVATIVE_KERNELS_3D.dxz),
+        ∇²yz = ScaleSpaceResponse(response, DERIVATIVE_KERNELS_3D.dyz)
     )
 
     # Process each octave
