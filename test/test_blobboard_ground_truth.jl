@@ -53,22 +53,19 @@ using Unitful
     ss = ScaleSpace(img, first_octave=-1, octave_resolution=3,
                    first_subdivision=-1, last_subdivision=3)
 
-    # Compute Hessian determinant response using VLFeat
-    hessian_resp = ScaleSpaceResponse(ss, DERIVATIVE_KERNELS.xx)
-    laplacian_resp = ScaleSpaceResponse(ss, DERIVATIVE_KERNELS.xx)
-    for level in ss
-        step = 2.0^level.octave
-        det_data = vlfeat_hessian_det(level.data, level.sigma, step)
-        lap_data = vlfeat_laplacian(level.data, level.sigma, step)
+    # Compute Hessian components using production code
+    println("  Computing Hessian components...")
+    ixx = ScaleSpaceResponse(ss, DERIVATIVE_KERNELS.xx)(ss)
+    iyy = ScaleSpaceResponse(ss, DERIVATIVE_KERNELS.yy)(ss)
+    ixy = ScaleSpaceResponse(ss, DERIVATIVE_KERNELS.xy)(ss)
 
-        resp_level = hessian_resp[level.octave, level.subdivision]
-        resp_level.data .= Gray{Float32}.(det_data)
-
-        lap_level = laplacian_resp[level.octave, level.subdivision]
-        lap_level.data .= Gray{Float32}.(lap_data)
-    end
+    # Compute determinant and Laplacian responses using production code
+    println("  Computing Hessian determinant and Laplacian...")
+    hessian_resp = hessian_determinant_response(ixx, iyy, ixy)
+    laplacian_resp = laplacian_response(ixx, iyy)
 
     # Detect extrema with Laplacian for blob polarity
+    println("  Detecting extrema...")
     extrema = detect_extrema(hessian_resp;
         peak_threshold=0.003,
         edge_threshold=10.0,

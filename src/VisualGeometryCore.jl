@@ -61,7 +61,6 @@ export Extremum3D, detect_extrema, find_extrema_3d, refine_extremum_3d
 
 # Export image processing utilities
 export vlfeat_upsample
-export vlfeat_hessian_det!, vlfeat_hessian_det
 
 
 
@@ -87,7 +86,6 @@ include("scalespace.jl")
 # Include local features
 include("local_features/scalespace_response.jl")
 include("local_features/kernels.jl")
-include("local_features/vlfeat_responses.jl")
 include("local_features/extrema.jl")
 include("local_features/io.jl")
 

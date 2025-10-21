@@ -17,41 +17,26 @@ using VisualGeometryCore
 using FileIO
 using LinearAlgebra
 
-# Check if VLFeat is available on the system
-function vlfeat_available()
-    # Check for vlfeat_hessian_det function (loaded from C library)
-    return isdefined(VisualGeometryCore, :vlfeat_hessian_det)
-end
-
 @testset "VLFeat Comparison Tests" begin
-    if !vlfeat_available()
-        @warn "VLFeat not available - skipping VLFeat comparison tests"
-        @warn "Install with: sudo apt-get install libvlfeat-dev"
-        return
-    end
-
-    @testset "Hessian Determinant Response Matching" begin
+    @testset "Hessian Determinant Response" begin
         # Create test image
         img = rand(Gray{Float32}, 64, 64)
-        
+
         # Build scale space
-        ss = ScaleSpace(img; first_octave=0, octave_resolution=3, 
+        ss = ScaleSpace(img; first_octave=0, octave_resolution=3,
                        first_subdivision=-1, last_subdivision=3)
-        
-        # Compute responses using VLFeat C intrinsics (for validation)
-        hessian_resp = ScaleSpaceResponse(ss, DERIVATIVE_KERNELS.xx)
-        for level in ss
-            step = 2.0^level.octave
-            det_data = vlfeat_hessian_det(level.data, level.sigma, step)
-            resp_level = hessian_resp[level.octave, level.subdivision]
-            resp_level.data .= Gray{Float32}.(det_data)
-        end
-        
+
+        # Compute responses using production code
+        ixx = ScaleSpaceResponse(ss, DERIVATIVE_KERNELS.xx)(ss)
+        iyy = ScaleSpaceResponse(ss, DERIVATIVE_KERNELS.yy)(ss)
+        ixy = ScaleSpaceResponse(ss, DERIVATIVE_KERNELS.xy)(ss)
+        hessian_resp = hessian_determinant_response(ixx, iyy, ixy)
+
         # Test: All responses should be finite
         for level in hessian_resp
             @test all(isfinite.(Float32.(level.data)))
         end
-        
+
         # Test: Response values should be in reasonable range
         all_vals = vcat([Float32.(level.data)[:] for level in hessian_resp]...)
         @test all(abs.(all_vals) .< 1.0)  # Hessian det typically << 1
@@ -102,14 +87,11 @@ end
         ss = ScaleSpace(img; first_octave=0, octave_resolution=3,
                        first_subdivision=-1, last_subdivision=3)
 
-        # Compute Hessian responses using VLFeat
-        hessian_resp = ScaleSpaceResponse(ss, DERIVATIVE_KERNELS.xx)
-        for level in ss
-            step = 2.0^level.octave
-            det_data = vlfeat_hessian_det(level.data, level.sigma, step)
-            resp_level = hessian_resp[level.octave, level.subdivision]
-            resp_level.data .= Gray{Float32}.(det_data)
-        end
+        # Compute Hessian responses using production code
+        ixx = ScaleSpaceResponse(ss, DERIVATIVE_KERNELS.xx)(ss)
+        iyy = ScaleSpaceResponse(ss, DERIVATIVE_KERNELS.yy)(ss)
+        ixy = ScaleSpaceResponse(ss, DERIVATIVE_KERNELS.xy)(ss)
+        hessian_resp = hessian_determinant_response(ixx, iyy, ixy)
 
         # Detect extrema
         extrema = detect_extrema(hessian_resp;
@@ -167,20 +149,17 @@ end
         if isfile(test_img_path)
             @testset "Real Image Test" begin
                 img = load(test_img_path)
-                
+
                 # Build scale space with VLFeat-matching parameters
-                ss = ScaleSpace(img; first_octave=-1, octave_resolution=3, 
+                ss = ScaleSpace(img; first_octave=-1, octave_resolution=3,
                                first_subdivision=-1, last_subdivision=3)
-                
-                # Compute Hessian responses using VLFeat
-                hessian_resp = ScaleSpaceResponse(ss, DERIVATIVE_KERNELS.xx)
-                for level in ss
-                    step = 2.0^level.octave
-                    det_data = vlfeat_hessian_det(level.data, level.sigma, step)
-                    resp_level = hessian_resp[level.octave, level.subdivision]
-                    resp_level.data .= Gray{Float32}.(det_data)
-                end
-                
+
+                # Compute Hessian responses using production code
+                ixx = ScaleSpaceResponse(ss, DERIVATIVE_KERNELS.xx)(ss)
+                iyy = ScaleSpaceResponse(ss, DERIVATIVE_KERNELS.yy)(ss)
+                ixy = ScaleSpaceResponse(ss, DERIVATIVE_KERNELS.xy)(ss)
+                hessian_resp = hessian_determinant_response(ixx, iyy, ixy)
+
                 # Detect extrema
                 extrema = detect_extrema(hessian_resp;
                     peak_threshold=0.003,
