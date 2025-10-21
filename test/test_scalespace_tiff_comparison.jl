@@ -182,9 +182,9 @@ end
             @printf("  %s o=%2d, s=%2d: RMS=%.2e, Max=%.2e\n", 
                     status, octave, subdivision, rms, max_err)
             
-            # Test thresholds
-            @test rms < 1e-4  # RMS error should be very small
-            @test max_err < 1e-3  # Max error should be sub-pixel
+            # Test thresholds (Gaussian - linear operation, tight tolerances)
+            @test rms < 1e-4  # RMS pixel value error
+            @test max_err < 1e-3  # Max pixel value error
         end
         
         println("\n" * "-"^70)
@@ -265,9 +265,9 @@ end
             @printf("  %s o=%2d, s=%2d: RMS=%.2e, Max=%.2e\n",
                     status, octave, subdivision, rms, max_err)
 
-            # Test thresholds for Hessian det (more lenient due to squaring/multiplication)
-            @test rms < 1e-3  # RMS error (determinant involves squared terms)
-            @test max_err < 5e-2  # Max error (determinant can have outliers)
+            # Test thresholds (Hessian det - nonlinear operation, error propagation expected)
+            @test rms < 1e-3  # RMS determinant error (10× Gaussian due to products/squares)
+            @test max_err < 5e-2  # Max determinant error (outliers from error propagation)
         end
 
         println("\n" * "-"^70)
