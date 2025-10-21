@@ -149,30 +149,6 @@ const DERIVATIVE_KERNELS_3D = (
 )
 
 # =============================================================================
-# DERIVED COMPUTATIONS
-# =============================================================================
-
-"""
-    laplacian(hessian_data::NamedTuple)
-
-Compute Laplacian (trace of Hessian) from Hessian components.
-Returns Ixx + Iyy.
-"""
-function laplacian(hessian_data::NamedTuple)
-    return @. hessian_data.xx + hessian_data.yy
-end
-
-"""
-    hessian_determinant(hessian_data::NamedTuple)
-
-Compute determinant of Hessian matrix from components.
-Returns Ixx * Iyy - Ixy².
-"""
-function hessian_determinant(hessian_data::NamedTuple)
-    return @. hessian_data.xx * hessian_data.yy - hessian_data.xy * hessian_data.xy
-end
-
-# =============================================================================
 # SCALE-SPACE RESPONSE COMPUTATIONS
 # =============================================================================
 
