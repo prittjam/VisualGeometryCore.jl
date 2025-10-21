@@ -330,7 +330,7 @@ function detect_extrema(response::ScaleSpaceResponse;
                        base_scale::Float64=1.6,
                        octave_resolution::Int=3,
                        return_discrete::Bool=false,
-                       laplacian_resp::Union{Nothing,ScaleSpaceResponse}=nothing) where T
+                       laplacian_resp::Union{Nothing,ScaleSpaceResponse}=nothing)
     all_extrema = Extremum3D[]
     all_discrete = Tuple{Int,Int,Int,Int}[]  # (octave, x, y, z)
 
