@@ -277,22 +277,3 @@ function laplacian_response(ixx::ScaleSpaceResponse, iyy::ScaleSpaceResponse)
     return lap_resp
 end
 
-# =============================================================================
-# DIRECT TRANSFORM FUNCTIONS
-# =============================================================================
-
-"""
-Direct Laplacian computation function for ScaleSpaceResponse.
-"""
-const LAPLACIAN_DIRECT = LAPLACIAN_KERNEL
-
-"""
-Direct Hessian computation returning NamedTuple of components.
-"""
-function HESSIAN_DIRECT(img)
-    return (
-        xx = imfilter(img, DERIVATIVE_KERNELS.xx),
-        yy = imfilter(img, DERIVATIVE_KERNELS.yy),
-        xy = imfilter(img, DERIVATIVE_KERNELS.xy)
-    )
-end
