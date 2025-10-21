@@ -9,16 +9,6 @@
 # =============================================================================
 
 """
-Simple Hessian kernels using StaticMatrix for clean SubArray compatibility.
-These work directly with SubArray views from 3D cubes without OffsetArray complexity.
-"""
-const HESSIAN_KERNELS = (
-    xx = centered(SMatrix{3,3}([0 0 0; 1 -2 1; 0 0 0])),
-    yy = centered(SMatrix{3,3}([0 1 0; 0 -2 0; 0 1 0])),
-    xy = centered(SMatrix{3,3}([0.25 0 -0.25; 0 0 0; -0.25 0 0.25]))
-)
-
-"""
     DERIVATIVE_KERNELS
 
 2D derivative kernels using factored (separable) form for efficiency.
@@ -53,12 +43,6 @@ const DERIVATIVE_KERNELS = (
     x = kernelfactors((centered(SVector(-1, 0, 1)),)),
     y = kernelfactors((centered(SVector(-1, 0, 1)),))
 )
-
-"""
-Laplacian kernel (trace of Hessian).
-Uses StaticArrays for better performance.
-"""
-const LAPLACIAN_KERNEL = centered(SMatrix{3,3}([0 1 0; 1 -4 1; 0 1 0]))
 
 # =============================================================================
 # 3D DERIVATIVE KERNELS (for scale-space responses)

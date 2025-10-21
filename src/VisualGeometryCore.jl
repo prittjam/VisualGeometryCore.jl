@@ -53,7 +53,7 @@ export Size2
 export Gray, N0f8, N0f16
 
 # Export local features (kernels and derivatives)
-export HESSIAN_KERNELS, DERIVATIVE_KERNELS, DERIVATIVE_KERNELS_3D, LAPLACIAN_KERNEL
+export DERIVATIVE_KERNELS, DERIVATIVE_KERNELS_3D
 export hessian_determinant_response, laplacian_response
 export Extremum3D, detect_extrema, find_extrema_3d, refine_extremum_3d
 
