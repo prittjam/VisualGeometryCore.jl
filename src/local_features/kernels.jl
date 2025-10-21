@@ -228,18 +228,12 @@ function hessian_determinant_response(ixx::ScaleSpaceResponse, iyy::ScaleSpaceRe
         sigmas = octave.sigmas
         step = octave.step
 
-        # Compute determinant with scale normalization for each slice
-        for (i, sigma) in enumerate(sigmas)
-            factor = Float32((sigma / step)^4)
+        # Compute scale normalization factors for all slices
+        # Reshape to (1, 1, n_slices) for broadcasting across spatial dimensions
+        factors = reshape(Float32.((sigmas ./ step).^4), 1, 1, :)
 
-            # Broadcast: det = (Ixx * Iyy - Ixy²) * (σ/step)⁴
-            ixx_slice = @view ixx_cube[:, :, i]
-            iyy_slice = @view iyy_cube[:, :, i]
-            ixy_slice = @view ixy_cube[:, :, i]
-            det_slice = @view det_cube[:, :, i]
-
-            @. det_slice = (ixx_slice * iyy_slice - ixy_slice * ixy_slice) * factor
-        end
+        # Single broadcast over entire cube: det = (Ixx * Iyy - Ixy²) * (σ/step)⁴
+        @. det_cube = (ixx_cube * iyy_cube - ixy_cube * ixy_cube) * factors
     end
 
     return det_resp
@@ -296,17 +290,12 @@ function laplacian_response(ixx::ScaleSpaceResponse, iyy::ScaleSpaceResponse)
         sigmas = octave.sigmas
         step = octave.step
 
-        # Compute Laplacian with scale normalization for each slice
-        for (i, sigma) in enumerate(sigmas)
-            factor = Float32((sigma / step)^2)
+        # Compute scale normalization factors for all slices
+        # Reshape to (1, 1, n_slices) for broadcasting across spatial dimensions
+        factors = reshape(Float32.((sigmas ./ step).^2), 1, 1, :)
 
-            # Broadcast: laplacian = (Ixx + Iyy) * (σ/step)²
-            ixx_slice = @view ixx_cube[:, :, i]
-            iyy_slice = @view iyy_cube[:, :, i]
-            lap_slice = @view lap_cube[:, :, i]
-
-            @. lap_slice = (ixx_slice + iyy_slice) * factor
-        end
+        # Single broadcast over entire cube: laplacian = (Ixx + Iyy) * (σ/step)²
+        @. lap_cube = (ixx_cube + iyy_cube) * factors
     end
 
     return lap_resp
