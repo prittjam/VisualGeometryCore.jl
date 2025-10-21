@@ -23,38 +23,31 @@ All response data uses Float32 for consistency and performance.
 
 # Fields
 - `levels`: StructArray of ScaleLevelView for response storage
-- `transform`: Transform (kernel, factored kernel, or function) for computing responses
 - `octaves`: Vector of ScaleOctave objects with 3D cubes
-
-# Transform Types
-- **2D kernels**: Applied level-by-level (e.g., DERIVATIVE_KERNELS.xy)
-- **Factored 2D kernels**: Applied level-by-level with separation (e.g., DERIVATIVE_KERNELS.xx)
-- **3D kernels**: Applied to octave cubes (e.g., DERIVATIVE_KERNELS_3D.dx)
-- **Factored 3D kernels**: Applied to octave cubes with separation (all 3D kernels are factored)
-- **Functions**: Applied level-by-level with custom logic
 
 # Usage
 ```julia
-# Create response from ScaleSpace with factored kernels (efficient)
+# Allocate response storage matching ScaleSpace geometry
 ss = ScaleSpace(img, first_octave=-1, octave_resolution=3)
-ixx_resp = ScaleSpaceResponse(ss, DERIVATIVE_KERNELS.xx)
-ixx_resp(ss)  # Compute Ixx using factored kernel
+ixx = ScaleSpaceResponse(ss)
 
-# Create response from another response with 3D derivatives
-∇x_resp = ScaleSpaceResponse(ixx_resp, DERIVATIVE_KERNELS_3D.dx)
-∇x_resp(ixx_resp)  # Compute ∂/∂x using 3D factored kernel
+# Apply transform to compute responses
+apply!(ixx, ss, DERIVATIVE_KERNELS.xx)  # Compute Ixx using factored kernel
+
+# Apply 3D derivatives to responses
+dx_resp = ScaleSpaceResponse(ixx)
+apply!(dx_resp, ixx, DERIVATIVE_KERNELS_3D.dx)  # Compute ∂/∂x using 3D factored kernel
 
 # Custom function transforms
-custom_resp = ScaleSpaceResponse(ss, (dst, src) -> dst .= src .^ 2)
-custom_resp(ss)  # Apply custom function
+custom_resp = ScaleSpaceResponse(ss)
+apply!(custom_resp, ss, (dst, src) -> dst .= src .^ 2)
 ```
 """
-struct ScaleSpaceResponse{T} <: AbstractScaleSpace
+struct ScaleSpaceResponse <: AbstractScaleSpace
     levels::StructArray{ScaleLevelView}
-    transform::T
     octaves::Vector{ScaleOctave}
 
-    function ScaleSpaceResponse(template::Union{ScaleSpace, ScaleSpaceResponse}, transform::T) where T
+    function ScaleSpaceResponse(template::Union{ScaleSpace, ScaleSpaceResponse})
         # Validate template is not empty
         @assert !isempty(template.levels) "Template must have levels defined"
 
@@ -103,7 +96,7 @@ struct ScaleSpaceResponse{T} <: AbstractScaleSpace
             sigma = template.levels.sigma
         ))
 
-        return new{T}(levels, transform, response_octaves)
+        return new(levels, response_octaves)
     end
 end
 
@@ -111,7 +104,7 @@ end
 # BASE INTERFACE EXTENSIONS
 # =============================================================================
 
-Base.eltype(::Type{ScaleSpaceResponse{T}}) where T = ScaleLevelView
+Base.eltype(::Type{ScaleSpaceResponse}) = ScaleLevelView
 
 # Add indexing support similar to ScaleSpace
 """
@@ -119,7 +112,7 @@ Base.eltype(::Type{ScaleSpaceResponse{T}}) where T = ScaleLevelView
 
 Access octave by number, returning ResponseOctave with 3D cube and metadata.
 """
-function Base.getindex(resp::ScaleSpaceResponse{T}, octave::Int) where T
+function Base.getindex(resp::ScaleSpaceResponse, octave::Int)
     # Find the octave object in the vector
     for octave_obj in resp.octaves
         if octave_obj.octave == octave
@@ -134,7 +127,7 @@ end
 
 Access level by octave and subdivision, returning ScaleLevelView with SubArray data.
 """
-function Base.getindex(resp::ScaleSpaceResponse{T}, octave::Int, subdivision::Int) where T
+function Base.getindex(resp::ScaleSpaceResponse, octave::Int, subdivision::Int)
     # Use StructArray filtering for efficient lookup
     mask = (resp.levels.octave .== octave) .& (resp.levels.subdivision .== subdivision)
     indices = findall(mask)
@@ -146,7 +139,7 @@ function Base.getindex(resp::ScaleSpaceResponse{T}, octave::Int, subdivision::In
     return resp.levels[first(indices)]
 end
 
-Base.getindex(resp::ScaleSpaceResponse{T}, I::CartesianIndex{2}) where T = resp[I[1], I[2]]
+Base.getindex(resp::ScaleSpaceResponse, I::CartesianIndex{2}) = resp[I[1], I[2]]
 
 # =============================================================================
 # UTILITY FUNCTIONS
@@ -159,7 +152,45 @@ end
 
 
 # =============================================================================
-# TRANSFORM APPLICATION - TWO-LEVEL DISPATCH
+# CONVENIENCE CONSTRUCTOR - ALLOCATE AND COMPUTE IN ONE CALL
+# =============================================================================
+
+"""
+    ScaleSpaceResponse(source::AbstractScaleSpace, transform)
+
+Convenience constructor that allocates storage and applies transform in one call.
+
+This is equivalent to:
+```julia
+resp = ScaleSpaceResponse(source)
+apply!(resp, source, transform)
+```
+
+# Arguments
+- `source`: Source ScaleSpace or ScaleSpaceResponse
+- `transform`: Kernel or function to apply
+
+# Returns
+- Computed ScaleSpaceResponse with filled data
+
+# Example
+```julia
+# Allocate and compute in one call
+ixx = ScaleSpaceResponse(ss, DERIVATIVE_KERNELS.xx)
+
+# Equivalent to:
+# ixx = ScaleSpaceResponse(ss)
+# apply!(ixx, ss, DERIVATIVE_KERNELS.xx)
+```
+"""
+function ScaleSpaceResponse(source::AbstractScaleSpace, transform)
+    resp = ScaleSpaceResponse(source)
+    apply!(resp, source, transform)
+    return resp
+end
+
+# =============================================================================
+# TRANSFORM APPLICATION - MULTIPLE DISPATCH ON TRANSFORM TYPE
 # =============================================================================
 
 """
@@ -194,12 +225,9 @@ The function should perform the transform in-place, modifying `dst`.
 apply_one!(dst, src, func::Function, border_policy) =
     func(dst, src)
 
-# =============================================================================
-# DISPATCH ON DIMENSIONALITY (2D = LEVELS, 3D = OCTAVES)
-# =============================================================================
-
 """
-    apply_transform!(response, source, transform::Union{Tuple{T1,T2}, AbstractArray{T,2}, Function})
+    apply!(response::ScaleSpaceResponse, source::AbstractScaleSpace,
+           transform::Union{Tuple{T1,T2}, AbstractArray{T,2}, Function})
 
 Apply 2D transform by looping over levels independently.
 
@@ -209,9 +237,24 @@ Dispatches to this method for:
 - **Functions**: Custom transform functions
 
 Each level is processed independently using `apply_one!` which dispatches on kernel vs function.
+
+# Arguments
+- `response`: ScaleSpaceResponse to fill with computed values
+- `source`: Source ScaleSpace or ScaleSpaceResponse with data
+- `transform`: Kernel or function to apply
+
+# Returns
+- The response object (for chaining)
+
+# Example
+```julia
+ixx = ScaleSpaceResponse(ss)
+apply!(ixx, ss, DERIVATIVE_KERNELS.xx)  # Compute Ixx
+```
 """
-function apply_transform!(response::ScaleSpaceResponse, source::AbstractScaleSpace,
-                         transform::Union{Tuple{T1,T2}, AbstractArray{T,2}, Function}) where {T1,T2,T}
+function apply!(response::ScaleSpaceResponse, source::AbstractScaleSpace,
+                transform::Union{Tuple{T1,T2}, AbstractArray{T,2}, Function}) where {T1,T2,T}
+    check_compatibility(response, source)
     border_pol = hasproperty(source, :border_policy) ? source.border_policy : "replicate"
 
     for idx in 1:length(response.levels)
@@ -222,7 +265,8 @@ function apply_transform!(response::ScaleSpaceResponse, source::AbstractScaleSpa
 end
 
 """
-    apply_transform!(response, source, transform::Union{Tuple{T1,T2,T3}, AbstractArray{T,3}})
+    apply!(response::ScaleSpaceResponse, source::AbstractScaleSpace,
+           transform::Union{Tuple{T1,T2,T3}, AbstractArray{T,3}})
 
 Apply 3D transform by looping over octave cubes.
 
@@ -231,54 +275,29 @@ Dispatches to this method for:
 - **Dense 3D kernels**: `AbstractArray{T,3}` (for custom non-separable 3D kernels)
 
 Each octave cube is processed as a whole (spatial + scale dimensions) using `apply_one!`.
+
+# Arguments
+- `response`: ScaleSpaceResponse to fill with computed values
+- `source`: Source ScaleSpace or ScaleSpaceResponse with data
+- `transform`: 3D kernel to apply
+
+# Returns
+- The response object (for chaining)
+
+# Example
+```julia
+dx_resp = ScaleSpaceResponse(hessian_resp)
+apply!(dx_resp, hessian_resp, DERIVATIVE_KERNELS_3D.dx)  # Compute ∂/∂x
+```
 """
-function apply_transform!(response::ScaleSpaceResponse, source::AbstractScaleSpace,
-                         transform::Union{Tuple{T1,T2,T3}, AbstractArray{T,3}}) where {T1,T2,T3,T}
+function apply!(response::ScaleSpaceResponse, source::AbstractScaleSpace,
+                transform::Union{Tuple{T1,T2,T3}, AbstractArray{T,3}}) where {T1,T2,T3,T}
+    check_compatibility(response, source)
     border_pol = hasproperty(source, :border_policy) ? source.border_policy : "replicate"
 
     for octave_num in unique(response.levels.octave)
         apply_one!(response[octave_num].G, source[octave_num].G, transform, border_pol)
     end
-
-    return response
-end
-
-# =============================================================================
-# SCALESPACERESPONSE COMPUTATION - FUNCTOR INTERFACE
-# =============================================================================
-
-"""
-    (response::ScaleSpaceResponse)(source::Union{ScaleSpace, ScaleSpaceResponse})
-
-Compute responses from a source using the stored transform.
-
-# Arguments
-- `source`: Source ScaleSpace or ScaleSpaceResponse (must have compatible geometry and be populated)
-
-# Returns
-- The ScaleSpaceResponse instance with computed response data
-
-# Example
-```julia
-# Create response structure and compute 2D responses with factored kernels
-ixx_resp = ScaleSpaceResponse(ss, DERIVATIVE_KERNELS.xx)
-ixx_resp(ss)  # Compute Ixx responses from ScaleSpace (uses factored kernel)
-
-# Compute 3D derivative of a response with factored 3D kernel
-dx_resp = ScaleSpaceResponse(hessian_resp, DERIVATIVE_KERNELS_3D.dx)
-dx_resp(hessian_resp)  # Compute ∂/∂x from Hessian determinant response
-
-# Custom function transforms
-custom_resp = ScaleSpaceResponse(ss, (dst, src) -> dst .= src .^ 2)
-custom_resp(ss)  # Apply custom function level-by-level
-```
-"""
-function (response::ScaleSpaceResponse{T})(source::Union{ScaleSpace, ScaleSpaceResponse}) where T
-    # Check compatibility between response and source
-    check_compatibility(response, source)
-
-    # Apply transform using multiple dispatch based on transform type
-    apply_transform!(response, source, response.transform)
 
     return response
 end
@@ -304,7 +323,7 @@ Check that a ScaleSpaceResponse and source are compatible for computation.
 - Response and source must have the same number of levels
 - Levels must have matching geometry (octaves, subdivisions, sigmas)
 """
-function check_compatibility(response::ScaleSpaceResponse{T}, source::Union{ScaleSpace, ScaleSpaceResponse}) where T
+function check_compatibility(response::ScaleSpaceResponse, source::Union{ScaleSpace, ScaleSpaceResponse})
     # Check that source has levels
     if isempty(source.levels)
         throw(ArgumentError("Source must have levels defined."))
@@ -349,13 +368,11 @@ end
 # BASE METHODS
 # =============================================================================
 
-function Base.summary(response::ScaleSpaceResponse{T}) where T
-    transform_info = "Transform: $(response.transform)"
+function Base.summary(response::ScaleSpaceResponse)
     sigma_min, sigma_max = extrema(response.levels.sigma)
     octaves = unique(response.levels.octave)
-    
+
     println("ScaleSpaceResponse Summary:" *
-          "\n  $transform_info" *
           "\n  Total levels: $(length(response.levels))" *
           "\n  Octaves: $(length(octaves)) ($(minimum(octaves)) to $(maximum(octaves)))" *
           "\n  Sigma range: $sigma_min to $sigma_max")

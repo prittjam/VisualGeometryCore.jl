@@ -27,9 +27,9 @@ using LinearAlgebra
                        first_subdivision=-1, last_subdivision=3)
 
         # Compute responses using production code
-        ixx = ScaleSpaceResponse(ss, DERIVATIVE_KERNELS.xx)(ss)
-        iyy = ScaleSpaceResponse(ss, DERIVATIVE_KERNELS.yy)(ss)
-        ixy = ScaleSpaceResponse(ss, DERIVATIVE_KERNELS.xy)(ss)
+        ixx = ScaleSpaceResponse(ss, DERIVATIVE_KERNELS.xx)
+        iyy = ScaleSpaceResponse(ss, DERIVATIVE_KERNELS.yy)
+        ixy = ScaleSpaceResponse(ss, DERIVATIVE_KERNELS.xy)
         hessian_resp = hessian_determinant_response(ixx, iyy, ixy)
 
         # Test: All responses should be finite
@@ -88,9 +88,9 @@ using LinearAlgebra
                        first_subdivision=-1, last_subdivision=3)
 
         # Compute Hessian responses using production code
-        ixx = ScaleSpaceResponse(ss, DERIVATIVE_KERNELS.xx)(ss)
-        iyy = ScaleSpaceResponse(ss, DERIVATIVE_KERNELS.yy)(ss)
-        ixy = ScaleSpaceResponse(ss, DERIVATIVE_KERNELS.xy)(ss)
+        ixx = ScaleSpaceResponse(ss, DERIVATIVE_KERNELS.xx)
+        iyy = ScaleSpaceResponse(ss, DERIVATIVE_KERNELS.yy)
+        ixy = ScaleSpaceResponse(ss, DERIVATIVE_KERNELS.xy)
         hessian_resp = hessian_determinant_response(ixx, iyy, ixy)
 
         # Detect extrema
@@ -155,9 +155,9 @@ using LinearAlgebra
                                first_subdivision=-1, last_subdivision=3)
 
                 # Compute Hessian responses using production code
-                ixx = ScaleSpaceResponse(ss, DERIVATIVE_KERNELS.xx)(ss)
-                iyy = ScaleSpaceResponse(ss, DERIVATIVE_KERNELS.yy)(ss)
-                ixy = ScaleSpaceResponse(ss, DERIVATIVE_KERNELS.xy)(ss)
+                ixx = ScaleSpaceResponse(ss, DERIVATIVE_KERNELS.xx)
+                iyy = ScaleSpaceResponse(ss, DERIVATIVE_KERNELS.yy)
+                ixy = ScaleSpaceResponse(ss, DERIVATIVE_KERNELS.xy)
                 hessian_resp = hessian_determinant_response(ixx, iyy, ixy)
 
                 # Detect extrema

@@ -55,9 +55,9 @@ using Unitful
 
     # Compute Hessian components using production code
     println("  Computing Hessian components...")
-    ixx = ScaleSpaceResponse(ss, DERIVATIVE_KERNELS.xx)(ss)
-    iyy = ScaleSpaceResponse(ss, DERIVATIVE_KERNELS.yy)(ss)
-    ixy = ScaleSpaceResponse(ss, DERIVATIVE_KERNELS.xy)(ss)
+    ixx = ScaleSpaceResponse(ss, DERIVATIVE_KERNELS.xx)
+    iyy = ScaleSpaceResponse(ss, DERIVATIVE_KERNELS.yy)
+    ixy = ScaleSpaceResponse(ss, DERIVATIVE_KERNELS.xy)
 
     # Compute determinant and Laplacian responses using production code
     println("  Computing Hessian determinant and Laplacian...")

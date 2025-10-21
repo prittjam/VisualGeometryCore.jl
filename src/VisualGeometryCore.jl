@@ -56,6 +56,7 @@ export Gray, N0f8, N0f16
 export DERIVATIVE_KERNELS, DERIVATIVE_KERNELS_3D
 export hessian_determinant_response, laplacian_response
 export Extremum3D, detect_extrema, find_extrema_3d, refine_extremum_3d
+export apply!  # Apply transform to ScaleSpaceResponse
 
 # Export image processing utilities
 export vlfeat_upsample

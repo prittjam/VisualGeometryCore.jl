@@ -106,9 +106,9 @@ end
     
     # Compute Julia Hessian responses
     println("\nComputing Julia Hessian determinant...")
-    ixx = ScaleSpaceResponse(ss, DERIVATIVE_KERNELS.xx)(ss)
-    iyy = ScaleSpaceResponse(ss, DERIVATIVE_KERNELS.yy)(ss)
-    ixy = ScaleSpaceResponse(ss, DERIVATIVE_KERNELS.xy)(ss)
+    ixx = ScaleSpaceResponse(ss, DERIVATIVE_KERNELS.xx)
+    iyy = ScaleSpaceResponse(ss, DERIVATIVE_KERNELS.yy)
+    ixy = ScaleSpaceResponse(ss, DERIVATIVE_KERNELS.xy)
     hessian_resp = hessian_determinant_response(ixx, iyy, ixy)
     println("  ✓ Hessian determinant computed")
     

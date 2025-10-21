@@ -324,7 +324,7 @@ extrema = detect_extrema(hessian_det;
     laplacian_resp=laplacian)
 ```
 """
-function detect_extrema(response::ScaleSpaceResponse{T};
+function detect_extrema(response::ScaleSpaceResponse;
                        peak_threshold::Float64=0.001,
                        edge_threshold::Float64=10.0,
                        base_scale::Float64=1.6,
