@@ -8,4 +8,5 @@ using Test
     include("test_integration.jl")
     include("test_python_interface.jl")
     include("test_vlfeat_comparison.jl")
+    include("test_scalespace_tiff_comparison.jl")
 end
