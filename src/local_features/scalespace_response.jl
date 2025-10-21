@@ -10,12 +10,6 @@ ScaleSpaceResponse for computing derivatives and filter responses from ScaleSpac
 
 # ResponseOctave removed - we reuse ScaleOctave from the main module
 
-"""
-    ResponseLevelView
-
-Type alias for SubArray-based response levels that are views into 3D cubes.
-"""
-const ResponseLevelView = ScaleLevel{SubArray{Gray{Float32},2,Array{Gray{Float32},3}}}
 
 """
     ScaleSpaceResponse
@@ -28,7 +22,7 @@ and the same geometry as the source. Levels are SubArray views into octave cubes
 All response data uses Float32 for consistency and performance.
 
 # Fields
-- `levels`: StructArray of ResponseLevelView for response storage
+- `levels`: StructArray of ScaleLevelView for response storage
 - `transform`: Transform (kernel, factored kernel, or function) for computing responses
 - `octaves`: Vector of ScaleOctave objects with 3D cubes
 
@@ -56,7 +50,7 @@ custom_resp(ss)  # Apply custom function
 ```
 """
 struct ScaleSpaceResponse{T} <: AbstractScaleSpace
-    levels::StructArray{ResponseLevelView}
+    levels::StructArray{ScaleLevelView}
     transform::T
     octaves::Vector{ScaleOctave}
 
@@ -102,7 +96,7 @@ struct ScaleSpaceResponse{T} <: AbstractScaleSpace
         end
 
         # Create StructArray reusing template's metadata
-        levels = StructArray{ResponseLevelView}((
+        levels = StructArray{ScaleLevelView}((
             data = data_arrays,
             octave = template.levels.octave,
             subdivision = template.levels.subdivision,
@@ -117,7 +111,7 @@ end
 # BASE INTERFACE EXTENSIONS
 # =============================================================================
 
-Base.eltype(::Type{ScaleSpaceResponse{T}}) where T = ResponseLevelView
+Base.eltype(::Type{ScaleSpaceResponse{T}}) where T = ScaleLevelView
 
 # Add indexing support similar to ScaleSpace
 """
@@ -136,9 +130,9 @@ function Base.getindex(resp::ScaleSpaceResponse{T}, octave::Int) where T
 end
 
 """
-    resp[octave, subdivision] -> ResponseLevelView
+    resp[octave, subdivision] -> ScaleLevelView
 
-Access level by octave and subdivision, returning ResponseLevelView with SubArray data.
+Access level by octave and subdivision, returning ScaleLevelView with SubArray data.
 """
 function Base.getindex(resp::ScaleSpaceResponse{T}, octave::Int, subdivision::Int) where T
     # Use StructArray filtering for efficient lookup
@@ -158,7 +152,7 @@ Base.getindex(resp::ScaleSpaceResponse{T}, I::CartesianIndex{2}) where T = resp[
 # UTILITY FUNCTIONS
 # =============================================================================
 
-function level_size(level::ResponseLevelView)
+function level_size(level::ScaleLevelView)
     return Size2(level.data)
 end
 
