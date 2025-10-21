@@ -38,7 +38,7 @@ end
         ss = ScaleSpace(img; first_octave=0, octave_resolution=3, 
                        first_subdivision=-1, last_subdivision=3)
         
-        # Compute responses using VLFeat
+        # Compute responses using VLFeat C intrinsics (for validation)
         hessian_resp = ScaleSpaceResponse(ss, DERIVATIVE_KERNELS.xx)
         for level in ss
             step = 2.0^level.octave

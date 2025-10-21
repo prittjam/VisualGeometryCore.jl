@@ -173,6 +173,146 @@ function hessian_determinant(hessian_data::NamedTuple)
 end
 
 # =============================================================================
+# SCALE-SPACE RESPONSE COMPUTATIONS
+# =============================================================================
+
+"""
+    hessian_determinant_response(ixx::ScaleSpaceResponse, iyy::ScaleSpaceResponse,
+                                 ixy::ScaleSpaceResponse)
+
+Compute Hessian determinant response from component responses with VLFeat-compatible scale normalization.
+
+This function computes det(H) = Ixx * Iyy - Ixy² with scale normalization factor (σ/step)⁴
+for each octave level, matching VLFeat's `_vl_det_hessian_response` exactly.
+
+# Arguments
+- `ixx`: Ixx (horizontal second derivative) ScaleSpaceResponse
+- `iyy`: Iyy (vertical second derivative) ScaleSpaceResponse
+- `ixy`: Ixy (mixed partial derivative) ScaleSpaceResponse
+
+# Returns
+- `ScaleSpaceResponse`: Hessian determinant with scale normalization
+
+# Scale Normalization
+The normalization factor (σ/step)⁴ makes the response scale-invariant, where:
+- σ is the Gaussian scale (sigma) at each level
+- step is the sampling step (2^octave)
+
+# Example
+```julia
+# Compute Hessian components
+ixx = ScaleSpaceResponse(ss, DERIVATIVE_KERNELS.xx)(ss)
+iyy = ScaleSpaceResponse(ss, DERIVATIVE_KERNELS.yy)(ss)
+ixy = ScaleSpaceResponse(ss, DERIVATIVE_KERNELS.xy)(ss)
+
+# Compute determinant response
+hessian_det = hessian_determinant_response(ixx, iyy, ixy)
+```
+"""
+function hessian_determinant_response(ixx::ScaleSpaceResponse, iyy::ScaleSpaceResponse,
+                                     ixy::ScaleSpaceResponse)
+    # Create response with same geometry as input
+    det_resp = ScaleSpaceResponse(ixx, (dst, src) -> dst .= src)
+
+    # Process each octave
+    for octave in ixx.octaves
+        octave_num = octave.octave
+
+        # Get component cubes
+        ixx_cube = ixx[octave_num].G
+        iyy_cube = iyy[octave_num].G
+        ixy_cube = ixy[octave_num].G
+        det_cube = det_resp[octave_num].G
+
+        # Get metadata
+        sigmas = octave.sigmas
+        step = octave.step
+
+        # Compute determinant with scale normalization for each slice
+        for (i, sigma) in enumerate(sigmas)
+            factor = Float32((sigma / step)^4)
+
+            # Broadcast: det = (Ixx * Iyy - Ixy²) * (σ/step)⁴
+            ixx_slice = @view ixx_cube[:, :, i]
+            iyy_slice = @view iyy_cube[:, :, i]
+            ixy_slice = @view ixy_cube[:, :, i]
+            det_slice = @view det_cube[:, :, i]
+
+            @. det_slice = (ixx_slice * iyy_slice - ixy_slice * ixy_slice) * factor
+        end
+    end
+
+    return det_resp
+end
+
+"""
+    laplacian_response(ixx::ScaleSpaceResponse, iyy::ScaleSpaceResponse)
+
+Compute Laplacian (trace of Hessian) response with VLFeat-compatible scale normalization.
+
+This function computes Laplacian = Ixx + Iyy with scale normalization factor (σ/step)²
+for each octave level, matching VLFeat's Laplacian computation exactly.
+
+# Arguments
+- `ixx`: Ixx (horizontal second derivative) ScaleSpaceResponse
+- `iyy`: Iyy (vertical second derivative) ScaleSpaceResponse
+
+# Returns
+- `ScaleSpaceResponse`: Laplacian with scale normalization
+
+# Sign Convention
+- Laplacian < 0: Bright blob (intensity peak)
+- Laplacian > 0: Dark blob (intensity valley)
+
+# Scale Normalization
+The normalization factor (σ/step)² makes the response scale-invariant, where:
+- σ is the Gaussian scale (sigma) at each level
+- step is the sampling step (2^octave)
+
+# Example
+```julia
+# Compute Hessian components
+ixx = ScaleSpaceResponse(ss, DERIVATIVE_KERNELS.xx)(ss)
+iyy = ScaleSpaceResponse(ss, DERIVATIVE_KERNELS.yy)(ss)
+
+# Compute Laplacian response
+laplacian = laplacian_response(ixx, iyy)
+```
+"""
+function laplacian_response(ixx::ScaleSpaceResponse, iyy::ScaleSpaceResponse)
+    # Create response with same geometry as input
+    lap_resp = ScaleSpaceResponse(ixx, (dst, src) -> dst .= src)
+
+    # Process each octave
+    for octave in ixx.octaves
+        octave_num = octave.octave
+
+        # Get component cubes
+        ixx_cube = ixx[octave_num].G
+        iyy_cube = iyy[octave_num].G
+        lap_cube = lap_resp[octave_num].G
+
+        # Get metadata
+        sigmas = octave.sigmas
+        step = octave.step
+
+        # Compute Laplacian with scale normalization for each slice
+        for (i, sigma) in enumerate(sigmas)
+            factor = Float32((sigma / step)^2)
+
+            # Broadcast: laplacian = (Ixx + Iyy) * (σ/step)²
+            ixx_slice = @view ixx_cube[:, :, i]
+            iyy_slice = @view iyy_cube[:, :, i]
+            lap_slice = @view lap_cube[:, :, i]
+
+            @. lap_slice = (ixx_slice + iyy_slice) * factor
+        end
+    end
+
+    return lap_resp
+end
+
+# =============================================================================
 # DIRECT TRANSFORM FUNCTIONS
 # =============================================================================
 

@@ -279,31 +279,49 @@ end
 """
     detect_extrema(response::ScaleSpaceResponse;
                    peak_threshold::Float64=0.001,
-                   edge_threshold::Float64=10.0)
+                   edge_threshold::Float64=10.0,
+                   base_scale::Float64=1.6,
+                   octave_resolution::Int=3,
+                   return_discrete::Bool=false,
+                   laplacian_resp::Union{Nothing,ScaleSpaceResponse}=nothing)
 
 Detect scale-space extrema in response pyramid using VLFeat's algorithm.
 
 # Arguments
-- `response`: ScaleSpaceResponse containing computed responses (e.g., Hessian determinant)
+- `response`: ScaleSpaceResponse containing Hessian determinant responses
 - `peak_threshold`: Minimum absolute peak score (default: 0.001)
 - `edge_threshold`: Maximum edge score for rejection (default: 10.0)
+- `base_scale`: Base scale parameter (default: 1.6)
+- `octave_resolution`: Number of subdivisions per octave (default: 3)
+- `return_discrete`: Return discrete extrema locations (default: false)
+- `laplacian_resp`: Optional Laplacian response for bright/dark blob classification
 
 # Returns
 - `Vector{Extremum3D}`: Detected and refined extrema
+- If `return_discrete=true`: Tuple of (extrema, discrete_locations)
 
 # Algorithm
 1. For each octave, find discrete extrema using 26-neighbor check
 2. Refine to sub-pixel accuracy using quadratic interpolation
 3. Filter by peak threshold and edge threshold
+4. Classify bright/dark blobs using Laplacian if provided
 
 # Example
 ```julia
-# Compute Hessian determinant responses
-hessian_resp = ScaleSpaceResponse(ss, vlfeat_hessian_det_transform)
-hessian_resp(ss)
+# Compute Hessian components
+ixx = ScaleSpaceResponse(ss, DERIVATIVE_KERNELS.xx)(ss)
+iyy = ScaleSpaceResponse(ss, DERIVATIVE_KERNELS.yy)(ss)
+ixy = ScaleSpaceResponse(ss, DERIVATIVE_KERNELS.xy)(ss)
+
+# Compute determinant and Laplacian
+hessian_det = hessian_determinant_response(ixx, iyy, ixy)
+laplacian = laplacian_response(ixx, iyy)
 
 # Detect extrema
-extrema = detect_extrema(hessian_resp, peak_threshold=0.001, edge_threshold=10.0)
+extrema = detect_extrema(hessian_det;
+    peak_threshold=0.001,
+    edge_threshold=10.0,
+    laplacian_resp=laplacian)
 ```
 """
 function detect_extrema(response::ScaleSpaceResponse{T};
@@ -312,23 +330,9 @@ function detect_extrema(response::ScaleSpaceResponse{T};
                        base_scale::Float64=1.6,
                        octave_resolution::Int=3,
                        return_discrete::Bool=false,
-                       scale_space::Union{Nothing,ScaleSpace}=nothing) where T
+                       laplacian_resp::Union{Nothing,ScaleSpaceResponse}=nothing) where T
     all_extrema = Extremum3D[]
     all_discrete = Tuple{Int,Int,Int,Int}[]  # (octave, x, y, z)
-
-    # Compute Laplacian response from scale space if provided
-    laplacian_resp = if scale_space !== nothing
-        lap_resp = ScaleSpaceResponse(scale_space, DERIVATIVE_KERNELS.xx)
-        for level in scale_space
-            step = 2.0^level.octave
-            lap_data = vlfeat_laplacian(level.data, level.sigma, step)
-            lap_level = lap_resp[level.octave, level.subdivision]
-            lap_level.data .= Gray{Float32}.(lap_data)
-        end
-        lap_resp
-    else
-        nothing
-    end
 
     # Pre-compute 3D derivatives for the entire response (GPU-friendly)
     derivatives_resp = (

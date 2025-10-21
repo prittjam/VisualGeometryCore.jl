@@ -55,20 +55,26 @@ using Unitful
 
     # Compute Hessian determinant response using VLFeat
     hessian_resp = ScaleSpaceResponse(ss, DERIVATIVE_KERNELS.xx)
+    laplacian_resp = ScaleSpaceResponse(ss, DERIVATIVE_KERNELS.xx)
     for level in ss
         step = 2.0^level.octave
         det_data = vlfeat_hessian_det(level.data, level.sigma, step)
+        lap_data = vlfeat_laplacian(level.data, level.sigma, step)
+
         resp_level = hessian_resp[level.octave, level.subdivision]
         resp_level.data .= Gray{Float32}.(det_data)
+
+        lap_level = laplacian_resp[level.octave, level.subdivision]
+        lap_level.data .= Gray{Float32}.(lap_data)
     end
 
-    # Detect extrema (pass scale space for Laplacian computation)
+    # Detect extrema with Laplacian for blob polarity
     extrema = detect_extrema(hessian_resp;
         peak_threshold=0.003,
         edge_threshold=10.0,
         base_scale=2.015874,
         octave_resolution=3,
-        scale_space=ss)
+        laplacian_resp=laplacian_resp)
 
     num_detected = length(extrema)
     println("  Detected blobs: $num_detected")
