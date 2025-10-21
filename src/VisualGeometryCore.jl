@@ -9,7 +9,7 @@ using CoordinateTransformations
 using Rotations
 
 # Units and physical quantities
-using Unitful: Unitful, m, mm, cm, inch, ft, @refunit, @unit, @dimension, uconvert, unit, 𝐋, Quantity, μm, rad, °, dimension
+using Unitful: Unitful, m, mm, cm, inch, ft, @refunit, @unit, @dimension, uconvert, unit, 𝐋, Quantity, μm, rad, °, dimension, ustrip
 
 # Data structures and serialization
 using JSON3, StructTypes
@@ -30,8 +30,10 @@ using GLMakie
 using ImageFiltering: ImageFiltering, Kernel, imfilter, centered, Fill, imfilter!, kernelfactors
 using ImageTransformations: imresize
 using ImageCore: channelview
+using Interpolations
 using StructArrays
 using FileIO: save
+using Transducers
 
 # Export geometry basics
 export Point2, Rect, Vec2, HyperRectangle, Circle, Point2f
@@ -55,7 +57,9 @@ export Gray, N0f8, N0f16
 # Export local features (kernels and derivatives)
 export DERIVATIVE_KERNELS, DERIVATIVE_KERNELS_3D
 export hessian_determinant_response, laplacian_response
-export Extremum3D, detect_extrema, find_extrema_3d, refine_extremum_3d
+export detect_features  # Main public API - returns IsoBlobDetection
+export detect_extrema   # Deprecated - for backward compatibility
+export Extremum3D, find_extrema_3d, refine_extremum_3d, refine_extrema  # Low-level API
 export apply!  # Apply transform to ScaleSpaceResponse
 
 # Export image processing utilities
