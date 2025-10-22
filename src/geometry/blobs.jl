@@ -153,33 +153,37 @@ end
 Detected isotropic blob with complete Hessian-based characterization.
 Both center and σ use the same type for consistency.
 
-Fields
+Matches VLFeat's VlCovDetFeature structure with fields:
+- Position/scale (frame)
+- Response strength (peakScore = det(H))
+- Edge score (edgeScore)
+- Laplacian value (laplacianScaleScore for bright/dark classification)
+
+All detections are true blobs (saddle points with det(H) < 0 are rejected during refinement).
+
+# Fields
 - `center::Point2{T}`: Blob center in input image coordinates
 - `σ::T`: Scale parameter (standard deviation of Gaussian)
-- `response::Float64`: Absolute value of peak response (|det(H)|)
+- `response::Float64`: Peak response value (Hessian determinant, always positive)
 - `edge_score::Float64`: Edge score (lower = more blob-like, higher = more edge-like)
-- `laplacian_sign::Int`: Intensity polarity via Laplacian sign
-  - `-1`: Bright blob (intensity peak, Lxx + Lyy < 0)
-  - `+1`: Dark blob (intensity valley, Lxx + Lyy > 0)
-  - `0`: Neutral/saddle (Laplacian near zero)
-- `polarity::FeaturePolarity`: Structure type
-  - `BlobFeature`: Blob-like (positive det(H))
-  - `SaddleFeature`: Saddle/edge-like (negative det(H))
+- `laplacian_scale_score::Float64`: Laplacian (trace of Hessian) value at detection
+  - `< 0`: Bright blob (intensity peak, Lxx + Lyy < 0)
+  - `> 0`: Dark blob (intensity valley, Lxx + Lyy > 0)
+  - `NaN`: Laplacian not computed (basic Hessian detector without Laplacian response)
 """
 struct IsoBlobDetection{T} <: AbstractBlob
     center::Point2{T}
     σ::T
     response::Float64
     edge_score::Float64
-    laplacian_sign::Int  # Sign of Laplacian: -1 (bright blob), +1 (dark blob), 0 (neutral)
-    polarity::FeaturePolarity
+    laplacian_scale_score::Float64
 
-    function IsoBlobDetection(center::Point2{S}, σ::T, response::Float64, edge_score::Float64, laplacian_sign::Int, polarity::FeaturePolarity) where {S,T}
+    function IsoBlobDetection(center::Point2{S}, σ::T, response::Float64, edge_score::Float64, laplacian_scale_score::Float64) where {S,T}
         # Promote types to common type
         U = promote_type(S, T)
         center_promoted = Point2(convert(U, center[1]), convert(U, center[2]))
         σ_promoted = convert(U, σ)
-        new{U}(center_promoted, σ_promoted, response, edge_score, laplacian_sign, polarity)
+        new{U}(center_promoted, σ_promoted, response, edge_score, laplacian_scale_score)
     end
 end
 
@@ -272,7 +276,7 @@ GeometryBasics.origin(blob::AbstractBlob) = blob.center
 
 Shift the center of a blob by the given offset.
 
-This specialized method enables `apply_pixel_convention` to work with blob types.
+This specialized method enables `change_image_origin` to work with blob types.
 
 # Arguments
 - `blob::AbstractBlob`: Blob to shift (IsoBlob or IsoBlobDetection)

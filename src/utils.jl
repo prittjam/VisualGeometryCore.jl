@@ -130,24 +130,28 @@ to_ranges(p1::StaticVector{N,<:Integer}, p2::StaticVector{N,<:Integer}) where N 
 # =============================================================================
 
 """
-    apply_pixel_convention(primitive, convention::Symbol) -> typeof(primitive)
+    change_image_origin(primitive; from::Symbol, to::Symbol) -> typeof(primitive)
 
-Apply pixel coordinate convention shift to any GeometryBasics primitive that supports `origin()`.
+Change the image origin convention (pixel coordinate system) of a geometric primitive.
 
-This generic helper shifts the position of geometric primitives to match different pixel
-coordinate conventions used across computer vision systems.
+This function converts coordinates between different image origin conventions used across
+computer vision systems by shifting the origin.
 
-# Pixel Coordinate Conventions
+# Image Origin Conventions
 
-Different computer vision systems use different conventions for pixel coordinates:
+Different computer vision systems use different conventions for pixel/image coordinates:
 
-- **Native/Makie** (`:native`): First pixel center at (0.5, 0.5), corner at (0, 0)
-- **MATLAB** (`:matlab`): First pixel center at (1, 1), corner at (0.5, 0.5)
-- **OpenCV** (`:opencv`): First pixel center at (0, 0), corner at (-0.5, -0.5)
+- **Makie/Colmap** (`:makie` or `:colmap`): First pixel center at (0.5, 0.5), corner at (0, 0)
+  - Continuous coordinate space, pixel centers at half-integer positions
+- **MATLAB/Julia** (`:matlab` or `:julia`): First pixel center at (1, 1), corner at (0.5, 0.5)
+  - 1-based array indexing used as coordinates
+- **OpenCV/VLFeat** (`:opencv` or `:vlfeat`): First pixel center at (0, 0), corner at (-0.5, -0.5)
+  - 0-based array indexing used as coordinates
 
 # Arguments
 - `primitive`: Any GeometryBasics type with `origin()` method (Circle, Sphere, Rect, IsoBlob, etc.)
-- `convention::Symbol`: Target pixel coordinate convention
+- `from::Symbol`: Source pixel coordinate convention (what the primitive is currently in)
+- `to::Symbol`: Target pixel coordinate convention (what you want to convert to)
 
 # Returns
 New primitive of same type with shifted origin
@@ -157,36 +161,100 @@ New primitive of same type with shifted origin
 using VisualGeometryCore
 using GeometryBasics
 
-# Works with any GeometryBasics primitive
-circle = Circle(Point2(10.0, 20.0), 5.0)
-circle_matlab = apply_pixel_convention(circle, :matlab)  # center at (10.5, 20.5)
-circle_opencv = apply_pixel_convention(circle, :opencv)  # center at (9.5, 19.5)
+# Convert from VLFeat/OpenCV convention to MATLAB/Julia convention
+blob_vlfeat = IsoBlob(Point2(10.0pd, 20.0pd), 2.0pd)  # In VLFeat convention
+blob_matlab = change_image_origin(blob_vlfeat; from=:vlfeat, to=:matlab)  # center at (11.0pd, 21.0pd)
 
-# Works with units
-blob = IsoBlob(Point2(10.0pd, 20.0pd), 2.0pd)
-blob_matlab = apply_pixel_convention(blob, :matlab)  # center at (10.5pd, 20.5pd)
+# Convert from MATLAB to Makie/Colmap convention
+blob_makie = change_image_origin(blob_matlab; from=:matlab, to=:makie)  # center at (10.5pd, 20.5pd)
 
-# Can broadcast over collections
-blobs = [IsoBlob(Point2(i, i), 1.0) for i in 1:5]
-blobs_opencv = apply_pixel_convention.(blobs, :opencv)
+# detect_features outputs in VLFeat/OpenCV convention, convert to MATLAB
+blobs = detect_features(img)
+blobs_matlab = change_image_origin.(blobs; from=:vlfeat, to=:matlab)
+
+# Convert to Makie convention for plotting
+blobs_makie = change_image_origin.(blobs; from=:vlfeat, to=:makie)
+
+# Aliases work too
+circles = [Circle(Point2(Float64(i), Float64(i)), 5.0) for i in 1:5]
+circles_colmap = change_image_origin.(circles; from=:julia, to=:colmap)  # same as :matlab to :makie
 ```
 """
-function apply_pixel_convention(primitive, convention::Symbol)
-    if convention == :native
-        return primitive  # No shift needed
-    elseif convention == :matlab
-        # MATLAB: first pixel center at (1, 1) - add 0.5 offset
-        pos = origin(primitive)
-        offset = (0.5, 0.5) .* unit(eltype(pos))
-        return shift_origin(primitive, offset)
-    elseif convention == :opencv
-        # OpenCV: first pixel center at (0, 0) - subtract 0.5 offset
-        pos = origin(primitive)
-        offset = (0.5, 0.5) .* unit(eltype(pos))
-        return shift_origin(primitive, .-offset)
-    else
-        error("Unknown convention :$convention. Valid options: :native, :matlab, :opencv")
+function change_image_origin(primitive; from::Symbol, to::Symbol)
+    # If source and target are the same, no conversion needed
+    if from == to
+        return primitive
     end
+
+    # Normalize aliases to canonical names
+    # :vlfeat -> :opencv
+    # :colmap -> :makie
+    # :julia -> :matlab
+    from_canonical = if from == :vlfeat
+        :opencv
+    elseif from == :colmap
+        :makie
+    elseif from == :julia
+        :matlab
+    else
+        from
+    end
+
+    to_canonical = if to == :vlfeat
+        :opencv
+    elseif to == :colmap
+        :makie
+    elseif to == :julia
+        :matlab
+    else
+        to
+    end
+
+    # If normalized source and target are the same, no conversion needed
+    if from_canonical == to_canonical
+        return primitive
+    end
+
+    # Validate conventions
+    valid_conventions = (:makie, :matlab, :opencv)
+    if !(from_canonical in valid_conventions)
+        error("Unknown source convention :$from. Valid options: :makie, :colmap, :matlab, :julia, :opencv, :vlfeat")
+    end
+    if !(to_canonical in valid_conventions)
+        error("Unknown target convention :$to. Valid options: :makie, :colmap, :matlab, :julia, :opencv, :vlfeat")
+    end
+
+    # Compute the offset needed to convert from source to target
+    # Strategy: compute offset from source to :makie, then from :makie to target
+    pos = GeometryBasics.origin(primitive)
+    unit_val = unit(eltype(pos))
+
+    # Step 1: Convert from source convention to :makie
+    offset_to_makie = if from_canonical == :makie
+        (0.0, 0.0) .* unit_val
+    elseif from_canonical == :matlab
+        # MATLAB (1,1) -> Makie (0.5, 0.5): subtract 0.5
+        (-0.5, -0.5) .* unit_val
+    elseif from_canonical == :opencv
+        # OpenCV (0,0) -> Makie (0.5, 0.5): add 0.5
+        (0.5, 0.5) .* unit_val
+    end
+
+    # Step 2: Convert from :makie to target convention
+    offset_from_makie = if to_canonical == :makie
+        (0.0, 0.0) .* unit_val
+    elseif to_canonical == :matlab
+        # Makie (0.5, 0.5) -> MATLAB (1,1): add 0.5
+        (0.5, 0.5) .* unit_val
+    elseif to_canonical == :opencv
+        # Makie (0.5, 0.5) -> OpenCV (0,0): subtract 0.5
+        (-0.5, -0.5) .* unit_val
+    end
+
+    # Total offset
+    total_offset = offset_to_makie .+ offset_from_makie
+
+    return shift_origin(primitive, total_offset)
 end
 
 """
@@ -194,7 +262,7 @@ end
 
 Shift the origin of a geometric primitive by the given offset.
 
-This is an internal helper function used by `apply_pixel_convention`.
+This is an internal helper function used by `change_image_origin`.
 Add specialized methods for custom types that don't follow standard GeometryBasics patterns.
 
 # Arguments
