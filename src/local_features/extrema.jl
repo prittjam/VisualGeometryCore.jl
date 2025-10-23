@@ -483,7 +483,7 @@ function detect_features(img;
                         first_subdivision::Int=-1,
                         last_subdivision::Int=3,
                         base_scale::Float64=2.015874,
-                        image_origin::Symbol=:colmap)
+                        pixel_convention::Symbol=:colmap)
     # Only support hessian_laplace for now
     if method != :hessian_laplace
         throw(ArgumentError("Only :hessian_laplace method is currently supported"))
@@ -516,9 +516,9 @@ function detect_features(img;
                           octave_resolution=octave_resolution,
                           laplacian_resp=laplacian)
 
-    # Convert to requested coordinate convention (default :colmap)
+    # Convert to requested pixel coordinate convention (default :colmap)
     # IsoBlobDetection uses 0-indexed coordinates (like :opencv)
-    return change_image_origin.(blobs; from=:opencv, to=image_origin)
+    return change_image_origin.(blobs; from=:opencv, to=pixel_convention)
 end
 
 """
