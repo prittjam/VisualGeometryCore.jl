@@ -254,31 +254,7 @@ function change_image_origin(primitive; from::Symbol, to::Symbol)
     # Total offset
     total_offset = offset_to_makie .+ offset_from_makie
 
-    return shift_origin(primitive, total_offset)
-end
-
-"""
-    shift_origin(primitive, offset) -> typeof(primitive)
-
-Shift the origin of a geometric primitive by the given offset.
-
-This is an internal helper function used by `change_image_origin`.
-Add specialized methods for custom types that don't follow standard GeometryBasics patterns.
-
-# Arguments
-- `primitive`: Geometric primitive to shift
-- `offset`: Offset to add to origin (Point, Vec, or tuple with units)
-
-# Examples
-```julia
-# Default implementation for GeometryBasics Circle
-circle = Circle(Point2(10.0, 20.0), 5.0)
-shifted = shift_origin(circle, Point2(0.5, 0.5))  # center at (10.5, 20.5)
-```
-"""
-function shift_origin(primitive::GeometryBasics.HyperSphere, offset)
-    new_center = origin(primitive) .+ offset
-    return typeof(primitive)(new_center, primitive.r)
+    return primitive + total_offset
 end
 
 """

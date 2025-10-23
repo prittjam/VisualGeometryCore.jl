@@ -205,28 +205,4 @@ pos = origin(blob)  # Returns Point2(10.0pd, 20.0pd)
 """
 GeometryBasics.origin(blob::AbstractBlob) = blob.center
 
-"""
-    shift_origin(blob::AbstractBlob, offset) -> typeof(blob)
-
-Shift the center of a blob by the given offset.
-
-This specialized method enables `apply_pixel_convention` to work with blob types.
-
-# Arguments
-- `blob::AbstractBlob`: Blob to shift (IsoBlob or IsoBlobDetection)
-- `offset`: Offset to add to center (Point, Vec, or tuple with units)
-
-# Returns
-New blob with shifted center, preserving all other properties
-
-# Example
-```julia
-blob = IsoBlob(Point2(10.0pd, 20.0pd), 2.0pd)
-shifted = shift_origin(blob, Point2(0.5pd, 0.5pd))  # center at (10.5pd, 20.5pd)
-```
-"""
-function shift_origin(blob::AbstractBlob, offset)
-    new_center = blob.center .+ offset
-    return ConstructionBase.setproperties(blob, (center=new_center,))
-end
 
