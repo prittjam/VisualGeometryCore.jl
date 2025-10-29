@@ -120,19 +120,13 @@ end
 # =============================================================================
 
 """
-    intersects(c1::GeometryBasics.Circle, c2::GeometryBasics.Circle) -> Bool
-
-Check if two circles intersect (distance between centers < sum of radii).
-"""
-intersects(c1::GeometryBasics.Circle, c2::GeometryBasics.Circle) =
-    norm(c1.center - c2.center) < (c1.r + c2.r)
-
-"""
     intersects(p::AbstractBlob, q::AbstractBlob, cutoff::Real) -> Bool
 
 Check if two blobs intersect by constructing circles with radius `cutoff*σ` and testing intersection.
 The `cutoff` parameter determines the effective radius as a multiple of σ (e.g., 3.0 for 3σ radius).
 Constructs GeometryBasics.Circle objects with unitless centers and radii.
+
+Uses the `intersects(::Circle, ::Circle)` method defined in `geometry/conics.jl`.
 
 # Example
 ```julia
@@ -378,4 +372,84 @@ function Base.:/(blob::AbstractBlob, scale)
     new_σ = blob.σ / scale
     # Use ConstructionBase to set both fields at once, preserving other fields
     return ConstructionBase.setproperties(blob, (center=new_center, σ=new_σ))
+end
+
+# =============================================================================
+# Blob Polarity Filtering (Light/Dark Classification)
+# =============================================================================
+
+"""
+    light_blobs(blobs::Vector{IsoBlobDetection}) -> Vector{IsoBlobDetection}
+
+Filter blob detections to return only light/bright blobs (intensity peaks).
+
+Light blobs are characterized by negative Laplacian values (Lxx + Lyy < 0),
+indicating local intensity maxima where both second derivatives are negative.
+
+# Arguments
+- `blobs`: Vector of IsoBlobDetection objects
+
+# Returns
+- Vector containing only blobs with `laplacian_scale_score < 0` (light/bright blobs)
+
+# Notes
+- Blobs with `NaN` laplacian_scale_score (from basic Hessian detector) are excluded
+- Only works with detections from Hessian-Laplace detector (`:hessian_laplace` method)
+- For basic Hessian detector, use polarity-aware detector methods instead
+
+# Example
+```julia
+# Detect all blobs with Hessian-Laplace
+all_blobs = detect_features(img; method=:hessian_laplace)
+
+# Filter to get only light blobs (bright spots)
+bright_spots = light_blobs(all_blobs)
+println("Found \$(length(bright_spots)) bright blobs out of \$(length(all_blobs)) total")
+```
+
+See also: [`dark_blobs`](@ref), [`detect_features`](@ref)
+"""
+function light_blobs(blobs::Vector{IsoBlobDetection{T}}) where T
+    return filter(b -> !isnan(b.laplacian_scale_score) && b.laplacian_scale_score < 0, blobs)
+end
+
+"""
+    dark_blobs(blobs::Vector{IsoBlobDetection}) -> Vector{IsoBlobDetection}
+
+Filter blob detections to return only dark blobs (intensity valleys).
+
+Dark blobs are characterized by positive Laplacian values (Lxx + Lyy > 0),
+indicating local intensity minima where both second derivatives are positive.
+
+# Arguments
+- `blobs`: Vector of IsoBlobDetection objects
+
+# Returns
+- Vector containing only blobs with `laplacian_scale_score > 0` (dark blobs)
+
+# Notes
+- Blobs with `NaN` laplacian_scale_score (from basic Hessian detector) are excluded
+- Only works with detections from Hessian-Laplace detector (`:hessian_laplace` method)
+- For basic Hessian detector, use polarity-aware detector methods instead
+
+# Example
+```julia
+# Detect all blobs with Hessian-Laplace
+all_blobs = detect_features(img; method=:hessian_laplace)
+
+# Filter to get only dark blobs (dark spots)
+dark_spots = dark_blobs(all_blobs)
+println("Found \$(length(dark_spots)) dark blobs out of \$(length(all_blobs)) total")
+
+# Visualize with different colors
+import VisualGeometryCore.Spec as S
+lscene = S.Imshow(img)
+append!(lscene.plots, S.Blobs(light_blobs(all_blobs); color=:yellow))  # Bright blobs in yellow
+append!(lscene.plots, S.Blobs(dark_blobs(all_blobs); color=:blue))     # Dark blobs in blue
+```
+
+See also: [`light_blobs`](@ref), [`detect_features`](@ref)
+"""
+function dark_blobs(blobs::Vector{IsoBlobDetection{T}}) where T
+    return filter(b -> !isnan(b.laplacian_scale_score) && b.laplacian_scale_score > 0, blobs)
 end

@@ -8,7 +8,6 @@ rather than implementation correctness (matching VLFeat).
 
 using Test
 using VisualGeometryCore
-using VisualGeometryCore: BlobFeature, SaddleFeature
 using FileIO
 using JSON3
 using Printf
@@ -48,59 +47,44 @@ using Unitful
     println("  Ground truth blobs: $num_gt_blobs")
     println("  Image size: $(size(img))")
 
-    # Build scale space and detect blobs
-    println("\nDetecting blobs...")
-    ss = ScaleSpace(img, first_octave=-1, octave_resolution=3,
-                   first_subdivision=-1, last_subdivision=3)
-
-    # Compute Hessian components using production code
-    println("  Computing Hessian components...")
-    ixx = ScaleSpaceResponse(ss, DERIVATIVE_KERNELS.xx)
-    iyy = ScaleSpaceResponse(ss, DERIVATIVE_KERNELS.yy)
-    ixy = ScaleSpaceResponse(ss, DERIVATIVE_KERNELS.xy)
-
-    # Compute determinant and Laplacian responses using production code
-    println("  Computing Hessian determinant and Laplacian...")
-    hessian_resp = hessian_determinant_response(ixx, iyy, ixy)
-    laplacian_resp = laplacian_response(ixx, iyy)
-
-    # Detect extrema with Laplacian for blob polarity
-    println("  Detecting extrema...")
-    extrema = detect_extrema(hessian_resp;
+    # Detect blobs using new top-level API
+    println("\nDetecting blobs using detect_features...")
+    blob_detections = detect_features(img;
+        method=:hessian_laplace,
         peak_threshold=0.003,
         edge_threshold=10.0,
-        base_scale=2.015874,
+        first_octave=-1,
         octave_resolution=3,
-        laplacian_resp=laplacian_resp)
+        first_subdivision=-1,
+        last_subdivision=3,
+        base_scale=2.015874)
 
-    num_detected = length(extrema)
+    num_detected = length(blob_detections)
     println("  Detected blobs: $num_detected")
 
-    # Convert extrema to IsoBlobDetection
-    blob_detections = [IsoBlobDetection(ext) for ext in extrema]
+    # Convert from VLFeat/OpenCV convention to Colmap convention
+    # (BlobBoard JSON uses Colmap/Makie continuous coordinate space)
+    println("  Converting coordinates from VLFeat to Colmap convention...")
+    blob_detections_colmap = change_image_origin.(blob_detections; from=:vlfeat, to=:colmap)
 
-    # Count polarities for reporting
-    num_blobs = count(b -> b.polarity == BlobFeature, blob_detections)
-    num_saddles = length(blob_detections) - num_blobs
-    num_bright = count(b -> b.laplacian_sign == -1, blob_detections)
-    num_dark = count(b -> b.laplacian_sign == 1, blob_detections)
-    num_neutral = count(b -> b.laplacian_sign == 0, blob_detections)
+    # Count Laplacian polarities for reporting (all detections are blobs)
+    num_bright = count(b -> b.laplacian_scale_score < 0, blob_detections_colmap)
+    num_dark = count(b -> b.laplacian_scale_score > 0, blob_detections_colmap)
+    num_neutral = count(b -> isnan(b.laplacian_scale_score), blob_detections_colmap)
 
-    println("  Blob-like (positive det(H)): $num_blobs")
-    println("  Saddle/edge-like (negative det(H)): $num_saddles")
+    println("  All detections are blobs (saddle points rejected during refinement)")
     println("  Bright blobs (Laplacian < 0): $num_bright")
     println("  Dark blobs (Laplacian > 0): $num_dark")
-    println("  Neutral (Laplacian ≈ 0): $num_neutral")
+    println("  Neutral (Laplacian ≈ 0 or NaN): $num_neutral")
 
-    # Convert to simple format for matching (use ALL detections)
+    # Convert to simple format for matching (now in Colmap coordinates)
     detected_blobs = [(
         x = ustrip(b.center[1]),
         y = ustrip(b.center[2]),
         σ = ustrip(b.σ),
-        polarity = b.polarity,
-        laplacian_sign = b.laplacian_sign,
+        laplacian_scale_score = b.laplacian_scale_score,
         response = b.response
-    ) for b in blob_detections]
+    ) for b in blob_detections_colmap]
 
     # Match detected blobs to ground truth (nearest neighbor matching)
     println("\nMatching detections to ground truth...")
@@ -153,17 +137,12 @@ using Unitful
     num_matched = length(matches)
     recall = num_matched / num_gt_blobs
     precision = num_matched / num_detected
-
-    # Count polarity of matched blobs
-    num_blob_matched = count(m -> m.det.polarity == BlobFeature, matches)
-    num_saddle_matched = num_matched - num_blob_matched
-    num_bright_matched = count(m -> m.det.laplacian_sign == -1, matches)
-    num_dark_matched = count(m -> m.det.laplacian_sign == 1, matches)
+    num_bright_matched = count(m -> m.det.laplacian_scale_score < 0, matches)
+    num_dark_matched = count(m -> m.det.laplacian_scale_score > 0, matches)
 
     println("  Matched: $num_matched / $num_gt_blobs ground truth blobs")
     @printf("  Recall: %.1f%% (of ground truth)\n", 100 * recall)
     @printf("  Precision: %.1f%% (of all detections)\n", 100 * precision)
-    println("  Matched types: $num_blob_matched blob-like, $num_saddle_matched saddle-like")
     println("  Matched intensity: $num_bright_matched bright, $num_dark_matched dark")
 
     # Compute RMS errors for matched blobs
@@ -177,7 +156,7 @@ using Unitful
         mean_scale_ratio = sum(scale_ratios) / length(scale_ratios)
 
         # Separate statistics for dark blobs only
-        dark_matches = filter(m -> m.det.laplacian_sign == 1, matches)
+        dark_matches = filter(m -> m.det.laplacian_scale_score > 0, matches)
         if !isempty(dark_matches)
             dark_pos_errors = [m.pos_error for m in dark_matches]
             dark_scale_errors = [m.scale_error for m in dark_matches]
@@ -190,6 +169,7 @@ using Unitful
 
         println("\n" * "="^80)
         println("RMS ERRORS vs GROUND TRUTH (ALL MATCHES)")
+        println("Coordinates in Colmap/Makie convention")
         println("="^80)
         @printf("  Position (x,y): %.4f px\n", rms_position)
         @printf("  Scale (σ):      %.4f px\n", rms_scale)

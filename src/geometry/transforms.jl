@@ -2,32 +2,37 @@
 # Homogeneous 2D Transforms
 # ========================================================================
 
-# --- 3×3 typed homogeneous wrappers (tuple-backed, minimal StaticArrays interface) ---
-macro staticmat3(Name)
+# --- Generic static matrix wrapper macro ---
+# Creates a parametric StaticMatrix wrapper type with efficient tuple storage
+macro smatrix_wrapper(Name, m, n)
     name = esc(Name)
+    size_m = m
+    size_n = n
+    size_total = m * n
     quote
-        struct $name{T} <: StaticArrays.StaticMatrix{3,3,T}
-            data::NTuple{9,T}
+        struct $name{T} <: StaticArrays.StaticMatrix{$size_m, $size_n, T}
+            data::NTuple{$size_total, T}
         end
-        StaticArrays.size(::Type{$name{T}}) where {T} = (3,3)
+        StaticArrays.size(::Type{$name{T}}) where {T} = ($size_m, $size_n)
         StaticArrays.similar_type(::Type{$name{T}}, ::Type{S}) where {T,S} = $name{S}
         Base.eltype(::Type{$name{T}}) where {T} = T
         Base.IndexStyle(::Type{$name}) = IndexLinear()
         @inline Base.getindex(A::$name{T}, k::Int) where {T} = A.data[k]
-        @inline Base.getindex(A::$name{T}, i::Int, j::Int) where {T} = A.data[(j-1)*3 + i]
+        @inline Base.getindex(A::$name{T}, i::Int, j::Int) where {T} = A.data[(j-1)*$size_m + i]
         Base.Tuple(A::$name{T}) where {T} = A.data
-        $name{T}(args::Vararg{T,9}) where {T} = $name{T}(args)
-        $name{T}(M::SMatrix{3,3,T}) where {T} = $name{T}(Tuple(M))
+        $name{T}(args::Vararg{T, $size_total}) where {T} = $name{T}(args)
+        $name{T}(M::SMatrix{$size_m, $size_n, T}) where {T} = $name{T}(Tuple(M))
     end
 end
 
-@staticmat3 HomRotMat        # homogeneous rotation (no translation)
-@staticmat3 HomTransMat      # homogeneous translation (no rotation)
-@staticmat3 HomScaleIsoMat   # homogeneous isotropic scaling (s*I)
-@staticmat3 HomScaleAnisoMat # homogeneous anisotropic diagonal scaling diag(sx,sy)
-@staticmat3 EuclideanMat     # rotation + translation (rigid body)
-@staticmat3 SimilarityMat    # rotation + translation + uniform scaling
-@staticmat3 AffineMat        # general affine (fallback & compositions)
+# 3×3 homogeneous transform matrices
+@smatrix_wrapper HomRotMat 3 3         # homogeneous rotation (no translation)
+@smatrix_wrapper HomTransMat 3 3       # homogeneous translation (no rotation)
+@smatrix_wrapper HomScaleIsoMat 3 3    # homogeneous isotropic scaling (s*I)
+@smatrix_wrapper HomScaleAnisoMat 3 3  # homogeneous anisotropic diagonal scaling diag(sx,sy)
+@smatrix_wrapper EuclideanMat 3 3      # rotation + translation (rigid body)
+@smatrix_wrapper SimilarityMat 3 3     # rotation + translation + uniform scaling
+@smatrix_wrapper AffineMat 3 3         # general affine (fallback & compositions)
 
 const HomMatAny = Union{HomRotMat, HomTransMat, HomScaleIsoMat, HomScaleAnisoMat, EuclideanMat, SimilarityMat, AffineMat}
 

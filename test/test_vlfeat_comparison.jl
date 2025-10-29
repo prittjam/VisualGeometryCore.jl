@@ -207,7 +207,7 @@ using NearestNeighbors
                 end
                 
                 # Load VLFeat ground truth if available
-                vlfeat_json_path = joinpath(@__DIR__, "..", "vlfeat_detections.json")
+                vlfeat_json_path = joinpath(@__DIR__, "..", "benchmarks", "vlfeat", "vlfeat_detections.json")
                 if isfile(vlfeat_json_path)
                     using JSON3
 

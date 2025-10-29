@@ -13,6 +13,7 @@ using Unitful: Unitful, m, mm, cm, inch, ft, @refunit, @unit, @dimension, uconve
 
 # Data structures and serialization
 using JSON3, StructTypes
+using Base: ImmutableDict
 
 # Functional updates
 using Accessors
@@ -20,7 +21,6 @@ using ConstructionBase
 
 # Plotting functionality
 using Makie: Makie, campixel!
-import Makie.SpecApi as Spec
 import Makie: Fixed as MakieFixed
 using Colors: Colors, Colorant, Gray
 using FixedPointNumbers: FixedPointNumbers, N0f8, N0f16
@@ -28,7 +28,7 @@ using GLMakie
 
 # Scale space and image processing functionality
 using ImageFiltering: ImageFiltering, Kernel, imfilter, centered, Fill, imfilter!, kernelfactors
-using ImageTransformations: imresize
+using ImageTransformations: imresize, warp
 using ImageCore: channelview
 using Interpolations
 using StructArrays
@@ -42,9 +42,30 @@ export cartesian_ranges
 # Export transforms and conics functionality
 export HomRotMat, HomTransMat, HomScaleIsoMat, HomScaleAnisoMat, EuclideanMat, SimilarityMat, AffineMat
 export EuclideanMap
-export to_homogeneous, to_euclidean, result_type
+export to_homogeneous, to_affine, to_euclidean, result_type
 export HomogeneousConic, Ellipse
-export push_conic, gradient, plotellipses
+export push_conic, gradient
+
+# Export blob filtering functions
+export light_blobs, dark_blobs
+
+# Export camera models and sensors
+export Sensor, CMOS_SENSORS
+export AbstractIntrinsics
+export Camera, StereoRig, pose, lookat, epipolarmap
+export CameraCalibrationMatrix  # 3x3 calibration matrix K
+export focal_length, sensor_size, pixel_density, aspect_ratio
+export p3p  # P3P solver for camera pose estimation
+export planar_homography, render_board  # Homography for planar scenes
+
+# Export composable camera model system (using CoordinateTransformations)
+export LogicalIntrinsics, PhysicalIntrinsics
+export AbstractProjectionModel, PinholeProjection, FisheyeProjection, OrthographicProjection
+export CameraModel
+export project, backproject, unproject
+
+# Export plotting module
+export Spec  # Export the Spec module for import VisualGeometryCore.Spec
 
 # Export scale space functionality
 export AbstractScaleSpace, ScaleLevel, ScaleSpace, ScaleSpaceResponse
@@ -65,39 +86,36 @@ export apply!  # Apply transform to ScaleSpaceResponse
 # Export image processing utilities
 export vlfeat_upsample
 
+# Export type utilities
+export neltype
 
 
-# Include units first (defines custom units and types)
-include("units/types.jl")
-include("units/conversions.jl")
 
-# Include utilities (depends on units)
-include("utils.jl")
+# Core
+include("core/units.jl")
+include("core/types.jl")
+include("core/utils.jl")
 
-# Include other types (EuclideanMap needed by conversions)
-include("types.jl")
-
-# Include geometry (core mathematical operations)
+# Geometry
 include("geometry/transforms.jl")
 include("geometry/conversions.jl")
-include("geometry/conics.jl")
+include("geometry/primitives.jl")
 include("geometry/blobs.jl")
+include("geometry/solvers.jl")  # P3P and other geometric solvers
+include("geometry/cameras/cameras.jl")  # Camera system (includes all camera submodules)
+include("geometry/homography.jl")  # Homography for planar scenes
 
-# Include scale space
-include("scalespace.jl")
+# Feature Detection
+include("feature/scalespace.jl")
+include("feature/responses.jl")  # Must come before kernels.jl (defines ScaleSpaceResponse)
+include("feature/kernels.jl")
+include("feature/extrema.jl")
+include("feature/detection.jl")
+include("feature/io.jl")
 
-# Include local features
-include("local_features/scalespace_response.jl")
-include("local_features/kernels.jl")
-include("local_features/extrema.jl")
-include("local_features/io.jl")
-
-# Include plotting (depends on geometry)
-include("plotting/specs.jl")
-include("plotting/recipes.jl")
-
-# Include API
-include("api.jl")
+# Visualization
+include("draw/spec.jl")
+include("draw/recipes.jl")
 
 function __init__()
     Unitful.register(@__MODULE__)

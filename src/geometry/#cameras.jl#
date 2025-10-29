@@ -1,0 +1,332 @@
+# Camera models and sensor definitions
+
+include("sensors.jl")
+
+abstract type AbstractIntrinsics end
+
+# Bring VisualGeometryCore unit aliases into this module
+const LogicalDensity = VisualGeometryCore.LogicalDensity
+const LogicalPitch = VisualGeometryCore.LogicalPitch
+
+# Define CameraCalibrationMatrix as a 3×3 static matrix type
+@smatrix_wrapper CameraCalibrationMatrix 3 3
+
+"""
+    CameraCalibrationMatrix(f::PixelWidth, pp::AbstractVector{<:PixelWidth}) -> CameraCalibrationMatrix{Float64}
+    CameraCalibrationMatrix(f::Tuple{T,T}, pp::AbstractVector{<:PixelWidth}) where T<:PixelWidth -> CameraCalibrationMatrix{Float64}
+
+Construct camera intrinsics matrix K from focal length(s) and principal point in pixel units.
+
+# Arguments
+- `f`: Focal length in pixels (PixelWidth) - either scalar for isotropic or tuple `(fx, fy)` for anisotropic
+- `pp`: Principal point in pixels as 2D vector [cx, cy] (PixelWidth elements)
+
+# Returns
+3×3 dimensionless camera intrinsics matrix in column-major order:
+```
+[fx  0  cx]
+[ 0 fy  cy]
+[ 0  0   1]
+```
+
+# Examples
+```julia
+# Isotropic focal length (fx = fy)
+K = CameraCalibrationMatrix(800.0px, [320.0px, 240.0px])
+
+# Anisotropic focal length (fx ≠ fy)
+K = CameraCalibrationMatrix((800.0px, 805.0px), [320.0px, 240.0px])
+```
+"""
+function CameraCalibrationMatrix(f::PixelWidth, pp::AbstractVector{<:PixelWidth})
+    # Units are enforced by type signature, strip when constructing matrix
+    K = SMatrix{3,3,Float64}(ustrip(f), 0.0, 0.0,
+                              0.0, ustrip(f), 0.0,
+                              ustrip(pp[1]), ustrip(pp[2]), 1.0)
+    return CameraCalibrationMatrix{Float64}(Tuple(K))
+end
+
+function CameraCalibrationMatrix(f::Tuple{T,T}, pp::AbstractVector{<:PixelWidth}) where T<:PixelWidth
+    # Enforce homogeneous tuple type (both elements same type)
+    # Units are enforced by type signature, strip when constructing matrix
+    fx, fy = f
+    K = SMatrix{3,3,Float64}(ustrip(fx), 0.0, 0.0,
+                              0.0, ustrip(fy), 0.0,
+                              ustrip(pp[1]), ustrip(pp[2]), 1.0)
+    return CameraCalibrationMatrix{Float64}(Tuple(K))
+end
+
+function CameraCalibrationMatrix(f::Tuple{T,T}, pitch::Tuple{S,S}, pp::AbstractVector{<:PixelWidth}) where T<:PixelWidth
+    # Enforce homogeneous tuple type (both elements same type)
+    # Units are enforced by type signature, strip when constructing matrix
+    fx, fy = f
+    K = SMatrix{3,3,Float64}(ustrip(fx), 0.0, 0.0,
+                              0.0, ustrip(fy), 0.0,
+                              ustrip(pp[1]), ustrip(pp[2]), 1.0)
+    return CameraCalibrationMatrix{Float64}(Tuple(K))
+end
+
+ImageCalibrationMatrix(f, K::CameraCalibrationMatrix) = K / ustrip(f)
+ImageCalibrationMatrix(f, pp, pitch) = CameraCalibrationMatrix(Tuple(f ./ pitch), pp) / f
+
+struct CameraPinhole{F, PP <: Vec2{F}} <: AbstractIntrinsics
+    f::Tuple{F, F}
+    pp::PP
+    
+    function CameraPinhole(f::Tuple{F, F}, pp::Vec2{F}) where F <: Union{Number, Unitful.Quantity}
+        new{F, typeof(pp)}(f, pp)
+    end
+end
+
+# Public alias used across the codebase
+const Pinhole = CameraPinhole
+
+struct ImagePinhole{F, PP <: Vec2{F}, PR, BP} <: AbstractIntrinsics
+    f::F
+    pp::PP
+    pitch::Size2{LogicalDensity}
+    projection::PR
+    unprojection::BP
+    
+    function ImagePinhole(f::S, pp::StaticVector{2, S}, pitch::Size2{T}) where {S <: Union{Number, Unitful.Quantity{<:Number, Unitful.𝐋}}, T <: Union{Number, LogicalPitch}}
+        @assert all((S,T) .<: Number) || all((S,T) .<: Quantity)
+
+        f2 = f ./ pitch
+        A = AffineMap(Diagonal(Vec2(ustrip.(f2))), pp)
+        projection =  A ∘ PerspectiveMap()
+        unprojection = homogenize ∘ inv(A)
+        Tp = (eltype(f),
+              typeof.((f, pp, projection, unprojection))...)
+        new{Tp...}(f, pp, pitch, projection, unprojection)
+    end    
+end
+
+struct BoundedIntrinsics{I <: AbstractIntrinsics, S} <: AbstractIntrinsics
+    intrinsics::I
+    resolution::S
+end
+
+BoundedIntrinsics(intrinsics, resolution) = BoundedIntrinsics(intrinsics, resolution)
+
+function Base.getproperty(b::BoundedIntrinsics, s::Symbol)
+    if s === :resolution
+        return getfield(b, :resolution)
+    elseif s === :intrinsics
+        return getfield(b, :intrinsics)
+    else
+        return getfield(getfield(b, :intrinsics), s)
+    end
+end
+
+"""
+    focal_length(θ::Rad, resolution::Size2; dimension=:horizontal)
+
+Calculate focal length in pixels from field of view angle (in radians) and resolution.
+
+# Arguments
+- `θ::Rad`: Field of view angle in radians
+- `resolution::Size2`: Image resolution (width, height) in pixels
+- `dimension::Symbol`: Which dimension the FOV applies to (`:horizontal` or `:vertical`)
+
+# Returns
+- Focal length in pixels (same logical unit as resolution)
+
+# Examples
+```julia
+focal_length(0.698rad, Size2(width=1280px, height=960px))
+```
+"""
+function focal_length(θ::Rad, resolution::Size2; dimension=:horizontal)
+    if dimension === :horizontal
+        f = 0.5*resolution.width
+    elseif dimension === :vertical
+        f = 0.5*resolution.height
+    else
+        throw(ArgumentError("dimension must be :horizontal or :vertical"))
+    end
+
+    return f / tan(ustrip(θ)/2)
+end
+
+"""
+    focal_length(θ::Deg, resolution::Size2; dimension=:horizontal)
+
+Calculate focal length in pixels from field of view angle (in degrees) and resolution.
+Converts to radians and calls the radian version.
+
+# Examples
+```julia
+focal_length(40.0°, Size2(width=1280px, height=960px))
+```
+"""
+focal_length(θ::Deg, resolution::Size2; dimension=:horizontal) =
+    focal_length(uconvert(rad, θ), resolution; dimension=dimension)
+
+"""
+    focal_length(θ, sensor; dimension=:horizontal)
+
+Calculate physical focal length from field of view angle and sensor specifications.
+
+# Arguments
+- `θ`: Field of view angle (degrees or radians)
+- `sensor`: Sensor with `resolution` and `pitch` fields
+- `dimension::Symbol`: Which dimension the FOV applies to (`:horizontal` or `:vertical`)
+
+# Returns
+- Physical focal length in millimeters
+
+# Examples
+```julia
+sensor = CMOS_SENSORS["Sony"]["IMX174"]
+f_mm = focal_length(40.0°, sensor)
+```
+"""
+function focal_length(θ, sensor; dimension=:horizontal)
+    # Get focal length in pixels
+    f_px = focal_length(θ, sensor.resolution; dimension=dimension)
+
+    # Convert to physical length using pixel pitch
+    # Use width pitch for horizontal FOV, height pitch for vertical FOV
+    pitch = (dimension === :horizontal) ? sensor.pitch.width : sensor.pitch.height
+
+    # f_mm = f_px × pitch (LogicalWidth × LogicalPitch = Length)
+    # pitch is now properly typed as LogicalPitch (𝐋/𝐍), so multiplication works naturally
+    return uconvert(mm, f_px * pitch)
+end
+
+function Base.rand(rng, ::Type{Pinhole}, resolution::Size2)
+    uniform_aov = Distributions.Uniform(15.0, 60.0)
+    θ = Distributions.rand(rng, uniform_aov) * °  # Use degree units
+    f = focal_length(θ, resolution)
+    pp = Vec2(resolution.width, resolution.height) / 2
+
+    return CameraPinhole((f, f), pp)
+end
+
+Base.rand(::Type{Pinhole}, resolution::Size2) = rand(Random.default_rng(), Pinhole, resolution)
+
+struct Camera{K <: AbstractIntrinsics, Rt <: EuclideanMap}
+    intrinsics::K
+    extrinsics::Rt
+end
+
+# Simple constructor without parameterization issues
+Camera(intrinsics, extrinsics::EuclideanMap) = Camera{typeof(intrinsics), typeof(extrinsics)}(intrinsics, extrinsics)
+
+# For non-EuclideanMap extrinsics, convert first  
+Camera(intrinsics, extrinsics) = Camera(intrinsics, EuclideanMap(extrinsics))
+
+# Method-based accessors
+pose(c::Camera) = inv(c.extrinsics)
+
+@smatrix_wrapper ImageProjectionMatrix 3 4
+@smatrix_wrapper CameraProjectionMatrix 3 4
+
+struct StereoRig{U <: Camera,
+                 V <: Camera,
+                 Rt <: EuclideanMap} 
+    source::U
+    target::V
+    
+    extrinsics::Rt
+    pose::Rt
+
+    function StereoRig(source, target, extrinsics)
+        pose = inv(extrinsics)
+        new{typeof(source), typeof(target), typeof(extrinsics)}(source, target, extrinsics, pose)
+    end
+end
+    
+StereoRig(source::Camera, target::Camera) =
+    StereoRig(source, target, target.extrinsics ∘ pose(source))
+
+epipolarmap(source::Camera, target::Camera, extrinsics) =
+    (u -> project(target, ustrip(extrinsics)(unproject(source, u))))
+
+epipolarmap(rig::StereoRig) = epipolarmap(rig.source, rig.target, rig.extrinsics)
+
+function Base.getproperty(c::Union{StereoRig, Camera}, s::Symbol)
+    if s === :orientation
+        return pose(c).R
+    elseif s === :eye_position
+        return Meshes.Point(Tuple(pose(c).t))
+    elseif s === :forward
+        return RotMatrix(pose(c).R)[:,3]
+    elseif s === :up
+        return -RotMatrix(pose(c).R)[:,2]
+    else
+        return getfield(c, s)
+    end
+end
+
+function lookat(eye::StaticVector{3, <:Real}, target::StaticVector{3, <:Real}, up::StaticVector{3, <:Real})
+    forward = normalize(eye - target)
+    right = normalize(cross(up, forward))
+    down = -cross(forward, right)
+    rotation = hcat(right, down, forward)  # 3x3 rotation
+    translation = -rotation' * eye
+
+    return EuclideanMap(Rotations.MRP(rotation'), translation)
+end
+
+function Base.rand(rng, ::Type{Camera},
+                   intrinsics::BoundedIntrinsics, X)
+    @assert length(X) >= 4
+
+    ind = StatsBase.sample(rng, X, 4, replace=false)
+    g = (u -> unproject(intrinsics, u))
+    # Sample 2D image points directly in pixel units without Meshes CRS
+    u = [Vec(rand(rng)*intrinsics.resolution.width,
+             rand(rng)*intrinsics.resolution.height) for _ in 1:3]
+    m = normalize.(g.(u))
+    x = Meshes.to.(X[1:3])
+    Rs, ts = p3p(m, ustrip.(x))
+    ts = ts*Unitful.unit(X[1])
+    if !isempty(Rs)
+        # Build Euclidean extrinsics from rotation matrices and translations (both Float64)
+        to_vec3(v) = Vec(ustrip(v[1]), ustrip(v[2]), ustrip(v[3]))
+        extrinsics = EuclideanMap.(Rotations.RotMatrix.(Rs), to_vec3.(ts))
+
+        # Helper to convert Meshes.Point with units to unitless Vec3{Float64}
+        coords_vec(p) = begin
+            c = Meshes.coords(p)
+            Vec(ustrip(c.x), ustrip(c.y), ustrip(c.z))
+        end
+
+        vs = map(f -> f(coords_vec(X[4])), extrinsics)
+        ind = findall(getindex.(vs, 3) .> 0.0)
+        if !isempty(ind)
+            return Camera.(Ref(intrinsics), extrinsics[ind])
+        else
+            return nothing
+        end
+    else
+        return nothing
+    end
+end
+
+Base.rand(::Type{Camera}, intrinsics::BoundedIntrinsics,  X) =
+    rand(Random.default_rng(), Camera, intrinsics,  X)
+
+function Base.rand(rng, ::Type{StereoRig},
+                   intrinsics₁::BoundedIntrinsics,
+                   intrinsics₂::BoundedIntrinsics, X)
+
+    local cameras₁, cameras₂
+    while true
+        cameras₁ = rand(rng, Camera, intrinsics₁, X)
+        cameras₁ === nothing || break
+    end
+
+    while true
+        cameras₂ = rand(rng, Camera, intrinsics₂, X)
+        cameras₂ === nothing || break
+    end
+
+    stereo_rig = StereoRig(first(cameras₁), first(cameras₂))
+    
+    return stereo_rig
+end
+
+Base.rand(::Type{StereoRig}, intrinsics₁::BoundedIntrinsics, intrinsics₂::BoundedIntrinsics, X) =
+    rand(Random.default_rng(), StereoRig, intrinsics₁, intrinsics₂, X)

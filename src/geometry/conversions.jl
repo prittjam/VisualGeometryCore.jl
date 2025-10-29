@@ -131,18 +131,37 @@ function to_euclidean(v::AbstractVector{T}) where {T}
 end
 
 """
-    to_homogeneous(v::AbstractVector{T}) -> SVector{N+1,T}
+    to_affine(v::StaticVector{N,T}) -> Point{N+1,T} or SVector{N+1,T}
 
-Convert euclidean coordinates to homogeneous by appending 1.
-Adds a 1 as the last coordinate.
+Convert euclidean coordinates to affine coordinates by appending 1 (setting w=1).
+Embeds points in the affine hyperplane of projective space.
+Preserves the StaticArray container type (e.g., Point2 → Point3, SVector{2} → SVector{3}).
+
+Note: This restricts points to the affine plane (w=1) and cannot represent ideal points
+(points at infinity with w=0). For true projective coordinates with arbitrary w,
+use `vcat(v, w)` directly.
+
+Uses `vcat` internally, which automatically preserves type aliases through StaticArrays' type system.
 
 # Examples
 ```julia
+# Works with SVector
 e = SVector(1.0, 2.0)       # Euclidean
-h = to_homogeneous(e)       # SVector(1.0, 2.0, 1.0) - Homogeneous
+a = to_affine(e)            # SVector{3}(1.0, 2.0, 1.0)
+
+# Preserves Point type
+p = Point2(1.0, 2.0)        # 2D Point
+a = to_affine(p)            # Point{3}(1.0, 2.0, 1.0)
+
+# Broadcasting
+points = [Point2(1.0, 2.0), Point2(3.0, 4.0)]
+affine_points = to_affine.(points)
 ```
 """
-function to_homogeneous(v::AbstractVector{T}) where {T}
+to_affine(v::StaticVector{N,T}) where {N,T} = vcat(v, one(T))
+
+# Fallback for general AbstractVectors (non-static)
+function to_affine(v::AbstractVector{T}) where {T}
     n = length(v)
     return SVector{n+1,T}(v..., one(T))
 end

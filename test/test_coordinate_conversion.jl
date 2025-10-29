@@ -7,40 +7,40 @@ using GeometryBasics
 
 @testset "Coordinate Conversion" begin
     
-    @testset "to_homogeneous function" begin
+    @testset "to_affine function" begin
         # Test 2D to 3D conversion
         v2d = SVector(3.0, 4.0)
-        v3d = to_homogeneous(v2d)
+        v3d = to_affine(v2d)
         @test v3d == SVector(3.0, 4.0, 1.0)
         @test v3d isa SVector{3,Float64}
         
         # Test 1D to 2D conversion
         v1d = SVector(5.0)
-        v2d_from_1d = to_homogeneous(v1d)
+        v2d_from_1d = to_affine(v1d)
         @test v2d_from_1d == SVector(5.0, 1.0)
         @test v2d_from_1d isa SVector{2,Float64}
         
         # Test 3D to 4D conversion
         v3d_input = SVector(1.0, 2.0, 3.0)
-        v4d = to_homogeneous(v3d_input)
+        v4d = to_affine(v3d_input)
         @test v4d == SVector(1.0, 2.0, 3.0, 1.0)
         @test v4d isa SVector{4,Float64}
         
         # Test with Point2
         p2d = Point2(2.0, 3.0)
-        p3d = to_homogeneous(p2d)
+        p3d = to_affine(p2d)
         @test p3d == SVector(2.0, 3.0, 1.0)
         @test p3d isa SVector{3,Float64}
         
         # Test with different numeric types
         v_int = SVector(1, 2)
-        v_homog_int = to_homogeneous(v_int)
+        v_homog_int = to_affine(v_int)
         @test v_homog_int == SVector(1, 2, 1)
         @test v_homog_int isa SVector{3,Int}
         
         # Test with Float32
         v_f32 = SVector(1.0f0, 2.0f0)
-        v_homog_f32 = to_homogeneous(v_f32)
+        v_homog_f32 = to_affine(v_f32)
         @test v_homog_f32 == SVector(1.0f0, 2.0f0, 1.0f0)
         @test v_homog_f32 isa SVector{3,Float32}
     end
@@ -86,42 +86,42 @@ using GeometryBasics
     @testset "Roundtrip conversion" begin
         # Test 2D roundtrip
         original_2d = SVector(3.14, 2.71)
-        roundtrip_2d = to_euclidean(to_homogeneous(original_2d))
+        roundtrip_2d = to_euclidean(to_affine(original_2d))
         @test roundtrip_2d ≈ original_2d atol=1e-15
         
         # Test 1D roundtrip
         original_1d = SVector(42.0)
-        roundtrip_1d = to_euclidean(to_homogeneous(original_1d))
+        roundtrip_1d = to_euclidean(to_affine(original_1d))
         @test roundtrip_1d ≈ original_1d atol=1e-15
         
         # Test 3D roundtrip
         original_3d = SVector(1.0, -2.5, 3.7)
-        roundtrip_3d = to_euclidean(to_homogeneous(original_3d))
+        roundtrip_3d = to_euclidean(to_affine(original_3d))
         @test roundtrip_3d ≈ original_3d atol=1e-15
         
         # Test Point2 roundtrip
         original_point = Point2(1.5, -0.8)
-        roundtrip_point = Point2(to_euclidean(to_homogeneous(original_point)))
+        roundtrip_point = Point2(to_euclidean(to_affine(original_point)))
         @test roundtrip_point ≈ original_point atol=1e-15
     end
     
     @testset "Edge cases" begin
         # Test zero vector
         zero_2d = SVector(0.0, 0.0)
-        zero_3d = to_homogeneous(zero_2d)
+        zero_3d = to_affine(zero_2d)
         @test zero_3d == SVector(0.0, 0.0, 1.0)
         zero_back = to_euclidean(zero_3d)
         @test zero_back == zero_2d
         
         # Test very small numbers
         tiny_2d = SVector(1e-15, -1e-15)
-        tiny_3d = to_homogeneous(tiny_2d)
+        tiny_3d = to_affine(tiny_2d)
         tiny_back = to_euclidean(tiny_3d)
         @test tiny_back ≈ tiny_2d atol=1e-16
         
         # Test very large numbers
         large_2d = SVector(1e10, -1e10)
-        large_3d = to_homogeneous(large_2d)
+        large_3d = to_affine(large_2d)
         large_back = to_euclidean(large_3d)
         @test large_back ≈ large_2d rtol=1e-15
     end
