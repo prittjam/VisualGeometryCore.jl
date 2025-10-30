@@ -28,8 +28,7 @@ using GLMakie
 
 # Scale space and image processing functionality
 using ImageFiltering: ImageFiltering, Kernel, imfilter, centered, Fill, imfilter!, kernelfactors
-using ImageTransformations: imresize
-import ImageTransformations: warp  # Import to extend with Camera method
+using ImageTransformations: imresize, warp
 using ImageCore: channelview
 using Interpolations
 using StructArrays
@@ -57,7 +56,7 @@ export Camera, StereoRig, pose, lookat, epipolarmap
 export CameraCalibrationMatrix  # 3x3 calibration matrix K
 export focal_length, sensor_size, pixel_density, aspect_ratio
 export p3p  # P3P solver for camera pose estimation
-export PlanarHomography, HomographyTransform, planar_homography, warp  # Homography for planar scenes
+export PlanarHomography, HomographyTransform, planar_homography  # Homography for planar scenes
 
 # Export composable camera model system (using CoordinateTransformations)
 export LogicalIntrinsics, PhysicalIntrinsics

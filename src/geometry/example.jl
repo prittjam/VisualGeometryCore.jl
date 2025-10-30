@@ -10,6 +10,7 @@ using Unitful: ustrip, mm, °
 using Printf: @sprintf
 using Colors: Gray
 using FileIO: load
+using ImageTransformations: warp
 import Makie.SpecApi as S
 using GLMakie: plot, resize_to_layout!
 using Makie: Fixed
@@ -94,9 +95,12 @@ board_image = load(image_path)
 
 println("\nLoaded board image: $(size(board_image))")
 
-# Warp the board as seen from camera
-# Use camera sensor resolution for proper output sizing
-camera_view = warp(board_image, camera; output_size=sensor.resolution)
+# Warp the board as seen from camera using HomographyTransform
+H_transform = HomographyTransform(camera)
+output_height = Int(ceil(ustrip(sensor.resolution.height)))
+output_width = Int(ceil(ustrip(sensor.resolution.width)))
+output_axes = (1:output_height, 1:output_width)
+camera_view = warp(board_image, H_transform, output_axes)
 
 println("Rendered camera view: $(size(camera_view)) (sensor resolution: $(sensor.resolution.width)×$(sensor.resolution.height))")
 
