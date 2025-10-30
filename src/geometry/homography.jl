@@ -51,12 +51,13 @@ HomographyTransform(camera::Camera{<:CameraModel{<:Any, PinholeProjection}}) =
 (h::HomographyTransform)(uv) = begin
     # warp passes (row, col) but homography expects (x, y)
     # So swap: row=y, col=x → (x, y) = (uv[2], uv[1])
-    p = SMatrix{3,3}(h.H) * SVector(uv[2], uv[1], 1.0)
-    # Return in (row, col) order: (y, x) = (p[2], p[1])
-    SVector(p[2]/p[3], p[1]/p[3])
+    p = h.H * to_affine(SVector(uv[2], uv[1]))
+    # Convert from homogeneous and return in (row, col) order: (y, x)
+    result = to_euclidean(p)
+    SVector(result[2], result[1])
 end
 
-Base.inv(h::HomographyTransform{T}) where T = HomographyTransform(PlanarHomography{T}(Tuple(inv(SMatrix{3,3}(h.H)))))
+Base.inv(h::HomographyTransform{T}) where T = HomographyTransform(PlanarHomography{T}(inv(h.H)))
 
 """
     planar_homography(camera::Camera{<:CameraModel{<:Any, PinholeProjection}}) -> PlanarHomography{Float64}
