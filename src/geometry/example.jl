@@ -94,9 +94,9 @@ board_image = load(image_path)
 
 println("\nLoaded board image: $(size(board_image))")
 
-# Render the board as seen from camera
+# Warp the board as seen from camera
 # Use camera sensor resolution for proper output sizing
-camera_view = render_board(board_image, camera; output_size=sensor.resolution)
+camera_view = warp(board_image, camera; output_size=sensor.resolution)
 
 println("Rendered camera view: $(size(camera_view)) (sensor resolution: $(sensor.resolution.width)×$(sensor.resolution.height))")
 

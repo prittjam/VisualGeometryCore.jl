@@ -71,18 +71,18 @@ function planar_homography(camera::Camera{<:CameraModel{<:Any, PinholeProjection
 end
 
 """
-    render_board(board_image, camera::Camera{<:CameraModel{<:Any, PinholeProjection}};
-                 output_size=nothing,
-                 fillvalue=zero(eltype(board_image)),
-                 method=Interpolations.Linear())
+    warp(board_image::AbstractArray, camera::Camera{<:CameraModel{<:Any, PinholeProjection}};
+         output_size=nothing,
+         fillvalue=zero(eltype(board_image)),
+         method=Interpolations.Linear())
 
-Render a planar board (z=0 plane) as seen from the camera using homography-based warping.
+Warp a planar board (z=0 plane) as seen from the camera using homography-based warping.
 
 Only valid for pinhole cameras. Computes the homography H mapping board → image,
 inverts it to get image → board mapping, and warps the board image accordingly.
 
 # Arguments
-- `board_image`: Input image of the board (Matrix{<:Colorant})
+- `board_image::AbstractArray`: Input image of the board (Matrix{<:Colorant})
 - `camera::Camera{<:CameraModel{<:Any, PinholeProjection}}`: Camera with pinhole projection
 - `output_size`: Output image size as (height, width). If nothing, uses input image size
 - `fillvalue`: Value for out-of-bounds pixels (default: zero(eltype(board_image)))
@@ -104,13 +104,13 @@ board_image = load("pattern.png")
 camera = Camera(model, extrinsics)
 
 # Render view
-camera_view = render_board(board_image, camera)
+camera_view = warp(board_image, camera)
 ```
 """
-function render_board(board_image, camera::Camera{<:CameraModel{<:Any, PinholeProjection}};
-                     output_size=nothing,
-                     fillvalue=zero(eltype(board_image)),
-                     method=Interpolations.Linear())
+function warp(board_image::AbstractArray, camera::Camera{<:CameraModel{<:Any, PinholeProjection}};
+              output_size=nothing,
+              fillvalue=zero(eltype(board_image)),
+              method=Interpolations.Linear())
     # Convert output_size to tuple
     output_tuple = if output_size isa Size2
         Tuple(ceil.(Int, ustrip.((output_size.height, output_size.width))))
