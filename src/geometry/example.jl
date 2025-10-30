@@ -25,10 +25,11 @@ blobs = [JSON3.read(JSON3.write(blob), IsoBlob) for blob in json_data.blobs]
 
 # For this synthetic example, treat pixel coordinates as mm world coordinates
 # (i.e., pattern where 1px = 1mm spacing). Add z=0 for planar pattern.
+# All coordinates are unitless Float64 (assumed to be in mm)
 blob_centers_2d = origin.(blobs)
-X = Point3.(ustrip.(getindex.(blob_centers_2d, 1)) .* mm,
-            ustrip.(getindex.(blob_centers_2d, 2)) .* mm,
-            0.0mm)
+X = Point3.(ustrip.(getindex.(blob_centers_2d, 1)),
+            ustrip.(getindex.(blob_centers_2d, 2)),
+            0.0)
 
 println("\nLoaded $(length(X)) blob centers (pattern at z=0)")
 
@@ -53,15 +54,13 @@ sampled_idx = randperm(length(X))[1:3]
 X3 = X[sampled_idx]
 u3 = u[sampled_idx]
 
-println("\nSampled points:")
+println("\nSampled points (unitless, in mm and px):")
 println.(["  $i: X=$(X3[i]), u=($(@sprintf("%.1f", ustrip(u3[i][1]))), $(@sprintf("%.1f", ustrip(u3[i][2]))))" for i in 1:3])
 
 # Backproject and solve P3P (backproject expects unitless Float64)
 rays = backproject.(Ref(model), ustrip.(u3))
-# P3P expects unitless coordinates (values in mm)
-Rs, ts = p3p(rays, Point3.(ustrip.(getindex.(X3, 1)),
-                           ustrip.(getindex.(X3, 2)),
-                           ustrip.(getindex.(X3, 3))))
+# P3P expects unitless coordinates (X3 already unitless in mm)
+Rs, ts = p3p(rays, X3)
 
 println("\nP3P found $(length(Rs)) solution(s)")
 
