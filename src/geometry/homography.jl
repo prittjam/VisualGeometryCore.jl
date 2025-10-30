@@ -2,14 +2,13 @@
 # Homography - 2D projective transformations for planar scenes
 # ==============================================================================
 
-# Define PlanarHomography as a 3×3 static matrix type
-@smatrix_wrapper PlanarHomography 3 3
+# Note: PlanarHomographyMat is defined in transforms.jl as part of the transform hierarchy
 
-# Ensure inv returns PlanarHomography
-Base.inv(H::PlanarHomography{T}) where T = PlanarHomography{T}(inv(SMatrix{3,3,T}(H)))
+# Ensure inv returns PlanarHomographyMat
+Base.inv(H::PlanarHomographyMat{T}) where T = PlanarHomographyMat{T}(inv(SMatrix{3,3,T}(H)))
 
 """
-    PlanarHomography(camera::Camera{<:CameraModel{<:Any, PinholeProjection}}) -> PlanarHomography{Float64}
+    PlanarHomographyMat(camera::Camera{<:CameraModel{<:Any, PinholeProjection}}) -> PlanarHomographyMat{Float64}
 
 Compute the homography H that maps from a planar board (z=0 plane) to the image.
 
@@ -24,16 +23,16 @@ and t is the translation from camera extrinsics.
 - `camera::Camera{<:CameraModel{<:Any, PinholeProjection}}`: Camera with pinhole projection
 
 # Returns
-- `PlanarHomography{Float64}`: Homography matrix (board coords → image coords)
+- `PlanarHomographyMat{Float64}`: Homography matrix (board coords → image coords)
 
 # Example
 ```julia
 camera = Camera(model, extrinsics)
-H = PlanarHomography(camera)
+H = PlanarHomographyMat(camera)
 H_inv = inv(H)  # For warping: image → board
 ```
 """
-function PlanarHomography(camera::Camera{<:CameraModel{<:Any, PinholeProjection}})
+function PlanarHomographyMat(camera::Camera{<:CameraModel{<:Any, PinholeProjection}})
     # Extract camera parameters (all already unitless Float64)
     K = camera.model.intrinsics.K
     R = camera.extrinsics.R
@@ -46,7 +45,7 @@ function PlanarHomography(camera::Camera{<:CameraModel{<:Any, PinholeProjection}
     # Build homography
     H = K * hcat(r1, r2, t)
 
-    return PlanarHomography{Float64}(H)
+    return PlanarHomographyMat{Float64}(H)
 end
 
 """
@@ -57,7 +56,7 @@ A 2D projective homography transformation for use with ImageTransformations.warp
 Applies the homography H to 2D points in homogeneous coordinates.
 
 # Constructors
-- `HomographyTransform(H::PlanarHomography)` - from planar homography matrix
+- `HomographyTransform(H::PlanarHomographyMat)` - from planar homography matrix
 - `HomographyTransform(camera::Camera)` - convenience constructor for z=0 plane warping
 
 # Example
@@ -67,12 +66,12 @@ camera = Camera(model, extrinsics)
 H_transform = HomographyTransform(camera)
 
 # Explicit construction
-H = PlanarHomography(camera)
+H = PlanarHomographyMat(camera)
 H_transform = HomographyTransform(H)
 ```
 """
 struct HomographyTransform{T<:Real} <: CoordinateTransformations.Transformation
-    H::PlanarHomography{T}
+    H::PlanarHomographyMat{T}
 end
 
 """
@@ -91,7 +90,7 @@ camera_view = warp(board_image, H_transform, output_axes)
 ```
 """
 HomographyTransform(camera::Camera{<:CameraModel{<:Any, PinholeProjection}}) =
-    HomographyTransform(inv(PlanarHomography(camera)))
+    HomographyTransform(inv(PlanarHomographyMat(camera)))
 
 (h::HomographyTransform)(uv) = begin
     # warp passes (row, col) as SVector{2,Int64}, but homography expects (x, y)
@@ -102,5 +101,5 @@ HomographyTransform(camera::Camera{<:CameraModel{<:Any, PinholeProjection}}) =
     SVector(result[2], result[1])
 end
 
-Base.inv(h::HomographyTransform{T}) where T = HomographyTransform(PlanarHomography{T}(inv(h.H)))
+Base.inv(h::HomographyTransform{T}) where T = HomographyTransform(PlanarHomographyMat{T}(inv(h.H)))
 

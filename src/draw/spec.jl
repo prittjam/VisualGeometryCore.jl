@@ -156,7 +156,7 @@ plot(S.GridLayout([lscene]))
 function Blobs(blobs;
                              color=:green,
                              colormap=:viridis,
-                             scale_factor::Float64=3.0,
+                             sigma_cutoff::Float64=3.0,
                              marker=:cross,
                              markersize::Float64=15.0,
                              linewidth::Float64=1.0,
@@ -196,9 +196,9 @@ function Blobs(blobs;
         end
 
         # Add circles for blob scales using proper geometric circles
-        if scale_factor > 0
+        if sigma_cutoff > 0
             for (i, (c, s)) in enumerate(zip(centers, scales))
-                radius = s * scale_factor
+                radius = s * sigma_cutoff
                 center_point = Point2f(c[1], c[2])
                 circle_geom = GeometryBasics.Circle(center_point, radius)
 
@@ -243,16 +243,18 @@ function Blobs(blobs;
 end
 
 """
-    Ellipses(ellipses; color=:blue, linewidth=2.0, linestyle=:solid, fillcolor=nothing, fillalpha=0.2, resolution=64)
+    Ellipses(ellipses; color=:green, marker=:cross, markersize=15.0, linewidth=1.0, linestyle=:solid, fillcolor=nothing, fillalpha=0.2, resolution=64)
 
-Create plot specs for ellipse visualization (outlines and optional fills).
+Create plot specs for ellipse visualization (outlines, optional fills, and optional center markers).
 
 # Arguments
 - `ellipses`: Vector of Ellipse objects
 
 # Keyword Arguments
-- `color=:blue`: Color for ellipse outlines
-- `linewidth=2.0`: Width of ellipse outlines
+- `color=:green`: Color for ellipse outlines and center markers
+- `marker=:cross`: Marker style for ellipse centers (:cross, :circle, :x, etc., or nothing for no markers)
+- `markersize=15.0`: Size of center markers
+- `linewidth=1.0`: Width of ellipse outlines
 - `linestyle=:solid`: Line style (:solid, :dash, :dot, etc.)
 - `fillcolor=nothing`: Fill color (nothing for no fill, or any color)
 - `fillalpha=0.2`: Alpha transparency for fill (0.0 = transparent, 1.0 = opaque)
@@ -266,11 +268,17 @@ import Makie.SpecApi as S
 
 ellipses = [Ellipse(Point2(100.0, 100.0), 50.0, 30.0, π/4)]
 
-# Just outlines
-specs = S.Ellipses(ellipses; color=:red, linewidth=3.0)
+# Default: green outlines with cross markers
+specs = S.Ellipses(ellipses)
+
+# Just outlines (no markers)
+specs = S.Ellipses(ellipses; color=:red, linewidth=3.0, marker=nothing)
 
 # With fill
 specs = S.Ellipses(ellipses; color=:blue, fillcolor=:lightblue, fillalpha=0.3)
+
+# Custom markers
+specs = S.Ellipses(ellipses; color=:green, marker=:circle, markersize=8.0)
 
 # Compose with image
 lscene = S.Imshow(img)
@@ -279,8 +287,10 @@ plot(S.GridLayout([lscene]))
 ```
 """
 function Ellipses(ellipses;
-                                color=:blue,
-                                linewidth::Float64=2.0,
+                                color=:green,
+                                marker=:cross,
+                                markersize::Float64=15.0,
+                                linewidth::Float64=1.0,
                                 linestyle=:solid,
                                 fillcolor=nothing,
                                 fillalpha::Float64=0.2,
@@ -303,6 +313,18 @@ function Ellipses(ellipses;
             closed_points = vcat(points, [points[1]])
             outline_spec = MakieSpec.Lines(closed_points; color=color, linewidth=linewidth, linestyle=linestyle)
             push!(plot_specs, outline_spec)
+        end
+
+        # Add center markers if requested
+        if marker !== nothing
+            centers = [ellipse.center for ellipse in ellipses]
+            center_x = [c[1] for c in centers]
+            center_y = [c[2] for c in centers]
+            marker_spec = MakieSpec.Scatter(center_x, center_y;
+                                           marker=marker,
+                                           markersize=markersize,
+                                           color=color)
+            push!(plot_specs, marker_spec)
         end
     end
 

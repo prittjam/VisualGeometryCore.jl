@@ -31,7 +31,7 @@ println("  Auto-corrected:   center=$(ellipse2.center), a=$(ellipse2.a), b=$(ell
 
 # 2. Ellipse ⇄ Conic conversion with robust reconstruction
 println("\n🔄 Ellipse ⇄ Conic Conversion:")
-conic = HomogeneousConic(ellipse1)
+conic = HomEllipseMat(ellipse1)
 recovered = Ellipse(conic)
 
 center_error = norm(ellipse1.center - recovered.center)
@@ -43,24 +43,27 @@ println("  Original:  $(ellipse1)")
 println("  Recovered: $(recovered)")
 println("  Errors: center=$(center_error), a=$(a_error), b=$(b_error), θ=$(θ_error)")
 
-# 3. Geometric transformations
+# 3. Geometric transformations via homographies
 println("\n🔄 Geometric Transformations:")
 
 # Translation
-translation = Translation(SVector(5.0, -2.0))
-translated_conic = push_conic(translation, conic)
+H_trans = to_homogeneous(Translation(SVector(5.0, -2.0)))
+H_trans_mat = PlanarHomographyMat{Float64}(Tuple(SMatrix{3,3,Float64}(H_trans)))
+translated_conic = H_trans_mat(conic)
 translated_ellipse = Ellipse(translated_conic)
 println("  After translation by [5, -2]: center=$(translated_ellipse.center)")
 
 # Rotation
-rotation = LinearMap(RotMatrix{2}(π/3))
-rotated_conic = push_conic(rotation, conic)
+H_rot = to_homogeneous(LinearMap(RotMatrix{2}(π/3)))
+H_rot_mat = PlanarHomographyMat{Float64}(Tuple(SMatrix{3,3,Float64}(H_rot)))
+rotated_conic = H_rot_mat(conic)
 rotated_ellipse = Ellipse(rotated_conic)
 println("  After rotation by π/3: θ=$(rotated_ellipse.θ)")
 
 # Scaling
-scaling = LinearMap(@SMatrix [2.0 0.0; 0.0 1.5])
-scaled_conic = push_conic(scaling, conic)
+H_scale = to_homogeneous(LinearMap(@SMatrix [2.0 0.0; 0.0 1.5]))
+H_scale_mat = PlanarHomographyMat{Float64}(Tuple(SMatrix{3,3,Float64}(H_scale)))
+scaled_conic = H_scale_mat(conic)
 scaled_ellipse = Ellipse(scaled_conic)
 println("  After scaling by [2, 1.5]: a=$(scaled_ellipse.a), b=$(scaled_ellipse.b)")
 
@@ -100,7 +103,7 @@ println("  Generated $(length(points_f64)) Float64 points")
 println("  Generated $(length(points_f32)) Float32 points")
 
 # Verify points lie on ellipse
-test_conic = HomogeneousConic(test_ellipse)
+test_conic = HomEllipseMat(test_ellipse)
 errors = Float64[]
 for p in points_f64
     homog_p = SVector(p[1], p[2], 1.0)

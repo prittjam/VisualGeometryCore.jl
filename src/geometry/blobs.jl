@@ -85,62 +85,6 @@ function StructTypes.construct(::Type{IsoBlob}, x::Union{Dict{String,Any}, JSON3
 end
 
 # =============================================================================
-# Circle Construction from Blobs
-# =============================================================================
-
-"""
-    GeometryBasics.Circle(blob::AbstractBlob, cutoff::Real) -> Circle
-
-Construct a GeometryBasics.Circle from a blob with radius `cutoff * σ`.
-
-The `cutoff` parameter determines the effective radius as a multiple of σ
-(e.g., 3.0 for 3σ radius). Centers and radii are converted to unitless Float64.
-
-# Arguments
-- `blob::AbstractBlob`: Blob with center and scale σ
-- `cutoff::Real`: Radius multiplier (typically 2-4)
-
-# Returns
-- `GeometryBasics.Circle`: Circle with unitless center and radius
-
-# Example
-```julia
-blob = IsoBlob(Point2(100.0pd, 200.0pd), 5.0pd)
-circle = Circle(blob, 3.0)  # Circle with radius 15.0
-```
-"""
-function GeometryBasics.Circle(blob::AbstractBlob, cutoff::Real)
-    center = Point2(float.(ustrip.(blob.center))...)
-    radius = float(ustrip(cutoff * blob.σ))
-    return GeometryBasics.Circle(center, radius)
-end
-
-# =============================================================================
-# Blob Intersection
-# =============================================================================
-
-"""
-    intersects(p::AbstractBlob, q::AbstractBlob, cutoff::Real) -> Bool
-
-Check if two blobs intersect by constructing circles with radius `cutoff*σ` and testing intersection.
-The `cutoff` parameter determines the effective radius as a multiple of σ (e.g., 3.0 for 3σ radius).
-Constructs GeometryBasics.Circle objects with unitless centers and radii.
-
-Uses the `intersects(::Circle, ::Circle)` method defined in `geometry/conics.jl`.
-
-# Example
-```julia
-# Test if blobs overlap at 3σ radius
-intersects(blob1, blob2, 3.0)
-```
-"""
-function intersects(p::AbstractBlob, q::AbstractBlob, cutoff::Real)
-    c1 = GeometryBasics.Circle(Point2(float.(ustrip.(p.center))...), float(ustrip(cutoff * p.σ)))
-    c2 = GeometryBasics.Circle(Point2(float.(ustrip.(q.center))...), float(ustrip(cutoff * q.σ)))
-    return intersects(c1, c2)
-end
-
-# =================================
 """
     IsoBlobDetection{T} <: AbstractBlob
 

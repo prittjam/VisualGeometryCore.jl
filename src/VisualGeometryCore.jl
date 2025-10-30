@@ -19,12 +19,12 @@ using Base: ImmutableDict
 using Accessors
 using ConstructionBase
 
-# Plotting functionality
+# Plotting functionality (load backend first for interactive plotting)
+using GLMakie
 using Makie: Makie, campixel!
 import Makie: Fixed as MakieFixed
 using Colors: Colors, Colorant, Gray
 using FixedPointNumbers: FixedPointNumbers, N0f8, N0f16
-using GLMakie
 
 # Scale space and image processing functionality
 using ImageFiltering: ImageFiltering, Kernel, imfilter, centered, Fill, imfilter!, kernelfactors
@@ -40,11 +40,13 @@ export Point2, Rect, Vec2, HyperRectangle, Circle, Point2f
 export cartesian_ranges
 
 # Export transforms and conics functionality
-export HomRotMat, HomTransMat, HomScaleIsoMat, HomScaleAnisoMat, EuclideanMat, SimilarityMat, AffineMat
+export HomRotMat, HomTransMat, HomScaleIsoMat, HomScaleAnisoMat, EuclideanMat, SimilarityMat, AffineMat, PlanarHomographyMat
+export HomEllipseMat, HomCircleMat
 export EuclideanMap
 export to_homogeneous, to_affine, to_euclidean, result_type
-export HomogeneousConic, Ellipse
-export push_conic, gradient
+export Ellipse
+export gradient
+export ConicTrait, CircleTrait, EllipseTrait, conic_trait
 
 # Export blob filtering functions
 export light_blobs, dark_blobs
@@ -56,7 +58,7 @@ export Camera, StereoRig, pose, lookat, epipolarmap
 export CameraCalibrationMatrix  # 3x3 calibration matrix K
 export focal_length, sensor_size, pixel_density, aspect_ratio
 export p3p  # P3P solver for camera pose estimation
-export PlanarHomography, HomographyTransform  # Homography for planar scenes
+export HomographyTransform  # Homography transform for warping
 
 # Export composable camera model system (using CoordinateTransformations)
 export LogicalIntrinsics, PhysicalIntrinsics
@@ -99,9 +101,9 @@ include("core/utils.jl")
 # Geometry
 include("geometry/transforms.jl")
 include("geometry/conversions.jl")
-include("geometry/primitives.jl")
-include("geometry/blobs.jl")
-include("geometry/solvers.jl")  # P3P and other geometric solvers
+include("geometry/blobs.jl")         # Load blobs before primitives (AbstractBlob needed)
+include("geometry/primitives.jl")    # primitives uses AbstractBlob
+include("geometry/solvers.jl")       # P3P and other geometric solvers
 include("geometry/cameras/cameras.jl")  # Camera system (includes all camera submodules)
 include("geometry/homography.jl")  # Homography for planar scenes
 
@@ -119,6 +121,7 @@ include("draw/recipes.jl")
 
 function __init__()
     Unitful.register(@__MODULE__)
+    GLMakie.activate!()  # Set GLMakie as the active Makie backend
 end
 
 end # module VisualGeometryCore

@@ -26,15 +26,21 @@ macro smatrix_wrapper(Name, m, n)
 end
 
 # 3×3 homogeneous transform matrices
-@smatrix_wrapper HomRotMat 3 3         # homogeneous rotation (no translation)
-@smatrix_wrapper HomTransMat 3 3       # homogeneous translation (no rotation)
-@smatrix_wrapper HomScaleIsoMat 3 3    # homogeneous isotropic scaling (s*I)
-@smatrix_wrapper HomScaleAnisoMat 3 3  # homogeneous anisotropic diagonal scaling diag(sx,sy)
-@smatrix_wrapper EuclideanMat 3 3      # rotation + translation (rigid body)
-@smatrix_wrapper SimilarityMat 3 3     # rotation + translation + uniform scaling
-@smatrix_wrapper AffineMat 3 3         # general affine (fallback & compositions)
+@smatrix_wrapper HomRotMat 3 3              # homogeneous rotation (no translation)
+@smatrix_wrapper HomTransMat 3 3            # homogeneous translation (no rotation)
+@smatrix_wrapper HomScaleIsoMat 3 3         # homogeneous isotropic scaling (s*I)
+@smatrix_wrapper HomScaleAnisoMat 3 3       # homogeneous anisotropic diagonal scaling diag(sx,sy)
+@smatrix_wrapper EuclideanMat 3 3           # rotation + translation (rigid body)
+@smatrix_wrapper SimilarityMat 3 3          # rotation + translation + uniform scaling
+@smatrix_wrapper AffineMat 3 3              # general affine (fallback & compositions)
+@smatrix_wrapper PlanarHomographyMat 3 3    # planar projective homography (most general)
 
-const HomMatAny = Union{HomRotMat, HomTransMat, HomScaleIsoMat, HomScaleAnisoMat, EuclideanMat, SimilarityMat, AffineMat}
+# Conic matrices (geometric objects, not transforms)
+@smatrix_wrapper HomEllipseMat 3 3          # conic matrix for general ellipse
+@smatrix_wrapper HomCircleMat 3 3           # conic matrix for circle (special case)
+
+const HomMatAny = Union{HomRotMat, HomTransMat, HomScaleIsoMat, HomScaleAnisoMat, EuclideanMat, SimilarityMat, AffineMat, PlanarHomographyMat}
+const HomConicAny = Union{HomEllipseMat, HomCircleMat}
 
 # ------------------------------------
 # Holy Trait-based Transform Composition
@@ -49,6 +55,7 @@ struct AnisotropicScaleTrait <: TransformTrait end
 struct EuclideanTrait <: TransformTrait end
 struct SimilarityTrait <: TransformTrait end
 struct AffineTrait <: TransformTrait end
+struct ProjectiveTrait <: TransformTrait end
 
 # Trait dispatch for transform types
 transform_trait(::Type{<:HomRotMat}) = RotationTrait()
@@ -58,6 +65,7 @@ transform_trait(::Type{<:HomScaleAnisoMat}) = AnisotropicScaleTrait()
 transform_trait(::Type{<:EuclideanMat}) = EuclideanTrait()
 transform_trait(::Type{<:SimilarityMat}) = SimilarityTrait()
 transform_trait(::Type{<:AffineMat}) = AffineTrait()
+transform_trait(::Type{<:PlanarHomographyMat}) = ProjectiveTrait()
 
 # No ranking needed! We use dispatch failure as a signal to swap arguments
 
@@ -101,16 +109,24 @@ result_type_trait(::AnisotropicScaleTrait, ::AffineTrait) = AffineMat
 result_type_trait(::EuclideanTrait, ::AffineTrait) = AffineMat
 result_type_trait(::SimilarityTrait, ::AffineTrait) = AffineMat
 
+# Projective combinations (most general - anything with projective is projective)
+result_type_trait(::ProjectiveTrait, ::TransformTrait) = PlanarHomographyMat
+
 # Fallback trait method - if we hit this, swap arguments and try again
-# But add a recursion breaker for the ultimate fallback
 result_type_trait(a::TransformTrait, b::TransformTrait) = result_type_trait(b, a)
 
-# Ultimate fallback to prevent infinite recursion - this should never be hit if we define methods correctly
-result_type_trait(::AffineTrait, ::TransformTrait) = AffineMat
-
 # Public interface - just dispatch to traits
-result_type(::Type{A}, ::Type{B}) where {A<:HomMatAny, B<:HomMatAny} = 
+result_type(::Type{A}, ::Type{B}) where {A<:HomMatAny, B<:HomMatAny} =
     result_type_trait(transform_trait(A), transform_trait(B))
+
+# ------------------------------------
+# Holy Trait-based Conic Classification
+# ------------------------------------
+
+# Conic shape traits
+abstract type ConicTrait end
+struct CircleTrait <: ConicTrait end
+struct EllipseTrait <: ConicTrait end
 
 # Additional similar_type methods to construct any result type with new element type
 # This allows us to use similar_type(ResultType, NewElementType) even when ResultType 
@@ -122,14 +138,16 @@ StaticArrays.similar_type(::Type{HomScaleAnisoMat}, ::Type{T}) where {T} = HomSc
 StaticArrays.similar_type(::Type{EuclideanMat}, ::Type{T}) where {T} = EuclideanMat{T}
 StaticArrays.similar_type(::Type{SimilarityMat}, ::Type{T}) where {T} = SimilarityMat{T}
 StaticArrays.similar_type(::Type{AffineMat}, ::Type{T}) where {T} = AffineMat{T}
+StaticArrays.similar_type(::Type{PlanarHomographyMat}, ::Type{T}) where {T} = PlanarHomographyMat{T}
 
 # Single multiplication function
 function Base.:*(a::HomMatAny, b::HomMatAny)
     T = promote_type(eltype(a), eltype(b))
     ResultType = result_type(typeof(a), typeof(b))
-    C = SMatrix{3,3,T}(Tuple(a)) * SMatrix{3,3,T}(Tuple(b))
+    # Convert to SMatrix for multiplication, then construct result directly from Tuple
+    C = SMatrix{3,3,T}(a) * SMatrix{3,3,T}(b)
     return similar_type(ResultType, T)(Tuple(C))
 end
 
 # inverses (keep class; we don't reclassify)
-Base.inv(A::HomMatAny) = similar_type(typeof(A), eltype(A))(Tuple(inv(SMatrix{3,3,eltype(A)}(Tuple(A)))))
+Base.inv(A::HomMatAny) = similar_type(typeof(A), eltype(A))(Tuple(inv(SMatrix{3,3,eltype(A)}(A))))

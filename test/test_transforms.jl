@@ -12,27 +12,32 @@ using LinearAlgebra
     @testset "Transform operator syntax" begin
         # Create test ellipse and conic
         ellipse = Ellipse(Point2(0.0, 0.0), 2.0, 1.0, 0.0)
-        Q = HomogeneousConic(ellipse)
-        
+        Q = HomEllipseMat(ellipse)
+
         # Test individual transforms
-        scale = LinearMap(@SMatrix [2.0 0.0; 0.0 1.5])
-        rotation = RotMatrix{2}(π/6)
-        translation = Translation(SVector(1.0, 2.0))
-        
+        scale = to_homogeneous(LinearMap(@SMatrix [2.0 0.0; 0.0 1.5]))
+        rotation = to_homogeneous(RotMatrix{2}(π/6))
+        translation = to_homogeneous(Translation(SVector(1.0, 2.0)))
+
+        # Convert to PlanarHomographyMat for conic transformation
+        H_scale = PlanarHomographyMat{Float64}(Tuple(SMatrix{3,3,Float64}(scale)))
+        H_rotation = PlanarHomographyMat{Float64}(Tuple(SMatrix{3,3,Float64}(rotation)))
+        H_translation = PlanarHomographyMat{Float64}(Tuple(SMatrix{3,3,Float64}(translation)))
+
         # Test transform application using operator syntax
-        Q_scaled = scale(Q)
-        @test Q_scaled isa HomogeneousConic{Float64}
-        
-        Q_rotated = rotation(Q_scaled)
-        @test Q_rotated isa HomogeneousConic{Float64}
-        
-        Q_translated = translation(Q_rotated)
-        @test Q_translated isa HomogeneousConic{Float64}
-        
+        Q_scaled = H_scale(Q)
+        @test Q_scaled isa HomEllipseMat{Float64}
+
+        Q_rotated = H_rotation(Q_scaled)
+        @test Q_rotated isa HomEllipseMat{Float64}
+
+        Q_translated = H_translation(Q_rotated)
+        @test Q_translated isa HomEllipseMat{Float64}
+
         # Test composition
-        composed = translation ∘ rotation ∘ scale
-        Q_composed = composed(Q)
-        @test Q_composed isa HomogeneousConic{Float64}
+        H_composed = H_translation * H_rotation * H_scale
+        Q_composed = H_composed(Q)
+        @test Q_composed isa HomEllipseMat{Float64}
         
         # Verify step-by-step and composed results match
         ellipse_step = Ellipse(Q_translated)
@@ -144,24 +149,34 @@ using LinearAlgebra
     @testset "Circle transformations" begin
         # Test circle to conic conversion and transformation
         circle = Circle(Point2(1.0, 1.0), 1.5)
-        Q_circle = HomogeneousConic(circle)
-        
-        # Apply transformation
-        scale = LinearMap(Diagonal(SVector(2.0, 1.0)))  # This will make it an ellipse
-        Q_transformed = scale(Q_circle)
-        
+        Q_circle = HomCircleMat(circle)
+        @test Q_circle isa HomCircleMat{Float64}
+        @test conic_trait(Q_circle) isa CircleTrait
+
+        # Apply anisotropic transformation (will make it an ellipse)
+        scale = to_homogeneous(LinearMap(Diagonal(SVector(2.0, 1.0))))
+        H_scale = PlanarHomographyMat{Float64}(Tuple(SMatrix{3,3,Float64}(scale)))
+        Q_transformed = H_scale(Q_circle)
+        @test Q_transformed isa HomEllipseMat{Float64}  # Result is ellipse, not circle
+
         # Convert back to ellipse (no longer a circle)
         ellipse_result = Ellipse(Q_transformed)
         @test ellipse_result isa Ellipse{Float64}
-        
+
         # Verify the transformation worked correctly
         @test ellipse_result.center ≈ Point2(2.0, 1.0) atol=1e-12  # x-coordinate scaled by 2
         @test ellipse_result.a ≈ 3.0 atol=1e-12  # radius 1.5 scaled by 2
         @test ellipse_result.b ≈ 1.5 atol=1e-12  # radius 1.5 unchanged in y
-        
-        # Test isotropic scaling (should remain a circle)
-        iso_scale = LinearMap(2.0 * I(2))
-        Q_iso_scaled = iso_scale(Q_circle)
+
+        # Test isotropic scaling (should remain a circle geometrically)
+        iso_scale = to_homogeneous(LinearMap(2.0 * I(2)))
+        H_iso_scale = PlanarHomographyMat{Float64}(Tuple(SMatrix{3,3,Float64}(iso_scale)))
+        Q_iso_scaled = H_iso_scale(Q_circle)
+        # Note: Result is HomEllipseMat (homographies always return HomEllipseMat)
+        # but it's geometrically a circle (a ≈ b)
+        @test Q_iso_scaled isa HomEllipseMat{Float64}
+
+        # Convert to Circle - should work since a ≈ b
         circle_result = Circle(Q_iso_scaled)
         @test circle_result isa Circle{Float64}
         @test circle_result.center ≈ Point2(2.0, 2.0) atol=1e-12
