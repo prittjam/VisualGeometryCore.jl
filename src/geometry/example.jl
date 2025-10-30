@@ -43,8 +43,8 @@ println("Camera: fx=$(round(ustrip(model.intrinsics.K[1,1]), digits=1))px, f=$(r
 Random.seed!(42)
 
 # Ground truth pose: camera at (400mm, 300mm, 1000mm) looking down at pattern
-camera_position = Point3(400.0, 300.0, 1000.0)  # mm
-extrinsics = lookat(camera_position, Point3(400.0, 300.0, 0.0), Vec(0.0, -1.0, 0.0))
+camera_position = Point3(400.0mm, 300.0mm, 1000.0mm)
+extrinsics = lookat(camera_position, Point3(400.0mm, 300.0mm, 0.0mm), Vec(0.0, -1.0, 0.0))
 camera = Camera(model, extrinsics)
 u = project.(Ref(camera), X)
 
