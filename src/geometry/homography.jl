@@ -49,8 +49,8 @@ HomographyTransform(camera::Camera{<:CameraModel{<:Any, PinholeProjection}}) =
     HomographyTransform(planar_homography(camera))
 
 (h::HomographyTransform)(uv) = begin
-    # warp passes (row, col) but homography expects (x, y)
-    # So swap: row=y, col=x → (x, y) = (uv[2], uv[1])
+    # warp passes (row, col) as SVector{2,Int64}, but homography expects (x, y)
+    # Swap indices: row=y, col=x → (x, y) = (uv[2], uv[1])
     p = h.H * to_affine(SVector(uv[2], uv[1]))
     # Convert from homogeneous and return in (row, col) order: (y, x)
     result = to_euclidean(p)
