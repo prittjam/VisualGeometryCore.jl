@@ -5,6 +5,9 @@
 # Define PlanarHomography as a 3×3 static matrix type
 @smatrix_wrapper PlanarHomography 3 3
 
+# Ensure inv returns PlanarHomography
+Base.inv(H::PlanarHomography{T}) where T = PlanarHomography{T}(inv(SMatrix{3,3,T}(H)))
+
 """
     PlanarHomography(camera::Camera{<:CameraModel{<:Any, PinholeProjection}}) -> PlanarHomography{Float64}
 
@@ -72,9 +75,23 @@ struct HomographyTransform{T<:Real} <: CoordinateTransformations.Transformation
     H::PlanarHomography{T}
 end
 
-# Convenience constructor from camera
+"""
+    HomographyTransform(camera::Camera) -> HomographyTransform
+
+Convenience constructor for warping a board image as seen from camera.
+
+Computes the forward homography (board → image) and stores its **inverse** (image → board),
+since ImageTransformations.warp needs the inverse mapping to sample from the source image.
+
+# Example
+```julia
+# Warp board to camera view
+H_transform = HomographyTransform(camera)  # Stores inv(H) for warping
+camera_view = warp(board_image, H_transform, output_axes)
+```
+"""
 HomographyTransform(camera::Camera{<:CameraModel{<:Any, PinholeProjection}}) =
-    HomographyTransform(PlanarHomography(camera))
+    HomographyTransform(inv(PlanarHomography(camera)))
 
 (h::HomographyTransform)(uv) = begin
     # warp passes (row, col) as SVector{2,Int64}, but homography expects (x, y)
