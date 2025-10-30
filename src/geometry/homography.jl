@@ -6,6 +6,20 @@
 @smatrix_wrapper PlanarHomography 3 3
 
 """
+    PlanarHomography(camera::Camera{<:CameraModel{<:Any, PinholeProjection}}) -> PlanarHomography{Float64}
+
+Construct a planar homography directly from a camera for z=0 plane mapping.
+
+# Example
+```julia
+camera = Camera(model, extrinsics)
+H = PlanarHomography(camera)
+```
+"""
+PlanarHomography(camera::Camera{<:CameraModel{<:Any, PinholeProjection}}) =
+    planar_homography(camera)
+
+"""
     HomographyTransform{T}
 
 A 2D projective homography transformation for use with ImageTransformations.warp.
@@ -16,8 +30,23 @@ struct HomographyTransform{T<:Real} <: CoordinateTransformations.Transformation
     H::PlanarHomography{T}
 end
 
-# Convenience constructor from SMatrix
+# Convenience constructors
 HomographyTransform(H::SMatrix{3,3,T}) where T = HomographyTransform(PlanarHomography{T}(Tuple(H)))
+
+"""
+    HomographyTransform(camera::Camera{<:CameraModel{<:Any, PinholeProjection}}) -> HomographyTransform
+
+Construct a HomographyTransform directly from a camera for z=0 plane warping.
+
+# Example
+```julia
+camera = Camera(model, extrinsics)
+H_transform = HomographyTransform(camera)
+warped = warp(board_image, H_transform, axes)
+```
+"""
+HomographyTransform(camera::Camera{<:CameraModel{<:Any, PinholeProjection}}) =
+    HomographyTransform(planar_homography(camera))
 
 (h::HomographyTransform)(uv) = begin
     # warp passes (row, col) but homography expects (x, y)
@@ -120,14 +149,7 @@ function warp(board_image::AbstractArray, camera::Camera{<:CameraModel{<:Any, Pi
         size(board_image)
     end
 
-    # Compute homography for z=0 plane
-    H = planar_homography(camera)
-
-    # Create transformation: board → image (forward)
-    H_transform = HomographyTransform(H)
-
-    # Warp the board image
-    # warp automatically inverts the transform (board → image becomes image → board)
+    # Create homography transform and warp using native ImageTransformations
     output_axes = (1:output_tuple[1], 1:output_tuple[2])
-    return warp(board_image, H_transform, output_axes, fillvalue, method)
+    return warp(board_image, HomographyTransform(camera), output_axes, fillvalue, method)
 end
