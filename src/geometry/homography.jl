@@ -2,6 +2,9 @@
 # Homography - 2D projective transformations for planar scenes
 # ==============================================================================
 
+# Define PlanarHomography as a 3×3 static matrix type
+@smatrix_wrapper PlanarHomography 3 3
+
 """
     HomographyTransform{T}
 
@@ -10,21 +13,24 @@ A 2D projective homography transformation for use with ImageTransformations.warp
 Applies the homography H to 2D points in homogeneous coordinates.
 """
 struct HomographyTransform{T<:Real} <: CoordinateTransformations.Transformation
-    H::SMatrix{3,3,T}
+    H::PlanarHomography{T}
 end
+
+# Convenience constructor from SMatrix
+HomographyTransform(H::SMatrix{3,3,T}) where T = HomographyTransform(PlanarHomography{T}(Tuple(H)))
 
 (h::HomographyTransform)(uv) = begin
     # warp passes (row, col) but homography expects (x, y)
     # So swap: row=y, col=x → (x, y) = (uv[2], uv[1])
-    p = h.H * SVector(uv[2], uv[1], 1.0)
+    p = SMatrix{3,3}(h.H) * SVector(uv[2], uv[1], 1.0)
     # Return in (row, col) order: (y, x) = (p[2], p[1])
     SVector(p[2]/p[3], p[1]/p[3])
 end
 
-Base.inv(h::HomographyTransform) = HomographyTransform(inv(h.H))
+Base.inv(h::HomographyTransform{T}) where T = HomographyTransform(PlanarHomography{T}(Tuple(inv(SMatrix{3,3}(h.H)))))
 
 """
-    planar_homography(camera::Camera{<:CameraModel{<:Any, PinholeProjection}})
+    planar_homography(camera::Camera{<:CameraModel{<:Any, PinholeProjection}}) -> PlanarHomography{Float64}
 
 Compute the homography H that maps from a planar board (z=0 plane) to the image.
 
@@ -39,7 +45,7 @@ and t is the translation from camera extrinsics.
 - `camera::Camera{<:CameraModel{<:Any, PinholeProjection}}`: Camera with pinhole projection
 
 # Returns
-- `H::SMatrix{3,3}`: Homography matrix (board coords → image coords)
+- `PlanarHomography{Float64}`: Homography matrix (board coords → image coords)
 
 # Example
 ```julia
@@ -61,7 +67,7 @@ function planar_homography(camera::Camera{<:CameraModel{<:Any, PinholeProjection
     # Build homography
     H = K * hcat(r1, r2, t)
 
-    return SMatrix{3,3}(H)
+    return PlanarHomography{Float64}(Tuple(H))
 end
 
 """
