@@ -56,8 +56,8 @@ u3 = u[sampled_idx]
 println("\nSampled points:")
 println.(["  $i: X=$(X3[i]), u=($(@sprintf("%.1f", ustrip(u3[i][1]))), $(@sprintf("%.1f", ustrip(u3[i][2]))))" for i in 1:3])
 
-# Backproject and solve P3P
-rays = backproject.(Ref(model), u3)
+# Backproject and solve P3P (backproject expects unitless Float64)
+rays = backproject.(Ref(model), ustrip.(u3))
 # P3P expects unitless coordinates (values in mm)
 Rs, ts = p3p(rays, Point3.(ustrip.(getindex.(X3, 1)),
                            ustrip.(getindex.(X3, 2)),
