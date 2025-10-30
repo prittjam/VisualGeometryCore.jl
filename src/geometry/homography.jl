@@ -102,9 +102,21 @@ camera_view = render_board(board_image, camera)
 ```
 """
 function render_board(board_image, camera::Camera{<:CameraModel{<:Any, PinholeProjection}};
-                     output_size=nothing,
+                     output_size::Union{Nothing,Tuple{Int,Int},Size2}=nothing,
                      fillvalue=zero(eltype(board_image)),
                      method=Interpolations.Linear())
+
+    # Convert Size2 to tuple if needed
+    if output_size isa Size2
+        # Size2 has (width, height) but tuple needs (height, width) for image indexing
+        output_size_tuple = (Int(ustrip(output_size.height)), Int(ustrip(output_size.width)))
+    elseif output_size === nothing
+        # Default to same size as input board image
+        output_size_tuple = size(board_image)
+    else
+        # Already a tuple
+        output_size_tuple = output_size
+    end
 
     # Compute homography for z=0 plane
     H = planar_homography(camera)
@@ -112,14 +124,8 @@ function render_board(board_image, camera::Camera{<:CameraModel{<:Any, PinholePr
     # Create transformation: board → image (forward)
     H_transform = HomographyTransform(H)
 
-    # Determine output size
-    if output_size === nothing
-        # Default to same size as input board image
-        output_size = size(board_image)
-    end
-
     # Warp the board image
     # warp automatically inverts the transform (board → image becomes image → board)
-    output_axes = (1:output_size[1], 1:output_size[2])
+    output_axes = (1:output_size_tuple[1], 1:output_size_tuple[2])
     return warp(board_image, H_transform, output_axes, fillvalue, method)
 end

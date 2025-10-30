@@ -96,8 +96,7 @@ println("\nLoaded board image: $(size(board_image))")
 
 # Render the board as seen from camera
 # Use camera sensor resolution for proper output sizing
-output_size = (Int(ustrip(sensor.resolution.height)), Int(ustrip(sensor.resolution.width)))
-camera_view = render_board(board_image, camera; output_size=output_size)
+camera_view = render_board(board_image, camera; output_size=sensor.resolution)
 
 println("Rendered camera view: $(size(camera_view)) (sensor resolution: $(sensor.resolution.width)×$(sensor.resolution.height))")
 
