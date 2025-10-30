@@ -202,7 +202,7 @@ function backproject(intrinsics::LogicalIntrinsics, ::PinholeProjection,
     # Both K_inv and h are unitless, result is unitless
     ray = intrinsics.K_inv * h
 
-    # Return normalized ray directly - normalize preserves the StaticVector type
+    # Return normalized ray directly
     return normalize(ray)
 end
 

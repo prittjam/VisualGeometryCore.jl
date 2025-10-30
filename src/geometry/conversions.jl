@@ -158,7 +158,7 @@ points = [Point2(1.0, 2.0), Point2(3.0, 4.0)]
 affine_points = to_affine.(points)
 ```
 """
-to_affine(v::StaticVector{N,T}) where {N,T} = vcat(v, one(T))
+to_affine(v::StaticVector{N,T}) where {N,T} = similar_type(v, Size(N+1))(v..., one(T))
 
 # Fallback for general AbstractVectors (non-static)
 function to_affine(v::AbstractVector{T}) where {T}
