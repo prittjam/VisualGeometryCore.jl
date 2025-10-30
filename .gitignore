@@ -51,6 +51,12 @@ env/
 *.swp
 *.swo
 
+# Editor temporary and backup files
+*~
+\#*\#
+.#*
+*.backup
+
 # OS
 .DS_Store
 Thumbs.db
