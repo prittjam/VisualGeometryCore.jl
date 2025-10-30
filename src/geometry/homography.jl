@@ -49,10 +49,10 @@ H_inv = inv(H)  # For warping: image → board
 ```
 """
 function planar_homography(camera::Camera{<:CameraModel{<:Any, PinholeProjection}})
-    # Extract camera parameters
-    K = ustrip(camera.model.intrinsics.K)  # Intrinsics (unitless)
-    R = SMatrix{3,3}(camera.extrinsics.R)  # Rotation
-    t = camera.extrinsics.t                 # Translation
+    # Extract camera parameters (all already unitless Float64)
+    K = SMatrix{3,3,Float64}(camera.model.intrinsics.K)
+    R = SMatrix{3,3}(camera.extrinsics.R)
+    t = camera.extrinsics.t
 
     # For z=0 plane: H = K [r1 r2 t]
     r1 = R[:, 1]
@@ -109,7 +109,13 @@ function render_board(board_image, camera::Camera{<:CameraModel{<:Any, PinholePr
     # Convert Size2 to tuple if needed
     if output_size isa Size2
         # Size2 has (width, height) but tuple needs (height, width) for image indexing
-        output_size_tuple = (Int(ustrip(output_size.height)), Int(ustrip(output_size.width)))
+        # Extract values (works for both unitful and unitless Size2)
+        h = output_size.height
+        w = output_size.width
+        # Handle both Quantity (has .val field) and plain numbers
+        h_val = hasproperty(h, :val) ? h.val : h
+        w_val = hasproperty(w, :val) ? w.val : w
+        output_size_tuple = (Int(ceil(h_val)), Int(ceil(w_val)))
     elseif output_size === nothing
         # Default to same size as input board image
         output_size_tuple = size(board_image)

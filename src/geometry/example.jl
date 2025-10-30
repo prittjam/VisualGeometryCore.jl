@@ -105,7 +105,7 @@ lscene1 = Spec.Imshow(board_image)
 lscene2 = Spec.Imshow(camera_view)
 
 # Create grid layout
-layout = S.GridLayout([lscene1 lscene2]; rowgaps=Fixed(0), colgaps=Fixed(0))
+layout = S.GridLayout([lscene1 lscene2])
 
 println("\nDisplaying board and camera view...")
 fig = plot(layout)
