@@ -26,10 +26,8 @@ blobs = [JSON3.read(JSON3.write(blob), IsoBlob) for blob in json_data.blobs]
 # For this synthetic example, treat pixel coordinates as mm world coordinates
 # (i.e., pattern where 1px = 1mm spacing). Add z=0 for planar pattern.
 # All coordinates are unitless Float64 (assumed to be in mm)
-blob_centers_2d = origin.(blobs)
-X = Point3.(ustrip.(getindex.(blob_centers_2d, 1)),
-            ustrip.(getindex.(blob_centers_2d, 2)),
-            0.0)
+blobs = origin.(blobs)
+X = vcat.(ustrip.(blobs), Ref(0.0))
 
 println("\nLoaded $(length(X)) blob centers (pattern at z=0)")
 
@@ -44,8 +42,8 @@ println("Camera: fx=$(round(ustrip(model.intrinsics.K[1,1]), digits=1))px, f=$(r
 Random.seed!(42)
 
 # Ground truth pose: camera at (400mm, 300mm, 1000mm) looking down at pattern
-camera_position = Point3(400.0mm, 300.0mm, 1000.0mm)
-extrinsics = lookat(camera_position, Point3(400.0mm, 300.0mm, 0.0mm), Vec3(0.0, -1.0, 0.0))
+camera_position = Point3(400., 300., 1000.)
+extrinsics = lookat(camera_position, Point3(400., 300., 0.), Vec3(0.0, -1.0, 0.0))
 camera = Camera(model, extrinsics)
 u = project.(Ref(camera), X)
 
@@ -97,9 +95,11 @@ board_image = load(image_path)
 println("\nLoaded board image: $(size(board_image))")
 
 # Render the board as seen from camera
-camera_view = render_board(board_image, camera)
+# Use camera sensor resolution for proper output sizing
+output_size = (Int(ustrip(sensor.resolution.height)), Int(ustrip(sensor.resolution.width)))
+camera_view = render_board(board_image, camera; output_size=output_size)
 
-println("Rendered camera view: $(size(camera_view))")
+println("Rendered camera view: $(size(camera_view)) (sensor resolution: $(sensor.resolution.width)×$(sensor.resolution.height))")
 
 # Display the results using Spec API
 lscene1 = Spec.Imshow(board_image)
