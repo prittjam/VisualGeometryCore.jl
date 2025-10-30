@@ -52,26 +52,27 @@ end
 A 2D projective homography transformation for use with ImageTransformations.warp.
 
 Applies the homography H to 2D points in homogeneous coordinates.
+
+# Constructors
+- `HomographyTransform(H::PlanarHomography)` - from planar homography matrix
+- `HomographyTransform(camera::Camera)` - convenience constructor for z=0 plane warping
+
+# Example
+```julia
+# From camera (convenience)
+camera = Camera(model, extrinsics)
+H_transform = HomographyTransform(camera)
+
+# Explicit construction
+H = PlanarHomography(camera)
+H_transform = HomographyTransform(H)
+```
 """
 struct HomographyTransform{T<:Real} <: CoordinateTransformations.Transformation
     H::PlanarHomography{T}
 end
 
-# Convenience constructors
-HomographyTransform(H::SMatrix{3,3,T}) where T = HomographyTransform(PlanarHomography{T}(Tuple(H)))
-
-"""
-    HomographyTransform(camera::Camera{<:CameraModel{<:Any, PinholeProjection}}) -> HomographyTransform
-
-Construct a HomographyTransform directly from a camera for z=0 plane warping.
-
-# Example
-```julia
-camera = Camera(model, extrinsics)
-H_transform = HomographyTransform(camera)
-warped = warp(board_image, H_transform, axes)
-```
-"""
+# Convenience constructor from camera
 HomographyTransform(camera::Camera{<:CameraModel{<:Any, PinholeProjection}}) =
     HomographyTransform(PlanarHomography(camera))
 
