@@ -4,7 +4,7 @@
 using VisualGeometryCore
 using VisualGeometryCore: Camera  # Explicit import to avoid Makie.Camera conflict
 using JSON3, LinearAlgebra, Random, Rotations, Statistics
-using GeometryBasics: Vec, Point3, origin
+using GeometryBasics: Vec3, Point3, origin
 using StaticArrays: SVector
 using Unitful: ustrip, mm, °
 using Printf: @sprintf
@@ -44,7 +44,7 @@ Random.seed!(42)
 
 # Ground truth pose: camera at (400mm, 300mm, 1000mm) looking down at pattern
 camera_position = Point3(400.0mm, 300.0mm, 1000.0mm)
-extrinsics = lookat(camera_position, Point3(400.0mm, 300.0mm, 0.0mm), Vec(0.0, -1.0, 0.0))
+extrinsics = lookat(camera_position, Point3(400.0mm, 300.0mm, 0.0mm), Vec3(0.0, -1.0, 0.0))
 camera = Camera(model, extrinsics)
 u = project.(Ref(camera), X)
 

@@ -149,9 +149,11 @@ function project(model::CameraModel, X::AbstractVector)
 end
 
 """
-    backproject(model::CameraModel, u::StaticVector{2}) -> Vec3
+    backproject(model::CameraModel, u::StaticVector{2,Float64}) -> Vec3
 
 Backproject 2D pixel coordinates to 3D ray direction.
+
+Inputs and outputs are unitless Float64 (assumed units: px for input, unitless direction for output).
 
 The return type and semantics depend on the intrinsics type:
 - LogicalIntrinsics: Returns normalized unitless direction
@@ -159,23 +161,23 @@ The return type and semantics depend on the intrinsics type:
 
 # Arguments
 - `model::CameraModel`: Camera model with intrinsics and projection
-- `u::StaticVector{2}`: 2D pixel coordinates [u, v] (accepts both unitful and plain Float types)
+- `u::StaticVector{2,Float64}`: 2D pixel coordinates [u, v] (unitless, in px)
 
 # Returns
-- `Vec3`: Normalized ray direction
+- `Vec3`: Normalized ray direction (unitless)
 
 # Example
 ```julia
 camera = CameraModel(16.0mm, Size2(width=5.86μm/px, height=5.86μm/px), [320.0px, 240.0px])
-u = SVector(400.0, 300.0) * 1px
+u = SVector(400.0, 300.0)  # px (unitless)
 ray = backproject(camera, u)  # Returns normalized Vec3 direction
 ```
 """
-backproject(model::CameraModel, u::StaticVector{2,T}) where {T<:Union{Float64,<:PixelWidth}} =
+backproject(model::CameraModel, u::StaticVector{2,Float64}) =
     backproject(model.intrinsics, model.projection, u)
 
 # Batched version for multiple points
-backproject(model::CameraModel, points::AbstractVector{<:StaticVector{2,T}}) where {T<:Union{Float64,<:PixelWidth}} =
+backproject(model::CameraModel, points::AbstractVector{<:StaticVector{2,Float64}}) =
     backproject(model.intrinsics, model.projection, points)
 
 """
@@ -192,9 +194,9 @@ Since no physical parameters are available, the ray has no metric scale informat
 - `Vec3`: Normalized ray direction
 """
 function backproject(intrinsics::LogicalIntrinsics, ::PinholeProjection,
-                     u::StaticVector{2,T}) where {T<:Union{Float64,<:PixelWidth}}
-    # K is now unitless Float64, strip units from u
-    h = to_affine(ustrip(u))
+                     u::StaticVector{2,Float64})
+    # K and u are both unitless Float64
+    h = to_affine(u)
 
     # Use precomputed K_inv for efficiency
     # Both K_inv and h are unitless, result is unitless
@@ -218,9 +220,9 @@ The focal length is used in the computation, though the result is still normaliz
 - `Vec3`: Normalized ray direction
 """
 function backproject(intrinsics::PhysicalIntrinsics, ::PinholeProjection,
-                     u::StaticVector{2,T}) where {T<:Union{Float64,<:PixelWidth}}
-    # K is now unitless Float64, strip units from u
-    h = to_affine(ustrip(u))
+                     u::StaticVector{2,Float64})
+    # K and u are both unitless Float64
+    h = to_affine(u)
 
     # Use precomputed K_inv for efficiency
     # Both K_inv and h are unitless, result is unitless
@@ -238,40 +240,42 @@ function backproject(intrinsics::PhysicalIntrinsics, ::PinholeProjection,
 end
 
 """
-    unproject(model::CameraModel{<:PhysicalIntrinsics}, u::AbstractVector{<:PixelWidth}, depth::Len) -> SVector{3}
+    unproject(model::CameraModel{<:PhysicalIntrinsics}, u::AbstractVector{Float64}, depth::Float64) -> SVector{3,Float64}
 
 Unproject 2D pixel coordinates to 3D point given depth.
+
+All inputs and outputs are unitless Float64 (assumed units: px for u, mm for depth and result).
 
 Only available for PhysicalIntrinsics since metric scale information is required.
 
 # Arguments
 - `model::CameraModel{<:PhysicalIntrinsics}`: Camera model with physical intrinsics
-- `u::AbstractVector{<:PixelWidth}`: 2D pixel coordinates [u, v]
-- `depth::Len`: Depth (Z coordinate) in physical units
+- `u::AbstractVector{Float64}`: 2D pixel coordinates [u, v] (unitless, in px)
+- `depth::Float64`: Depth (Z coordinate) (unitless, in mm)
 
 # Returns
-- SVector{3} with 3D point coordinates [X, Y, Z] in physical units
+- SVector{3,Float64} with 3D point coordinates [X, Y, Z] (unitless, in mm)
 
 # Example
 ```julia
 camera = CameraModel(16.0mm, Size2(width=5.86μm/px, height=5.86μm/px), [320.0px, 240.0px])
-u = [400.0px, 300.0px]
-depth = 100.0mm
-X = unproject(camera, u, depth)  # Returns 3D point in mm
+u = [400.0, 300.0]  # px (unitless)
+depth = 100.0       # mm (unitless)
+X = unproject(camera, u, depth)  # Returns 3D point (unitless mm)
 ```
 """
-unproject(model::CameraModel{<:PhysicalIntrinsics}, u::AbstractVector{<:PixelWidth}, depth::Len) =
+unproject(model::CameraModel{<:PhysicalIntrinsics}, u::AbstractVector{Float64}, depth::Float64) =
     unproject(model.intrinsics, model.projection, u, depth)
 
 """
-    unproject(intrinsics::PhysicalIntrinsics, ::PinholeProjection, u::AbstractVector{<:PixelWidth}, depth::Len) -> SVector{3}
+    unproject(intrinsics::PhysicalIntrinsics, ::PinholeProjection, u::AbstractVector{Float64}, depth::Float64) -> SVector{3,Float64}
 
 Unproject for pinhole model with PhysicalIntrinsics.
 """
 function unproject(intrinsics::PhysicalIntrinsics, ::PinholeProjection,
-                   u::AbstractVector{<:PixelWidth}, depth::Len)
+                   u::AbstractVector{Float64}, depth::Float64)
     # Use precomputed K_inv for efficiency
-    h = SVector{3}(ustrip(u[1]), ustrip(u[2]), 1.0)
+    h = to_affine(u)
     ray_normalized = intrinsics.K_inv * h
 
     # Compute 3D point: [X, Y, Z] where Z = depth
