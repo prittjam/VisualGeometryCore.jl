@@ -46,10 +46,10 @@ function epipolarmap(source::Camera, target::Camera, extrinsics)
         ray_source = backproject(source.model, u)
         # Assume depth=1 in source camera frame
         X_source = ray_source  # SVector{3} with unit depth
-        # Transform to target camera frame
-        X_target_unitless = ustrip(extrinsics)(X_source)
+        # Transform to target camera frame (extrinsics stores unitless internally)
+        X_target = extrinsics(X_source)
         # Project to target image
-        return project(target.model, X_target_unitless)
+        return project(target.model, X_target)
     end
     return map_pixel
 end

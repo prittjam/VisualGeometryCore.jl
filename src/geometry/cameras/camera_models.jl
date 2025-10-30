@@ -193,16 +193,12 @@ Since no physical parameters are available, the ray has no metric scale informat
 """
 function backproject(intrinsics::LogicalIntrinsics, ::PinholeProjection,
                      u::StaticVector{2,T}) where {T<:Union{Float64,<:PixelWidth}}
-    K = intrinsics.K
-    h = to_affine(u)
-
-    # Enforce unit consistency: if u is unitful, K must be unitful; if u is unitless, K must be unitless
-    @assert typeof(K[1,1]) == typeof(h[1]) "Unit mismatch: pixel coordinates have type $(typeof(h[1])) but K has type $(typeof(K[1,1])). Use consistent units for both."
+    # K is now unitless Float64, strip units from u
+    h = to_affine(ustrip(u))
 
     # Use precomputed K_inv for efficiency
-    # Proper unit-aware matrix solve: K_inv * ustrip(b) * (unit(b[1]) / unit(K[1,1]))
-    # This handles the unit algebra correctly: (px^-1) * px → dimensionless
-    ray = intrinsics.K_inv * ustrip(h) * (unit(h[1]) / unit(K[1,1]))
+    # Both K_inv and h are unitless, result is unitless
+    ray = intrinsics.K_inv * h
 
     # Return normalized ray directly - normalize preserves the StaticVector type
     return normalize(ray)
@@ -223,26 +219,22 @@ The focal length is used in the computation, though the result is still normaliz
 """
 function backproject(intrinsics::PhysicalIntrinsics, ::PinholeProjection,
                      u::StaticVector{2,T}) where {T<:Union{Float64,<:PixelWidth}}
-    K = intrinsics.K
-    h = to_affine(u)
-
-    # Enforce unit consistency: if u is unitful, K must be unitful; if u is unitless, K must be unitless
-    @assert typeof(K[1,1]) == typeof(h[1]) "Unit mismatch: pixel coordinates have type $(typeof(h[1])) but K has type $(typeof(K[1,1])). Use consistent units for both."
+    # K is now unitless Float64, strip units from u
+    h = to_affine(ustrip(u))
 
     # Use precomputed K_inv for efficiency
-    # Proper unit-aware matrix solve: K_inv * ustrip(b) * (unit(b[1]) / unit(K[1,1]))
-    # This handles the unit algebra correctly: (px^-1) * px → dimensionless
-    ray_unnormalized = intrinsics.K_inv * ustrip(h) * (unit(h[1]) / unit(K[1,1]))
+    # Both K_inv and h are unitless, result is unitless
+    ray_unnormalized = intrinsics.K_inv * h
 
-    # ray_unnormalized should now be dimensionless (units cancelled)
-    # Scale by focal length for metric interpretation
+    # ray_unnormalized is dimensionless
+    # Scale by focal length (stored unitless in mm) for metric interpretation
     ray_metric = SVector{3}(
         ray_unnormalized[1] * intrinsics.f,
         ray_unnormalized[2] * intrinsics.f,
         intrinsics.f
     )
-    # Return normalized ray directly (with ustrip since ray_metric has length units)
-    return normalize(ustrip(ray_metric))
+    # Return normalized ray directly (ray_metric is unitless)
+    return normalize(ray_metric)
 end
 
 """

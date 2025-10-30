@@ -79,9 +79,11 @@ function focal_length(θ, sensor; dimension=:horizontal)
 end
 
 """
-    lookat(eye::StaticVector{3, <:Real}, target::StaticVector{3, <:Real}, up::StaticVector{3, <:Real})
+    lookat(eye::StaticVector{3, <:Unitful.Length}, target::StaticVector{3, <:Unitful.Length}, up::StaticVector{3, <:Real})
 
 Create a camera extrinsics transform that looks from `eye` position toward `target`.
+
+Units are enforced at construction but stored internally as unitless Float64 in mm.
 
 Uses **Computer Vision convention**:
 - +Z axis points FORWARD (toward target)
@@ -90,8 +92,44 @@ Uses **Computer Vision convention**:
 - Camera -Y aligns with world up direction
 
 # Arguments
-- `eye::StaticVector{3}`: Camera position in world coordinates
-- `target::StaticVector{3}`: Point to look at in world coordinates
+- `eye::StaticVector{3, <:Unitful.Length}`: Camera position in world coordinates (with units)
+- `target::StaticVector{3, <:Unitful.Length}`: Point to look at in world coordinates (with units)
+- `up::StaticVector{3, <:Real}`: World up direction, unitless (typically [0, -1, 0] for CV convention where -Y is up)
+
+# Returns
+- `EuclideanMap`: World-to-camera transformation
+
+# Example
+```julia
+# Camera at (0, 0, 0) looking toward (0, 0, 1000mm), with world -Y pointing up
+extrinsics = lookat(SVector(0.0mm, 0.0mm, 0.0mm), SVector(0.0mm, 0.0mm, 1000.0mm), SVector(0.0, -1.0, 0.0))
+```
+"""
+function lookat(eye::StaticVector{3, <:Unitful.Length}, target::StaticVector{3, <:Unitful.Length}, up::StaticVector{3, <:Real})
+    # Convert to mm and strip units
+    eye_mm = ustrip.(Float64, mm, eye)
+    target_mm = ustrip.(Float64, mm, target)
+
+    # Call the unitless version
+    return lookat(SVector{3,Float64}(eye_mm), SVector{3,Float64}(target_mm), up)
+end
+
+"""
+    lookat(eye::StaticVector{3, <:Real}, target::StaticVector{3, <:Real}, up::StaticVector{3, <:Real})
+
+Create a camera extrinsics transform that looks from `eye` position toward `target`.
+
+Unitless version for internal use and backwards compatibility.
+
+Uses **Computer Vision convention**:
+- +Z axis points FORWARD (toward target)
+- +X axis points RIGHT
+- +Y axis points DOWN
+- Camera -Y aligns with world up direction
+
+# Arguments
+- `eye::StaticVector{3}`: Camera position in world coordinates (unitless, assumed mm)
+- `target::StaticVector{3}`: Point to look at in world coordinates (unitless, assumed mm)
 - `up::StaticVector{3}`: World up direction (typically [0, -1, 0] for CV convention where -Y is up)
 
 # Returns

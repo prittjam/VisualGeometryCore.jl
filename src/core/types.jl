@@ -45,23 +45,50 @@ inverse_euclidean = inv(euclidean)
 """
 struct EuclideanMap{N,T,R<:Rotation{N,T},V<:StaticVector{N,T}} <: CoordinateTransformations.Transformation
     R::R
-    t::V
+    t::V  # Stored unitless in mm (canonical unit for Length)
 end
 
-# Constructors
-# Fallback for AbstractVector (non-static) - converts to SVector
-EuclideanMap(R::Rotation{N,T}, t::AbstractVector) where {N,T} =
-    EuclideanMap(R, SVector{N,T}(t))
+# Constructors with unit enforcement
+"""
+    EuclideanMap(R::Rotation{N}, t::AbstractVector{<:Unitful.Length})
 
-EuclideanMap(R::Rotation{N,T}, t::NTuple{N,T}) where {N,T} =
-    EuclideanMap(R, SVector{N,T}(t))
+Construct EuclideanMap with unit-enforced translation vector.
+Translation is converted to mm and stored as unitless Float64.
+"""
+function EuclideanMap(R::Rotation{N,T}, t::AbstractVector{<:Unitful.Length}) where {N,T}
+    # Convert to canonical units (mm) and strip
+    t_mm = ustrip.(mm, t)
+    return EuclideanMap(R, SVector{N,Float64}(t_mm))
+end
 
-EuclideanMap(R::Rotation{N,T}, tx::T, ty::T, tz::T) where {N,T} =
-    EuclideanMap(R, SVector{N,T}(tx, ty, tz))
+# Fallback for unitless (internal use, backwards compatibility)
+# Always convert to Float64 for consistent storage
+EuclideanMap(R::Rotation{N,T}, t::AbstractVector{<:Real}) where {N,T} =
+    EuclideanMap(R, SVector{N,Float64}(t))
+
+EuclideanMap(R::Rotation{N,T}, t::NTuple{N,<:Real}) where {N,T} =
+    EuclideanMap(R, SVector{N,Float64}(t))
+
+# Three-argument constructor with unit enforcement
+function EuclideanMap(R::Rotation{3,T}, tx::Unitful.Length, ty::Unitful.Length, tz::Unitful.Length) where T
+    t_mm = SVector{3,Float64}(ustrip(mm, tx), ustrip(mm, ty), ustrip(mm, tz))
+    return EuclideanMap(R, t_mm)
+end
+
+EuclideanMap(R::Rotation{3,T}, tx::Real, ty::Real, tz::Real) where T =
+    EuclideanMap(R, SVector{3,Float64}(tx, ty, tz))
 
 EuclideanMap(E::EuclideanMap) = E
 
 EuclideanMap((R, t)::Tuple{<:Rotation,<:AbstractVector}) = EuclideanMap(R, t)
+
+# Accessor to reconstruct with units
+"""
+    translation_mm(e::EuclideanMap) -> SVector{N, Quantity{Float64, mm}}
+
+Get translation vector with mm units attached.
+"""
+translation_mm(e::EuclideanMap{N}) where N = e.t .* mm
 
 # Operations
 (E::EuclideanMap)(x) = E.R * x + E.t

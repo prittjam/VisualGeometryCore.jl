@@ -17,12 +17,14 @@ const LogicalPitch = VisualGeometryCore.LogicalPitch
 
 Construct camera intrinsics matrix K from focal length(s) and principal point in pixel units.
 
+Units are enforced at construction but stored internally as unitless Float64 for performance.
+
 # Arguments
 - `f`: Focal length in pixels (PixelWidth) - either scalar for isotropic or tuple `(fx, fy)` for anisotropic
 - `pp`: Principal point in pixels as 2D vector [cx, cy] (PixelWidth elements)
 
 # Returns
-3×3 dimensionless camera intrinsics matrix in column-major order:
+3×3 unitless Float64 camera intrinsics matrix in column-major order:
 ```
 [fx  0  cx]
 [ 0 fy  cy]
@@ -39,30 +41,32 @@ K = CameraCalibrationMatrix((800.0px, 805.0px), [320.0px, 240.0px])
 ```
 """
 function CameraCalibrationMatrix(f::PixelWidth, pp::AbstractVector{<:PixelWidth})
-    # Store K with units - enables natural unit algebra in backprojection
-    # K_inv will have px^-1 units, so K_inv * [u,v,1] (px) → dimensionless
-    T = typeof(f)
-    K = SMatrix{3,3}(f, zero(f), zero(f),
-                     zero(f), f, zero(f),
-                     pp[1], pp[2], oneunit(f))
-    return CameraCalibrationMatrix{T}(Tuple(K))
+    # Strip units and store as Float64
+    f_val = ustrip(Float64, px, f)
+    pp_val = ustrip.(Float64, px, pp)
+    K = SMatrix{3,3,Float64}(f_val, 0.0, 0.0,
+                              0.0, f_val, 0.0,
+                              pp_val[1], pp_val[2], 1.0)
+    return CameraCalibrationMatrix{Float64}(Tuple(K))
 end
 
 function CameraCalibrationMatrix(f::Tuple{T,T}, pp::AbstractVector{<:PixelWidth}) where T<:PixelWidth
-    # Enforce homogeneous tuple type (both elements same type)
-    # Store K with units - enables natural unit algebra in backprojection
-    fx, fy = f
-    T_val = typeof(fx)
-    K = SMatrix{3,3}(fx, zero(fx), zero(fx),
-                     zero(fx), fy, zero(fx),
-                     pp[1], pp[2], oneunit(fx))
-    return CameraCalibrationMatrix{T_val}(Tuple(K))
+    # Strip units and store as Float64
+    fx_val = ustrip(Float64, px, f[1])
+    fy_val = ustrip(Float64, px, f[2])
+    pp_val = ustrip.(Float64, px, pp)
+    K = SMatrix{3,3,Float64}(fx_val, 0.0, 0.0,
+                              0.0, fy_val, 0.0,
+                              pp_val[1], pp_val[2], 1.0)
+    return CameraCalibrationMatrix{Float64}(Tuple(K))
 end
 
 """
     CameraCalibrationMatrix(f::Len, pitch::Size2{<:LogicalPitch}, pp::AbstractVector{<:PixelWidth}) -> CameraCalibrationMatrix{Float64}
 
 Construct camera intrinsics matrix K from physical focal length, pixel pitch, and principal point.
+
+Units are enforced at construction but stored internally as unitless Float64 for performance.
 
 This constructor converts from metric units to pixel units using the factorization:
 ```
@@ -79,7 +83,7 @@ where f is in mm, px/py are pixel pitch in mm/px, and (cx,cy) are in pixels.
 - `pp::AbstractVector{<:PixelWidth}`: Principal point in pixels [cx, cy]
 
 # Returns
-3×3 dimensionless camera intrinsics matrix with focal length in pixels:
+3×3 unitless Float64 camera intrinsics matrix with focal length in pixels:
 ```
 [αx  0  cx]
 [ 0  αy cy]   where αx = f/px, αy = f/py
@@ -103,7 +107,7 @@ function CameraCalibrationMatrix(f::Len, pitch::Size2{<:LogicalPitch}, pp::Abstr
     fx_px = uconvert(px, f / pitch.width)
     fy_px = uconvert(px, f / pitch.height)
 
-    # Now construct matrix using the pixel-based constructor
+    # Now construct matrix using the pixel-based constructor (which strips units)
     # Need to convert to tuple for the anisotropic case
     return CameraCalibrationMatrix((fx_px, fy_px), pp)
 end
@@ -165,17 +169,19 @@ ImageCalibrationMatrix(f::Len, pp::AbstractVector{<:PixelWidth}, pitch::Size2{<:
 # ============================================================================
 
 """
-    LogicalIntrinsics{T}
+    LogicalIntrinsics
 
 Camera intrinsics containing only the calibration matrix K (dimensionless).
+
+Units are enforced at construction but stored internally as unitless Float64 for performance.
 
 Used when physical parameters cannot be disentangled from K, such as when K is
 recovered from autocalibration, Zhang's method, or other calibration techniques
 that don't provide metric information about the sensor.
 
 # Fields
-- `K::CameraCalibrationMatrix{T}`: Dimensionless 3×3 calibration matrix
-- `K_inv::SMatrix{3,3,Float64}`: Precomputed inverse of K (unitless) for efficient backprojection
+- `K::CameraCalibrationMatrix{Float64}`: 3×3 calibration matrix (unitless Float64)
+- `K_inv::SMatrix{3,3,Float64}`: Precomputed inverse of K for efficient backprojection
 
 # Examples
 ```julia
@@ -184,30 +190,38 @@ K = CameraCalibrationMatrix(800.0px, [320.0px, 240.0px])
 intrinsics = LogicalIntrinsics(K)
 ```
 """
-struct LogicalIntrinsics{T} <: AbstractIntrinsics
-    K::CameraCalibrationMatrix{T}
+struct LogicalIntrinsics <: AbstractIntrinsics
+    K::CameraCalibrationMatrix{Float64}
     K_inv::SMatrix{3,3,Float64}
 
     # Inner constructor to compute K_inv automatically
-    function LogicalIntrinsics{T}(K::CameraCalibrationMatrix{T}) where T
-        K_inv = inv(ustrip(K))
-        new{T}(K, K_inv)
+    function LogicalIntrinsics(K::CameraCalibrationMatrix{Float64})
+        K_inv = inv(SMatrix{3,3,Float64}(K))
+        new(K, K_inv)
     end
 end
 
 """
-    PhysicalIntrinsics{TK, TF}
+    PhysicalIntrinsics
 
 Camera intrinsics containing the calibration matrix K plus physical parameters.
+
+Units are enforced at construction but stored internally as unitless Float64 for performance:
+- Focal length stored in mm
+- Pixel pitch stored in μm/px
+- Calibration matrix K stored as unitless Float64
 
 Used when the focal length and pixel pitch are known from sensor datasheets,
 allowing metric operations like 3D point reconstruction from depth.
 
 # Fields
-- `K::CameraCalibrationMatrix{TK}`: Calibration matrix (can be unitful or unitless)
-- `K_inv::SMatrix{3,3,Float64}`: Precomputed inverse of K (unitless) for efficient backprojection
-- `f::Len{TF}`: Focal length in physical units (e.g., mm)
-- `pitch::Size2{LogicalPitch{TF}}`: Pixel pitch (e.g., μm/px)
+- `K::CameraCalibrationMatrix{Float64}`: Calibration matrix (unitless Float64)
+- `K_inv::SMatrix{3,3,Float64}`: Precomputed inverse of K for efficient backprojection
+- `f::Float64`: Focal length in mm (unitless, canonical storage)
+- `pitch::Size2{LogicalPitch{Float64}}`: Pixel pitch (stored with units for now)
+
+# Accessors
+- `focal_length_mm(intrinsics)`: Get focal length with mm units attached
 
 # Examples
 ```julia
@@ -218,18 +232,27 @@ pp = [320.0px, 240.0px]
 intrinsics = PhysicalIntrinsics(f, pitch, pp)
 ```
 """
-struct PhysicalIntrinsics{TK, TF} <: AbstractIntrinsics
-    K::CameraCalibrationMatrix{TK}
+struct PhysicalIntrinsics <: AbstractIntrinsics
+    K::CameraCalibrationMatrix{Float64}
     K_inv::SMatrix{3,3,Float64}
-    f::Len{TF}
-    pitch::Size2{LogicalPitch{TF}}
+    f::Float64  # Stored unitless in mm
+    pitch::Size2{LogicalPitch{Float64}}  # TODO: could also store unitless
 
     # Inner constructor to compute K_inv automatically
-    function PhysicalIntrinsics{TK, TF}(K::CameraCalibrationMatrix{TK}, f::Len, pitch::Size2{<:LogicalPitch}) where {TK, TF}
-        K_inv = inv(ustrip(K))
-        new{TK, TF}(K, K_inv, f, pitch)
+    function PhysicalIntrinsics(K::CameraCalibrationMatrix{Float64}, f::Len, pitch::Size2{<:LogicalPitch})
+        K_inv = inv(SMatrix{3,3,Float64}(K))
+        f_mm = ustrip(Float64, mm, f)
+        new(K, K_inv, f_mm, pitch)
     end
 end
+
+# Accessor to reconstruct with units
+"""
+    focal_length_mm(intrinsics::PhysicalIntrinsics) -> Quantity{Float64, mm}
+
+Get focal length with mm units attached.
+"""
+focal_length_mm(intrinsics::PhysicalIntrinsics) = intrinsics.f * mm
 
 # ============================================================================
 # Convenience Constructors for Intrinsics
@@ -250,7 +273,7 @@ logical = LogicalIntrinsics(800.0px, [320.0px, 240.0px])
 """
 function LogicalIntrinsics(f::PixelWidth, pp::AbstractVector{<:PixelWidth})
     K = CameraCalibrationMatrix(f, pp)
-    return LogicalIntrinsics{eltype(K)}(K)
+    return LogicalIntrinsics(K)
 end
 
 """
@@ -266,8 +289,7 @@ logical = LogicalIntrinsics((800.0px, 805.0px), [320.0px, 240.0px])
 """
 function LogicalIntrinsics(f::Tuple{T,T}, pp::AbstractVector{<:PixelWidth}) where T<:PixelWidth
     K = CameraCalibrationMatrix(f, pp)
-    T_val = typeof(ustrip(f[1]))
-    return LogicalIntrinsics{T_val}(K)
+    return LogicalIntrinsics(K)
 end
 
 """
@@ -287,5 +309,5 @@ intrinsics = PhysicalIntrinsics(f, pitch, pp)
 """
 function PhysicalIntrinsics(f::Len, pitch::Size2{<:LogicalPitch}, pp::AbstractVector{<:PixelWidth})
     K = CameraCalibrationMatrix(f, pitch, pp)
-    return PhysicalIntrinsics{eltype(K), typeof(ustrip(f))}(K, f, pitch)
+    return PhysicalIntrinsics(K, f, pitch)
 end
