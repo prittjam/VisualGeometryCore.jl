@@ -86,8 +86,8 @@ H_inv = inv(H)  # For warping: image → board
 """
 function planar_homography(camera::Camera{<:CameraModel{<:Any, PinholeProjection}})
     # Extract camera parameters (all already unitless Float64)
-    K = SMatrix{3,3,Float64}(camera.model.intrinsics.K)
-    R = SMatrix{3,3}(camera.extrinsics.R)
+    K = camera.model.intrinsics.K
+    R = camera.extrinsics.R
     t = camera.extrinsics.t
 
     # For z=0 plane: H = K [r1 r2 t]
@@ -97,7 +97,7 @@ function planar_homography(camera::Camera{<:CameraModel{<:Any, PinholeProjection
     # Build homography
     H = K * hcat(r1, r2, t)
 
-    return PlanarHomography{Float64}(Tuple(H))
+    return PlanarHomography{Float64}(H)
 end
 
 """
