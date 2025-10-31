@@ -49,58 +49,117 @@ function PlanarHomographyMat(camera::Camera{<:CameraModel{<:Any, PinholeProjecti
 end
 
 """
-    ProjectiveMap{T}
+    ProjectiveMap{T} <: Transformation
 
-A 2D projective homography transformation for use with ImageTransformations.warp.
+Pure 2D projective homography transformation: R^2 → P^2
 
-Applies the homography H to 2D points in homogeneous coordinates.
+Applies homography H to 2D Euclidean points, producing 3D homogeneous coordinates (no perspective division).
 Follows CoordinateTransformations.jl naming convention (LinearMap, AffineMap, EuclideanMap).
+
+This is a **mathematical transformation** that:
+- Takes Euclidean 2D input (Point2 or SVector{2})
+- Lifts to homogeneous coordinates (adds w=1)
+- Applies 3×3 homography matrix
+- Returns homogeneous 3D output (SVector{3})
+
+For image warping with perspective division, use `ImageWarp`.
 
 # Constructors
 - `ProjectiveMap(H::PlanarHomographyMat)` - from planar homography matrix
-- `ProjectiveMap(camera::Camera)` - convenience constructor for z=0 plane warping
 
 # Example
 ```julia
-# From camera (convenience)
-camera = Camera(model, extrinsics)
-H_transform = ProjectiveMap(camera)
-
-# Explicit construction
+# Create projective transformation
 H = PlanarHomographyMat(camera)
-H_transform = ProjectiveMap(H)
+proj = ProjectiveMap(H)
+
+# Apply to point (returns homogeneous coordinates)
+p_homogeneous = proj(Point2(100.0, 200.0))  # SVector{3}
+
+# Compose with PerspectiveMap for Euclidean output
+using CoordinateTransformations: PerspectiveMap
+transform = PerspectiveMap() ∘ proj  # R^2 → P^2 → R^2
+p_euclidean = transform(Point2(100.0, 200.0))  # SVector{2}
 ```
 """
 struct ProjectiveMap{T<:Real} <: CoordinateTransformations.Transformation
     H::PlanarHomographyMat{T}
 end
 
+# Pure homogeneous transformation: R^2 → P^2
+(h::ProjectiveMap)(p::Point2) = h.H * to_affine(p)  # Returns SVector{3}
+(h::ProjectiveMap)(p::SVector{2}) = h.H * SVector(p[1], p[2], 1.0)  # Returns SVector{3}
+
+# Composition in homogeneous space
+function Base.:∘(A::ProjectiveMap, B::ProjectiveMap)
+    # Matrix composition: (A ∘ B).H = A.H * B.H
+    H_composed = A.H.H * B.H.H
+    return ProjectiveMap(PlanarHomographyMat{Float64}(H_composed))
+end
+
+Base.inv(h::ProjectiveMap{T}) where T = ProjectiveMap(PlanarHomographyMat{T}(inv(h.H)))
+
 """
-    ProjectiveMap(camera::Camera) -> ProjectiveMap
+    ImageWarp{T} <: Transformation
+
+Wrapper for image warping that handles coordinate convention for `ImageTransformations.warp`.
+
+Composes `PerspectiveMap ∘ ProjectiveMap` and handles:
+- Input: (row, col) from warp → swap to (x, y)
+- Through: PerspectiveMap ∘ ProjectiveMap (full R^2 → P^2 → R^2 pipeline)
+- Output: (x, y) → swap back to (row, col)
+
+This is the transformation to use with `ImageTransformations.warp`.
+
+# Constructor
+- `ImageWarp(camera::Camera)` - for warping board image to camera view
+
+# Example
+```julia
+camera = Camera(model, extrinsics)
+H_transform = ImageWarp(camera)
+camera_view = warp(board_image, H_transform, output_axes)
+```
+"""
+struct ImageWarp{T<:Real} <: CoordinateTransformations.Transformation
+    transform::CoordinateTransformations.Transformation
+end
+
+"""
+    ImageWarp(camera::Camera) -> ImageWarp
 
 Convenience constructor for warping a board image as seen from camera.
 
 Computes the forward homography (board → image) and stores its **inverse** (image → board),
 since ImageTransformations.warp needs the inverse mapping to sample from the source image.
 
+Internally composes PerspectiveMap ∘ ProjectiveMap for the full R^2 → P^2 → R^2 pipeline.
+
 # Example
 ```julia
 # Warp board to camera view
-H_transform = ProjectiveMap(camera)  # Stores inv(H) for warping
+H_transform = ImageWarp(camera)
 camera_view = warp(board_image, H_transform, output_axes)
 ```
 """
-ProjectiveMap(camera::Camera{<:CameraModel{<:Any, PinholeProjection}}) =
-    ProjectiveMap(inv(PlanarHomographyMat(camera)))
+function ImageWarp(camera::Camera{<:CameraModel{<:Any, PinholeProjection}})
+    # Create inverse ProjectiveMap for warping (image → board)
+    proj = ProjectiveMap(inv(PlanarHomographyMat(camera)))
 
-(h::ProjectiveMap)(uv) = begin
-    # warp passes (row, col) as SVector{2,Int64}, but homography expects (x, y)
-    # Swap indices: row=y, col=x → (x, y) = (uv[2], uv[1])
-    p = h.H * to_affine(SVector(uv[2], uv[1]))
-    # Convert from homogeneous and return in (row, col) order: (y, x)
-    result = to_euclidean(p)
-    SVector(result[2], result[1])
+    # Compose PerspectiveMap ∘ ProjectiveMap: R^2 → P^2 → R^2
+    transform = CoordinateTransformations.PerspectiveMap() ∘ proj
+
+    return ImageWarp{Float64}(transform)
 end
 
-Base.inv(h::ProjectiveMap{T}) where T = ProjectiveMap(PlanarHomographyMat{T}(inv(h.H)))
+function (w::ImageWarp)(rc::SVector{2})
+    # Swap (row, col) → (x, y)
+    xy = SVector(rc[2], rc[1])
+
+    # Apply composed transformation: PerspectiveMap ∘ ProjectiveMap
+    result = w.transform(xy)  # Returns SVector{2}
+
+    # Swap back (x, y) → (row, col)
+    return SVector(result[2], result[1])
+end
 

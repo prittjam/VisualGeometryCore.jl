@@ -58,7 +58,8 @@ export Camera, StereoRig, pose, lookat, epipolarmap
 export CameraCalibrationMatrix  # 3x3 calibration matrix K
 export focal_length, sensor_size, pixel_density, aspect_ratio
 export p3p  # P3P solver for camera pose estimation
-export ProjectiveMap  # Projective homography transform for warping (follows CoordinateTransformations naming)
+export ProjectiveMap  # Projective homography R^2 → P^2 (follows CoordinateTransformations naming)
+export ImageWarp  # Image warping with PerspectiveMap ∘ ProjectiveMap composition
 
 # Export composable camera model system (using CoordinateTransformations)
 export LogicalIntrinsics, PhysicalIntrinsics
