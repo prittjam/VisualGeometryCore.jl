@@ -199,4 +199,4 @@ const CLEAN_TOL = 1e-9  # tolerance for snapping near integers/zero in JSON and 
 
 snap(x; tol=CLEAN_TOL) = (isfinite(x) && abs(x - round(x)) ≤ tol) ? round(x) : (abs(x) ≤ tol ? zero(x) : x)
 snapq(q; tol=CLEAN_TOL) = snap(ustrip(q); tol=tol) * unit(q)
-roundq(q; digits::Integer=6) = round(ustrip(q); digits=digits) * unit(q)
+unitful_round(q; digits::Integer=6) = round(ustrip(q); digits=digits) * unit(q)
