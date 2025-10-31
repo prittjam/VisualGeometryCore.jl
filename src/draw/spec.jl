@@ -163,27 +163,21 @@ function Blobs(blobs;
                              linestyle=:solid)
     plot_specs = Makie.PlotSpec[]
     if !isempty(blobs)
-        centers = [ustrip.(blob.center) for blob in blobs]
-        scales = [ustrip(blob.σ) for blob in blobs]
-
         # Handle color specification following Makie conventions:
-        # - If color is numeric, map through colormap
+        # - If color is numeric, let Makie map through colormap (pass colormap & colorrange)
         # - If color is a single symbolic color, use uniformly
         # - If color is a vector of colors, use directly
+        use_colormap = false
+        colorrange_val = nothing
+
         if color isa AbstractVector{<:Number}
-            # Numeric values: map through colormap
-            cmap = Makie.to_colormap(colormap)
-            n = length(color)
-            if n != length(blobs)
-                throw(ArgumentError("color vector length ($(n)) must match blobs length ($(length(blobs)))"))
+            # Numeric values: let Makie handle the colormap mapping
+            if length(color) != length(blobs)
+                throw(ArgumentError("color vector length ($(length(color))) must match blobs length ($(length(blobs)))"))
             end
-            # Normalize color values to [0, 1] and map to colormap
-            cmin, cmax = extrema(color)
-            colors = if cmin == cmax
-                fill(cmap[1], length(blobs))
-            else
-                [cmap[max(1, min(length(cmap), round(Int, (c - cmin) / (cmax - cmin) * (length(cmap) - 1) + 1)))] for c in color]
-            end
+            use_colormap = true
+            colorrange_val = extrema(color)
+            colors = color  # Pass numeric values directly
         elseif color isa AbstractVector
             # Vector of colors: use directly
             if length(color) != length(blobs)
@@ -191,52 +185,67 @@ function Blobs(blobs;
             end
             colors = color
         else
-            # Single color: use uniformly
+            # Single color: replicate for all blobs
             colors = fill(color, length(blobs))
         end
 
-        # Add circles for blob scales using proper geometric circles
+        # Extract centers (common to both branches)
+        centers = ustrip.(origin.(blobs))
+
+        # Add circles for blob scales using Circle constructor with broadcast
         if sigma_cutoff > 0
-            for (i, (c, s)) in enumerate(zip(centers, scales))
-                radius = s * sigma_cutoff
-                center_point = Point2f(c[1], c[2])
-                circle_geom = GeometryBasics.Circle(center_point, radius)
+            # Create all circles at once using broadcast
+            circles = Circle.(blobs, Ref(sigma_cutoff))
 
-                # Background circle (white outline)
-                background_circle = MakieSpec.Lines(
-                    circle_geom;
-                    color=:white,
-                    linewidth=linewidth + 2
-                )
-                push!(plot_specs, background_circle)
+            # Background circles (white outlines) - single PlotSpec for all
+            background_circles = MakieSpec.Lines(
+                circles;
+                color=:white,
+                linewidth=linewidth + 2,
+                linestyle=linestyle
+            )
+            push!(plot_specs, background_circles)
 
-                # Foreground circle (colored outline)
-                foreground_circle = MakieSpec.Lines(
-                    circle_geom;
-                    color=colors[i],
-                    linewidth=linewidth
+            # Foreground circles (colored outlines) - single PlotSpec with per-circle colors
+            if use_colormap
+                foreground_circles = MakieSpec.Lines(
+                    circles;
+                    color=colors,
+                    linewidth=linewidth,
+                    linestyle=linestyle,
+                    colormap=colormap,
+                    colorrange=colorrange_val
                 )
-                push!(plot_specs, foreground_circle)
+            else
+                foreground_circles = MakieSpec.Lines(
+                    circles;
+                    color=colors,
+                    linewidth=linewidth,
+                    linestyle=linestyle
+                )
             end
-
-            # Center markers with per-blob colors
-            center_markers = MakieSpec.Scatter(
-                [c[1] for c in centers], [c[2] for c in centers];
-                marker=marker,
-                markersize=markersize,
-                color=colors
-            )
-            push!(plot_specs, center_markers)
-        else
-            # If no scale_factor, just plot center markers
-            center_markers = MakieSpec.Scatter(
-                [c[1] for c in centers], [c[2] for c in centers];
-                marker=marker,
-                markersize=markersize,
-                color=colors
-            )
-            push!(plot_specs, center_markers)
+            push!(plot_specs, foreground_circles)
         end
+
+        # Center markers with per-blob colors (always rendered)
+        if use_colormap
+            center_markers = MakieSpec.Scatter(
+                centers;
+                marker=marker,
+                markersize=markersize,
+                color=colors,
+                colormap=colormap,
+                colorrange=colorrange_val
+            )
+        else
+            center_markers = MakieSpec.Scatter(
+                centers;
+                marker=marker,
+                markersize=markersize,
+                color=colors
+            )
+        end
+        push!(plot_specs, center_markers)
     end
 
     return plot_specs
@@ -317,10 +326,8 @@ function Ellipses(ellipses;
 
         # Add center markers if requested
         if marker !== nothing
-            centers = [ellipse.center for ellipse in ellipses]
-            center_x = [c[1] for c in centers]
-            center_y = [c[2] for c in centers]
-            marker_spec = MakieSpec.Scatter(center_x, center_y;
+            centers = [e.center for e in ellipses]
+            marker_spec = MakieSpec.Scatter(centers;
                                            marker=marker,
                                            markersize=markersize,
                                            color=color)
