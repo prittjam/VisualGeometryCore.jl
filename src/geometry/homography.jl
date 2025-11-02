@@ -87,8 +87,7 @@ struct ProjectiveMap{T<:Real} <: CoordinateTransformations.Transformation
 end
 
 # Pure homogeneous transformation: R^2 → P^2
-(h::ProjectiveMap)(p::Point2) = h.H * to_affine(p)  # Returns SVector{3}
-(h::ProjectiveMap)(p::SVector{2}) = h.H * SVector(p[1], p[2], 1.0)  # Returns SVector{3}
+(h::ProjectiveMap)(p::StaticVector{2}) = h.H * to_affine(p)  # Returns SVector{3}
 
 # Composition in homogeneous space
 function Base.:∘(A::ProjectiveMap, B::ProjectiveMap)
