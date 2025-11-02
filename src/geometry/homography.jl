@@ -99,6 +99,10 @@ end
 
 Base.inv(h::ProjectiveMap{T}) where T = ProjectiveMap(PlanarHomographyMat{T}(inv(h.H)))
 
+# Trait method for ProjectiveMap
+trait(::ProjectiveMap) = ProjectiveTrait()
+trait(::Type{<:ProjectiveMap}) = ProjectiveTrait()
+
 """
     ImageWarp{T} <: Transformation
 

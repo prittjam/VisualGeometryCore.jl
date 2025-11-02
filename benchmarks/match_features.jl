@@ -31,7 +31,8 @@ for level in ss
     resp_level.data .= Gray{Float32}.(det_data)
 end
 
-extrema, _ = detect_extrema(hessian_resp;
+discrete = find_extrema_3d(hessian_resp, 0.8 * 0.003)
+extrema = refine_extrema(hessian_resp, discrete;
     peak_threshold=0.003,
     edge_threshold=10.0,
     base_scale=2.015874,

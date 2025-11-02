@@ -453,26 +453,42 @@ Matches VLFeat's `vl_covdet_new(VL_COVDET_METHOD_HESSIAN_LAPLACE)` workflow.
     - `> 0`: Dark blob (intensity valley)
     - `NaN`: Laplacian not computed (basic Hessian detector)
 
-Use `change_image_origin(blob; from=:vlfeat, to=:matlab)` or
-`change_image_origin(blob; from=:opencv, to=:makie)` to convert
-to other coordinate conventions if needed.
+To convert to other coordinate conventions, use:
+```julia
+offset = image_origin_offset(from=:opencv, to=:matlab)
+blob_converted = @set blob.center = blob.center .+ offset
+```
 
 # Example
 ```julia
 using FileIO
 
-# Load image
+# High-level API: Detect all blobs
 img = load("test.png")
-
-# Detect all blobs
 blobs = detect_features(img)
 
 # Filter by type
 bright_blobs = filter(b -> b.laplacian_scale_score < 0, blobs)
 dark_blobs = filter(b -> b.laplacian_scale_score > 0, blobs)
+
+# Low-level API: Manual detection with full control
+ss = ScaleSpace(img; first_octave=-1, octave_resolution=3)
+ixx = ScaleSpaceResponse(ss, DERIVATIVE_KERNELS.xx)
+iyy = ScaleSpaceResponse(ss, DERIVATIVE_KERNELS.yy)
+ixy = ScaleSpaceResponse(ss, DERIVATIVE_KERNELS.xy)
+hessian_det = hessian_determinant_response(ixx, iyy, ixy)
+
+# Find and refine extrema
+discrete = find_extrema_3d(hessian_det, 0.8 * 0.001)
+extrema = refine_extrema(hessian_det, discrete;
+                         peak_threshold=0.001,
+                         edge_threshold=10.0)
+
+# Convert to blob detections using constructor
+blobs = IsoBlobDetection.(extrema)  # laplacian_scale_score will be NaN
 ```
 
-See also: `detect_features(::ScaleSpaceResponse)` for lower-level control.
+See also: `find_extrema_3d`, `refine_extrema`, `IsoBlobDetection` for low-level access.
 """
 function detect_features(img;
                         method::Symbol=:hessian_laplace,
@@ -483,7 +499,7 @@ function detect_features(img;
                         first_subdivision::Int=-1,
                         last_subdivision::Int=3,
                         base_scale::Float64=2.015874,
-                        pixel_convention::Symbol=:colmap)
+                        image_origin::Symbol=:colmap)
     # Only support hessian_laplace for now
     if method != :hessian_laplace
         throw(ArgumentError("Only :hessian_laplace method is currently supported"))
@@ -508,112 +524,26 @@ function detect_features(img;
     hessian_det = hessian_determinant_response(ixx, iyy, ixy)
     laplacian = laplacian_response(ixx, iyy)
 
-    # Detect features using the ScaleSpaceResponse method
-    blobs = detect_features(hessian_det;
-                          peak_threshold=peak_threshold,
-                          edge_threshold=edge_threshold,
-                          base_scale=base_scale,
-                          octave_resolution=octave_resolution,
-                          laplacian_resp=laplacian)
-
-    # Convert to requested pixel coordinate convention (default :colmap)
-    # IsoBlobDetection uses 0-indexed coordinates (like :opencv)
-    return change_image_origin.(blobs; from=:opencv, to=pixel_convention)
-end
-
-"""
-    detect_features(response::ScaleSpaceResponse;
-                    peak_threshold::Float64=0.001,
-                    edge_threshold::Float64=10.0,
-                    base_scale::Float64=1.6,
-                    octave_resolution::Int=3,
-                    laplacian_resp::Union{Nothing,ScaleSpaceResponse}=nothing)
-
-Detect blob features in scale space using VLFeat's Hessian detector algorithm.
-
-This is a mid-level API for when you already have computed Hessian responses.
-For simple image-to-blobs detection, use `detect_features(img)` instead.
-
-# Arguments
-- `response`: ScaleSpaceResponse containing Hessian determinant responses
-- `peak_threshold`: Minimum absolute peak score (default: 0.001)
-- `edge_threshold`: Maximum edge score for rejection (default: 10.0)
-- `base_scale`: Base scale parameter (default: 1.6)
-- `octave_resolution`: Number of subdivisions per octave (default: 3)
-- `laplacian_resp`: Optional Laplacian response for bright/dark blob classification
-
-# Returns
-- `Vector{IsoBlobDetection}`: Detected blob features
-
-# Example
-```julia
-# Build scale space
-ss = ScaleSpace(img; first_octave=-1, octave_resolution=3)
-
-# Compute Hessian components
-ixx = ScaleSpaceResponse(ss, DERIVATIVE_KERNELS.xx)
-iyy = ScaleSpaceResponse(ss, DERIVATIVE_KERNELS.yy)
-ixy = ScaleSpaceResponse(ss, DERIVATIVE_KERNELS.xy)
-
-# Compute determinant and Laplacian
-hessian_det = hessian_determinant_response(ixx, iyy, ixy)
-laplacian = laplacian_response(ixx, iyy)
-
-# Detect features
-features = detect_features(hessian_det;
-    peak_threshold=0.001,
-    edge_threshold=10.0,
-    laplacian_resp=laplacian)
-```
-
-See also: `detect_features(img)` for top-level API, `find_extrema_3d`, `refine_extrema` for low-level access.
-"""
-function detect_features(extrema::Vector{Extremum3D}; laplacian_resp::Union{Nothing,ScaleSpaceResponse}=nothing)
-    # Convert to IsoBlobDetection (matches VLFeat's VlCovDetFeature output)
-    if laplacian_resp === nothing
-        # No Laplacian available - use default NaN
-        return [IsoBlobDetection(extremum) for extremum in extrema]
-    else
-        # Interpolate Laplacian values for each extremum
-        return [IsoBlobDetection(extremum, interpolate_laplacian(laplacian_resp, extremum))
-                for extremum in extrema]
-    end
-end
-
-function detect_features(response::ScaleSpaceResponse;
-                        peak_threshold::Float64=0.001,
-                        edge_threshold::Float64=10.0,
-                        base_scale::Float64=1.6,
-                        octave_resolution::Int=3,
-                        laplacian_resp::Union{Nothing,ScaleSpaceResponse}=nothing)
     # Find discrete extrema (use 0.8× threshold for initial detection)
-    discrete = find_extrema_3d(response, 0.8 * peak_threshold)
+    discrete = find_extrema_3d(hessian_det, 0.8 * peak_threshold)
 
     # Refine extrema to sub-pixel accuracy
-    refined = refine_extrema(response, discrete;
+    refined = refine_extrema(hessian_det, discrete;
                             peak_threshold=peak_threshold,
                             edge_threshold=edge_threshold,
                             base_scale=base_scale,
                             octave_resolution=octave_resolution)
 
-    # Convert using the other method
-    return detect_features(refined; laplacian_resp=laplacian_resp)
+    # Convert to blob detections, interpolating Laplacian values for bright/dark classification
+    blobs = [IsoBlobDetection(e, interpolate_laplacian(laplacian, e)) for e in refined]
+
+    # Convert to requested pixel coordinate convention (default :colmap)
+    # IsoBlobDetection uses 0-indexed coordinates (like :opencv)
+    offset_vec = image_origin_offset(from=:opencv, to=image_origin)
+    # Apply offset while preserving the unit type of each blob's center
+    return [@set b.center = b.center .+ ustrip.(offset_vec) .* unit(eltype(b.center)) for b in blobs]
 end
 
-# Deprecated alias for backward compatibility - returns raw Extremum3D
-function detect_extrema(args...; kwargs...)
-    @warn "detect_extrema is deprecated, use detect_features for IsoBlobDetection or refine_extrema for Extremum3D" maxlog=1
-
-    # Keep old behavior: return (refined, discrete) tuple with Extremum3D
-    response = args[1]
-    discrete = find_extrema_3d(response, 0.8 * get(kwargs, :peak_threshold, 0.001))
-    refined = refine_extrema(response, discrete;
-                            peak_threshold=get(kwargs, :peak_threshold, 0.001),
-                            edge_threshold=get(kwargs, :edge_threshold, 10.0),
-                            base_scale=get(kwargs, :base_scale, 1.6),
-                            octave_resolution=get(kwargs, :octave_resolution, 3))
-    return (refined, discrete)
-end
 
 """
     IsoBlobDetection(extremum::Extremum3D, laplacian_itp=nothing)

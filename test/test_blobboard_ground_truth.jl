@@ -65,7 +65,8 @@ using Unitful
     # Convert from VLFeat/OpenCV convention to Colmap convention
     # (BlobBoard JSON uses Colmap/Makie continuous coordinate space)
     println("  Converting coordinates from VLFeat to Colmap convention...")
-    blob_detections_colmap = change_image_origin.(blob_detections; from=:vlfeat, to=:colmap)
+    offset_vec = image_origin_offset(from=:vlfeat, to=:colmap)
+    blob_detections_colmap = [@set b.center = b.center .+ ustrip.(offset_vec) .* unit(eltype(b.center)) for b in blob_detections]
 
     # Count Laplacian polarities for reporting (all detections are blobs)
     num_bright = count(b -> b.laplacian_scale_score < 0, blob_detections_colmap)

@@ -96,7 +96,8 @@ using NearestNeighbors
         hessian_resp = hessian_determinant_response(ixx, iyy, ixy)
 
         # Detect extrema
-        extrema, _ = detect_extrema(hessian_resp;
+        discrete = find_extrema_3d(hessian_resp, 0.8 * 0.001)
+        extrema = refine_extrema(hessian_resp, discrete;
             peak_threshold=0.001,
             edge_threshold=10.0,
             base_scale=2.015874,
@@ -129,7 +130,8 @@ using NearestNeighbors
         ixy = ScaleSpaceResponse(ss, DERIVATIVE_KERNELS.xy)
         hessian_resp = hessian_determinant_response(ixx, iyy, ixy)
 
-        extrema, _ = detect_extrema(hessian_resp;
+        discrete = find_extrema_3d(hessian_resp, 0.8 * 0.001)
+        extrema = refine_extrema(hessian_resp, discrete;
             peak_threshold=0.001,
             edge_threshold=10.0,
             base_scale=2.015874,

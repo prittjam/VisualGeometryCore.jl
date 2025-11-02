@@ -197,34 +197,38 @@ function Blobs(blobs;
             # Create all circles at once using broadcast
             circles = Circle.(blobs, Ref(sigma_cutoff))
 
-            # Background circles (white outlines) - single PlotSpec for all
-            background_circles = MakieSpec.Lines(
-                circles;
-                color=:white,
-                linewidth=linewidth + 2,
-                linestyle=linestyle
-            )
-            push!(plot_specs, background_circles)
+            # Convert circles to point arrays for Makie Lines plotting
+            circle_points = GeometryBasics.coordinates.(circles)
 
-            # Foreground circles (colored outlines) - single PlotSpec with per-circle colors
-            if use_colormap
-                foreground_circles = MakieSpec.Lines(
-                    circles;
-                    color=colors,
-                    linewidth=linewidth,
-                    linestyle=linestyle,
-                    colormap=colormap,
-                    colorrange=colorrange_val
-                )
-            else
-                foreground_circles = MakieSpec.Lines(
-                    circles;
-                    color=colors,
-                    linewidth=linewidth,
+            # Create individual Lines specs for each circle (Makie Lines needs one spec per line)
+            for (i, points) in enumerate(circle_points)
+                # Background circle (white outline)
+                push!(plot_specs, MakieSpec.Lines(
+                    points;
+                    color=:white,
+                    linewidth=linewidth + 2,
                     linestyle=linestyle
-                )
+                ))
+
+                # Foreground circle (colored outline)
+                if use_colormap
+                    push!(plot_specs, MakieSpec.Lines(
+                        points;
+                        color=colors[i],
+                        linewidth=linewidth,
+                        linestyle=linestyle,
+                        colormap=colormap,
+                        colorrange=colorrange_val
+                    ))
+                else
+                    push!(plot_specs, MakieSpec.Lines(
+                        points;
+                        color=colors[i],
+                        linewidth=linewidth,
+                        linestyle=linestyle
+                    ))
+                end
             end
-            push!(plot_specs, foreground_circles)
         end
 
         # Center markers with per-blob colors (always rendered)

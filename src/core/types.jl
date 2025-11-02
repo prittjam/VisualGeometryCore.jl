@@ -105,6 +105,10 @@ function Base.:∘(A::EuclideanMap{N,TA}, B::EuclideanMap{N,TB}) where {N,TA,TB}
     return EuclideanMap(R_composed, t_composed)
 end
 
+# Trait method for EuclideanMap
+trait(::EuclideanMap) = EuclideanTrait()
+trait(::Type{<:EuclideanMap}) = EuclideanTrait()
+
 # Helper functions with unique name to avoid collisions
 extract_field(x::Dict{String,Any}, key::String) = x[key]
 extract_field(x::JSON3.Object, key::String) = getproperty(x, Symbol(key))

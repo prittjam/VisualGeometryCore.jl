@@ -46,16 +46,85 @@ const HomConicAny = Union{HomEllipseMat, HomCircleMat}
 # Holy Trait-based Transform Composition
 # ------------------------------------
 
-# Transform category traits
+# Transform category traits with hierarchy for dispatch
+
+"""
+    TransformTrait
+
+Abstract base type for transformation category traits.
+Uses Holy Traits pattern with promote_rule for automatic composition inference.
+"""
 abstract type TransformTrait end
-struct RotationTrait <: TransformTrait end
-struct TranslationTrait <: TransformTrait end
-struct IsotropicScaleTrait <: TransformTrait end
-struct AnisotropicScaleTrait <: TransformTrait end
-struct EuclideanTrait <: TransformTrait end
-struct SimilarityTrait <: TransformTrait end
+
+"""
+    RigidTrait <: TransformTrait
+
+Abstract parent for rigid transformations (preserve distances).
+Includes: Rotation, Translation, Euclidean
+"""
+abstract type RigidTrait <: TransformTrait end
+
+"""
+    ScaleTrait <: TransformTrait
+
+Abstract parent for transformations including scaling.
+"""
+abstract type ScaleTrait <: TransformTrait end
+
+# Concrete trait types
+struct RotationTrait <: RigidTrait end
+struct TranslationTrait <: RigidTrait end
+struct IsotropicScaleTrait <: ScaleTrait end
+struct AnisotropicScaleTrait <: ScaleTrait end
+struct EuclideanTrait <: RigidTrait end
+struct SimilarityTrait <: ScaleTrait end
 struct AffineTrait <: TransformTrait end
 struct ProjectiveTrait <: TransformTrait end
+
+# ------------------------------------
+# Trait Promotion Rules
+# ------------------------------------
+
+# Symmetric helper macro for bidirectional promotion
+macro symmetric_promote_rule(T1, T2, Result)
+    quote
+        Base.promote_rule(::Type{$(esc(T1))}, ::Type{$(esc(T2))}) = $(esc(Result))
+        Base.promote_rule(::Type{$(esc(T2))}, ::Type{$(esc(T1))}) = $(esc(Result))
+    end
+end
+
+# Identity promotions (same trait)
+Base.promote_rule(::Type{T}, ::Type{T}) where {T<:TransformTrait} = T
+
+# Level 1→2: Component rigids → Euclidean
+@symmetric_promote_rule RotationTrait TranslationTrait EuclideanTrait
+
+# Level 2: Euclidean absorbs other rigid traits
+Base.promote_rule(::Type{EuclideanTrait}, ::Type{<:RigidTrait}) = EuclideanTrait
+Base.promote_rule(::Type{<:RigidTrait}, ::Type{EuclideanTrait}) = EuclideanTrait
+
+# Scaling composition
+@symmetric_promote_rule IsotropicScaleTrait AnisotropicScaleTrait AnisotropicScaleTrait
+
+# Level 2→3: Rigid + IsotropicScale → Similarity
+Base.promote_rule(::Type{<:RigidTrait}, ::Type{IsotropicScaleTrait}) = SimilarityTrait
+Base.promote_rule(::Type{IsotropicScaleTrait}, ::Type{<:RigidTrait}) = SimilarityTrait
+@symmetric_promote_rule SimilarityTrait IsotropicScaleTrait SimilarityTrait
+
+# Level 3→4: Rigid + AnisotropicScale → Affine (breaks similarity)
+Base.promote_rule(::Type{<:RigidTrait}, ::Type{AnisotropicScaleTrait}) = AffineTrait
+Base.promote_rule(::Type{AnisotropicScaleTrait}, ::Type{<:RigidTrait}) = AffineTrait
+
+# Level 3→4: Similarity + AnisotropicScale → Affine
+@symmetric_promote_rule SimilarityTrait AnisotropicScaleTrait AffineTrait
+
+# Level 4: Affine absorbs all lower-level transforms
+Base.promote_rule(::Type{AffineTrait}, ::Type{<:TransformTrait}) = AffineTrait
+Base.promote_rule(::Type{<:TransformTrait}, ::Type{AffineTrait}) = AffineTrait
+
+# Level 5: Projective absorbs everything (most general)
+Base.promote_rule(::Type{ProjectiveTrait}, ::Type{<:TransformTrait}) = ProjectiveTrait
+Base.promote_rule(::Type{<:TransformTrait}, ::Type{ProjectiveTrait}) = ProjectiveTrait
 
 # Trait dispatch for transform types
 transform_trait(::Type{<:HomRotMat}) = RotationTrait()
@@ -67,57 +136,27 @@ transform_trait(::Type{<:SimilarityMat}) = SimilarityTrait()
 transform_trait(::Type{<:AffineMat}) = AffineTrait()
 transform_trait(::Type{<:PlanarHomographyMat}) = ProjectiveTrait()
 
-# No ranking needed! We use dispatch failure as a signal to swap arguments
+# ------------------------------------
+# Result Type Computation via Promotion
+# ------------------------------------
 
-# Result type computation using traits (canonical order only)
-result_type_trait(::RotationTrait, ::RotationTrait) = HomRotMat
-result_type_trait(::TranslationTrait, ::TranslationTrait) = HomTransMat
-result_type_trait(::IsotropicScaleTrait, ::IsotropicScaleTrait) = HomScaleIsoMat
-result_type_trait(::AnisotropicScaleTrait, ::AnisotropicScaleTrait) = HomScaleAnisoMat
-result_type_trait(::EuclideanTrait, ::EuclideanTrait) = EuclideanMat
-result_type_trait(::SimilarityTrait, ::SimilarityTrait) = SimilarityMat
-result_type_trait(::AffineTrait, ::AffineTrait) = AffineMat
+# Map from promoted trait type to matrix type
+matrix_type(::Type{RotationTrait}) = HomRotMat
+matrix_type(::Type{TranslationTrait}) = HomTransMat
+matrix_type(::Type{IsotropicScaleTrait}) = HomScaleIsoMat
+matrix_type(::Type{AnisotropicScaleTrait}) = HomScaleAnisoMat
+matrix_type(::Type{EuclideanTrait}) = EuclideanMat
+matrix_type(::Type{SimilarityTrait}) = SimilarityMat
+matrix_type(::Type{AffineTrait}) = AffineMat
+matrix_type(::Type{ProjectiveTrait}) = PlanarHomographyMat
 
-# Euclidean combinations (rotation + translation)
-result_type_trait(::RotationTrait, ::TranslationTrait) = EuclideanMat
-result_type_trait(::RotationTrait, ::EuclideanTrait) = EuclideanMat
-result_type_trait(::TranslationTrait, ::EuclideanTrait) = EuclideanMat
-
-# Scaling combinations
-result_type_trait(::IsotropicScaleTrait, ::AnisotropicScaleTrait) = HomScaleAnisoMat
-
-# Similarity combinations (rotation + translation + uniform scaling)
-result_type_trait(::RotationTrait, ::IsotropicScaleTrait) = SimilarityMat
-result_type_trait(::TranslationTrait, ::IsotropicScaleTrait) = SimilarityMat
-result_type_trait(::IsotropicScaleTrait, ::EuclideanTrait) = SimilarityMat
-result_type_trait(::RotationTrait, ::SimilarityTrait) = SimilarityMat
-result_type_trait(::TranslationTrait, ::SimilarityTrait) = SimilarityMat
-result_type_trait(::IsotropicScaleTrait, ::SimilarityTrait) = SimilarityMat
-result_type_trait(::EuclideanTrait, ::SimilarityTrait) = SimilarityMat
-
-# Anisotropic scaling breaks similarity → Affine
-result_type_trait(::RotationTrait, ::AnisotropicScaleTrait) = AffineMat
-result_type_trait(::TranslationTrait, ::AnisotropicScaleTrait) = AffineMat
-result_type_trait(::AnisotropicScaleTrait, ::EuclideanTrait) = AffineMat
-result_type_trait(::AnisotropicScaleTrait, ::SimilarityTrait) = AffineMat
-
-# Anything with Affine → Affine
-result_type_trait(::RotationTrait, ::AffineTrait) = AffineMat
-result_type_trait(::TranslationTrait, ::AffineTrait) = AffineMat
-result_type_trait(::IsotropicScaleTrait, ::AffineTrait) = AffineMat
-result_type_trait(::AnisotropicScaleTrait, ::AffineTrait) = AffineMat
-result_type_trait(::EuclideanTrait, ::AffineTrait) = AffineMat
-result_type_trait(::SimilarityTrait, ::AffineTrait) = AffineMat
-
-# Projective combinations (most general - anything with projective is projective)
-result_type_trait(::ProjectiveTrait, ::TransformTrait) = PlanarHomographyMat
-
-# Fallback trait method - if we hit this, swap arguments and try again
-result_type_trait(a::TransformTrait, b::TransformTrait) = result_type_trait(b, a)
-
-# Public interface - just dispatch to traits
-result_type(::Type{A}, ::Type{B}) where {A<:HomMatAny, B<:HomMatAny} =
-    result_type_trait(transform_trait(A), transform_trait(B))
+# Compute result type using trait promotion
+function result_type(::Type{A}, ::Type{B}) where {A<:HomMatAny, B<:HomMatAny}
+    trait_a = typeof(transform_trait(A))
+    trait_b = typeof(transform_trait(B))
+    promoted_trait = promote_type(trait_a, trait_b)
+    return matrix_type(promoted_trait)
+end
 
 # ------------------------------------
 # Holy Trait-based Conic Classification
@@ -128,9 +167,59 @@ abstract type ConicTrait end
 struct CircleTrait <: ConicTrait end
 struct EllipseTrait <: ConicTrait end
 
+# Trait dispatch for conic types
+conic_trait(::Type{<:HomCircleMat}) = CircleTrait()
+conic_trait(::Type{<:HomEllipseMat}) = EllipseTrait()
+
+# ------------------------------------
+# Conic Transformation Result Types
+# ------------------------------------
+
+# Promotion rules: Transform × Conic → Conic
+# Circle + Similarity (rotation/translation/uniform scale) → Circle (preserves circularity)
+Base.promote_rule(::Type{RotationTrait}, ::Type{CircleTrait}) = CircleTrait
+Base.promote_rule(::Type{TranslationTrait}, ::Type{CircleTrait}) = CircleTrait
+Base.promote_rule(::Type{EuclideanTrait}, ::Type{CircleTrait}) = CircleTrait
+Base.promote_rule(::Type{IsotropicScaleTrait}, ::Type{CircleTrait}) = CircleTrait
+Base.promote_rule(::Type{SimilarityTrait}, ::Type{CircleTrait}) = CircleTrait
+
+# Symmetric versions (Conic × Transform)
+Base.promote_rule(::Type{CircleTrait}, ::Type{RotationTrait}) = CircleTrait
+Base.promote_rule(::Type{CircleTrait}, ::Type{TranslationTrait}) = CircleTrait
+Base.promote_rule(::Type{CircleTrait}, ::Type{EuclideanTrait}) = CircleTrait
+Base.promote_rule(::Type{CircleTrait}, ::Type{IsotropicScaleTrait}) = CircleTrait
+Base.promote_rule(::Type{CircleTrait}, ::Type{SimilarityTrait}) = CircleTrait
+
+# Circle + Anisotropic/Affine/Projective → Ellipse (breaks circularity)
+Base.promote_rule(::Type{AnisotropicScaleTrait}, ::Type{CircleTrait}) = EllipseTrait
+Base.promote_rule(::Type{AffineTrait}, ::Type{CircleTrait}) = EllipseTrait
+Base.promote_rule(::Type{ProjectiveTrait}, ::Type{CircleTrait}) = EllipseTrait
+
+Base.promote_rule(::Type{CircleTrait}, ::Type{AnisotropicScaleTrait}) = EllipseTrait
+Base.promote_rule(::Type{CircleTrait}, ::Type{AffineTrait}) = EllipseTrait
+Base.promote_rule(::Type{CircleTrait}, ::Type{ProjectiveTrait}) = EllipseTrait
+
+# Ellipse + any transform → Ellipse (ellipses stay ellipses)
+Base.promote_rule(::Type{<:TransformTrait}, ::Type{EllipseTrait}) = EllipseTrait
+Base.promote_rule(::Type{EllipseTrait}, ::Type{<:TransformTrait}) = EllipseTrait
+
+# Map from promoted trait to conic matrix type
+conic_matrix_type(::Type{CircleTrait}) = HomCircleMat
+conic_matrix_type(::Type{EllipseTrait}) = HomEllipseMat
+
+# Compute result type for transform × conic
+function conic_result_type(::Type{H}, ::Type{Q}) where {H<:HomMatAny, Q<:HomConicAny}
+    trait_h = typeof(transform_trait(H))
+    trait_q = typeof(conic_trait(Q))
+    promoted_conic = promote_type(trait_h, trait_q)
+    return conic_matrix_type(promoted_conic)
+end
+
 # Additional similar_type methods to construct any result type with new element type
-# This allows us to use similar_type(ResultType, NewElementType) even when ResultType 
+# This allows us to use similar_type(ResultType, NewElementType) even when ResultType
 # is different from the input types
+
+# Transform matrix types
 StaticArrays.similar_type(::Type{HomRotMat}, ::Type{T}) where {T} = HomRotMat{T}
 StaticArrays.similar_type(::Type{HomTransMat}, ::Type{T}) where {T} = HomTransMat{T}
 StaticArrays.similar_type(::Type{HomScaleIsoMat}, ::Type{T}) where {T} = HomScaleIsoMat{T}
@@ -139,6 +228,10 @@ StaticArrays.similar_type(::Type{EuclideanMat}, ::Type{T}) where {T} = Euclidean
 StaticArrays.similar_type(::Type{SimilarityMat}, ::Type{T}) where {T} = SimilarityMat{T}
 StaticArrays.similar_type(::Type{AffineMat}, ::Type{T}) where {T} = AffineMat{T}
 StaticArrays.similar_type(::Type{PlanarHomographyMat}, ::Type{T}) where {T} = PlanarHomographyMat{T}
+
+# Conic matrix types
+StaticArrays.similar_type(::Type{HomCircleMat}, ::Type{T}) where {T} = HomCircleMat{T}
+StaticArrays.similar_type(::Type{HomEllipseMat}, ::Type{T}) where {T} = HomEllipseMat{T}
 
 # Single multiplication function
 function Base.:*(a::HomMatAny, b::HomMatAny)
