@@ -121,6 +121,19 @@ function Base.round(::Type{T}, r::HyperRectangle{N,S}) where {T,S,N}
     return HyperRectangle{N,T}(rounded_origin, rounded_widths)
 end
 
+"""
+    center(r::HyperRectangle)
+
+Get the center point of a HyperRectangle (Rect/Rect2).
+
+# Examples
+```julia
+rect = Rect2(0.5, 0.5, 1920.0, 1200.0)
+c = center(rect)  # [960.5, 600.5]
+```
+"""
+center(r::HyperRectangle) = r.origin .+ r.widths ./ 2
+
 # Size2 constructor from Rect using widths field
 """
     Size2(r::Rect{N,T}) where {N,T}
@@ -137,7 +150,7 @@ Create a Rect from a Size2 with origin at (0,0) and widths filled from the size 
 Rect(s::Size2{T}) where T = Rect(Point2{T}(zero(T), zero(T)), Vec2{T}(s.width, s.height))
 
 """
-    to_ranges(p1::StaticVector{N,<:Integer}, p2::StaticVector{N,<:Integer}) -> NTuple{N, UnitRange{<:Integer}}
+    ranges(p1::StaticVector{N,<:Integer}, p2::StaticVector{N,<:Integer}) -> NTuple{N, UnitRange{<:Integer}}
 
 Convert two N-dimensional integer points to a tuple of ranges suitable for CartesianIndices.
 
@@ -152,7 +165,7 @@ CartesianIndices to create array indices.
 Tuple of UnitRange objects, one per dimension
 
 """
-to_ranges(p1::StaticVector{N,<:Integer}, p2::StaticVector{N,<:Integer}) where N =
+ranges(p1::StaticVector{N,<:Integer}, p2::StaticVector{N,<:Integer}) where N =
     ntuple(i -> p1[i]:p2[i], N)
 
 # =============================================================================
@@ -160,132 +173,55 @@ to_ranges(p1::StaticVector{N,<:Integer}, p2::StaticVector{N,<:Integer}) where N 
 # =============================================================================
 
 """
-    change_image_origin(primitive; from::Symbol, to::Symbol) -> typeof(primitive)
+    image_origin_offset(; from::Symbol, to::Symbol) -> Vec2{<:Quantity{px}}
 
-Change the image origin convention (pixel coordinate system) of a geometric primitive.
+Compute the offset vector needed to convert coordinates from one image origin convention to another.
 
-This function converts coordinates between different image origin conventions used across
-computer vision systems by shifting the origin.
+This is a compositional function that returns just the offset (with units of px), allowing you to apply
+it however you need (e.g., to points, blobs, or other geometric primitives).
 
 # Image Origin Conventions
-
-Different computer vision systems use different conventions for pixel/image coordinates:
-
-- **Makie/Colmap** (`:makie` or `:colmap`): First pixel center at (0.5, 0.5), corner at (0, 0)
-  - Continuous coordinate space, pixel centers at half-integer positions
-- **MATLAB/Julia** (`:matlab` or `:julia`): First pixel center at (1, 1), corner at (0.5, 0.5)
-  - 1-based array indexing used as coordinates
-- **OpenCV/VLFeat** (`:opencv` or `:vlfeat`): First pixel center at (0, 0), corner at (-0.5, -0.5)
-  - 0-based array indexing used as coordinates
+- `:opencv`, `:vlfeat`: Top-left pixel center at (0, 0)
+- `:makie`, `:colmap`: Top-left pixel center at (0.5, 0.5)
+- `:matlab`, `:julia`: Top-left pixel center at (1, 1)
 
 # Arguments
-- `primitive`: Any GeometryBasics type with `origin()` method (Circle, Sphere, Rect, IsoBlob, etc.)
-- `from::Symbol`: Source pixel coordinate convention (what the primitive is currently in)
-- `to::Symbol`: Target pixel coordinate convention (what you want to convert to)
+- `from::Symbol`: Source image origin convention
+- `to::Symbol`: Target image origin convention
 
 # Returns
-New primitive of same type with shifted origin
+`Vec2` offset (with units of px) to add to coordinates when converting from `from` to `to` convention.
 
 # Examples
 ```julia
-using VisualGeometryCore
-using GeometryBasics
+# Get offset from OpenCV to MATLAB convention
+offset = image_origin_offset(from=:opencv, to=:matlab)  # Vec2(1.0px, 1.0px)
 
-# Convert from VLFeat/OpenCV convention to MATLAB/Julia convention
-blob_vlfeat = IsoBlob(Point2(10.0pd, 20.0pd), 2.0pd)  # In VLFeat convention
-blob_matlab = change_image_origin(blob_vlfeat; from=:vlfeat, to=:matlab)  # center at (11.0pd, 21.0pd)
+# Apply to a point
+pt_opencv = Point2(10.0px, 20.0px)
+pt_matlab = pt_opencv .+ offset  # Point2(11.0px, 21.0px)
 
-# Convert from MATLAB to Makie/Colmap convention
-blob_makie = change_image_origin(blob_matlab; from=:matlab, to=:makie)  # center at (10.5pd, 20.5pd)
-
-# detect_features outputs in VLFeat/OpenCV convention, convert to MATLAB
-blobs = detect_features(img)
-blobs_matlab = change_image_origin.(blobs; from=:vlfeat, to=:matlab)
-
-# Convert to Makie convention for plotting
-blobs_makie = change_image_origin.(blobs; from=:vlfeat, to=:makie)
-
-# Aliases work too
-circles = [Circle(Point2(Float64(i), Float64(i)), 5.0) for i in 1:5]
-circles_colmap = change_image_origin.(circles; from=:julia, to=:colmap)  # same as :matlab to :makie
+# Apply to blob centers
+blobs_opencv = detect_features(img)
+offset = image_origin_offset(from=:opencv, to=:makie)
+blobs_makie = [@set blob.center = blob.center .+ offset for blob in blobs_opencv]
 ```
 """
-function change_image_origin(primitive; from::Symbol, to::Symbol)
-    # If source and target are the same, no conversion needed
-    if from == to
-        return primitive
+function image_origin_offset(; from::Symbol, to::Symbol)
+    # Use PIXEL_CONVENTIONS from sensors.jl
+    if !haskey(PIXEL_CONVENTIONS, from)
+        valid = join(sort(collect(keys(PIXEL_CONVENTIONS))), ", :")
+        error("Unknown source convention :$from. Valid options: :$valid")
+    end
+    if !haskey(PIXEL_CONVENTIONS, to)
+        valid = join(sort(collect(keys(PIXEL_CONVENTIONS))), ", :")
+        error("Unknown target convention :$to. Valid options: :$valid")
     end
 
-    # Normalize aliases to canonical names
-    # :vlfeat -> :opencv
-    # :colmap -> :makie
-    # :julia -> :matlab
-    from_canonical = if from == :vlfeat
-        :opencv
-    elseif from == :colmap
-        :makie
-    elseif from == :julia
-        :matlab
-    else
-        from
-    end
-
-    to_canonical = if to == :vlfeat
-        :opencv
-    elseif to == :colmap
-        :makie
-    elseif to == :julia
-        :matlab
-    else
-        to
-    end
-
-    # If normalized source and target are the same, no conversion needed
-    if from_canonical == to_canonical
-        return primitive
-    end
-
-    # Validate conventions
-    valid_conventions = (:makie, :matlab, :opencv)
-    if !(from_canonical in valid_conventions)
-        error("Unknown source convention :$from. Valid options: :makie, :colmap, :matlab, :julia, :opencv, :vlfeat")
-    end
-    if !(to_canonical in valid_conventions)
-        error("Unknown target convention :$to. Valid options: :makie, :colmap, :matlab, :julia, :opencv, :vlfeat")
-    end
-
-    # Compute the offset needed to convert from source to target
-    # Strategy: compute offset from source to :makie, then from :makie to target
-    pos = GeometryBasics.origin(primitive)
-    unit_val = unit(eltype(pos))
-
-    # Step 1: Convert from source convention to :makie
-    offset_to_makie = if from_canonical == :makie
-        (0.0, 0.0) .* unit_val
-    elseif from_canonical == :matlab
-        # MATLAB (1,1) -> Makie (0.5, 0.5): subtract 0.5
-        (-0.5, -0.5) .* unit_val
-    elseif from_canonical == :opencv
-        # OpenCV (0,0) -> Makie (0.5, 0.5): add 0.5
-        (0.5, 0.5) .* unit_val
-    end
-
-    # Step 2: Convert from :makie to target convention
-    offset_from_makie = if to_canonical == :makie
-        (0.0, 0.0) .* unit_val
-    elseif to_canonical == :matlab
-        # Makie (0.5, 0.5) -> MATLAB (1,1): add 0.5
-        (0.5, 0.5) .* unit_val
-    elseif to_canonical == :opencv
-        # Makie (0.5, 0.5) -> OpenCV (0,0): subtract 0.5
-        (-0.5, -0.5) .* unit_val
-    end
-
-    # Total offset
-    total_offset = offset_to_makie .+ offset_from_makie
-
-    return primitive + total_offset
+    # Offset = destination_corner - source_corner (with units of px)
+    return (PIXEL_CONVENTIONS[to] .- PIXEL_CONVENTIONS[from]) .* px
 end
+
 
 """
     CartesianIndices(r::Rect)

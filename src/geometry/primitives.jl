@@ -160,26 +160,22 @@ end
 Construct a GeometryBasics.Circle from a blob with radius `cutoff * σ`.
 
 The `cutoff` parameter determines the effective radius as a multiple of σ
-(e.g., 3.0 for 3σ radius). Centers and radii are converted to unitless Float64.
+(e.g., 3.0 for 3σ radius). Units are preserved from the blob.
 
 # Arguments
 - `blob::AbstractBlob`: Blob with center and scale σ
 - `cutoff::Real`: Radius multiplier (typically 2-4)
 
 # Returns
-- `GeometryBasics.Circle`: Circle with unitless center and radius
+- `GeometryBasics.Circle`: Circle with center and radius preserving blob units
 
 # Example
 ```julia
-blob = IsoBlob(Point2(100.0pd, 200.0pd), 5.0pd)
-circle = Circle(blob, 3.0)  # Circle with radius 15.0
+blob = IsoBlob(Point2(100.0mm, 200.0mm), 5.0mm)
+circle = Circle(blob, 3.0)  # Circle with radius 15.0mm
 ```
 """
-function GeometryBasics.Circle(blob::AbstractBlob, cutoff::Real)
-    center = Point2(float.(ustrip.(blob.center))...)
-    radius = float(ustrip(cutoff * blob.σ))
-    return GeometryBasics.Circle(center, radius)
-end
+GeometryBasics.Circle(blob::AbstractBlob, cutoff::Real) = GeometryBasics.Circle(blob.center, cutoff * blob.σ)
 
 # =============================================================================
 # HomEllipseMat Construction (Conic Matrix Representation)
@@ -222,12 +218,12 @@ function HomEllipseMat(e::Ellipse{T}) where {T}
 end
 
 """
-    HomCircleMat(c::Circle{T}) -> HomCircleMat{T}
+    HomCircleMat(c::Circle{T}) -> HomCircleMat
 
 Construct conic matrix Q from Circle via Q = A^{-T} * CIRCLE * A^{-1},
 where A maps unit circle → circle.
 
-Returns HomCircleMat{T} (typed as a circle conic).
+Units are stripped from the circle to create a unitless conic matrix.
 
 # Example
 ```julia
@@ -236,19 +232,24 @@ Q = HomCircleMat(circle)  # 3×3 circle conic matrix
 ```
 """
 function HomCircleMat(c::Circle{T}) where {T}
+    # Strip units for conic matrix operations (inv creates inverse units)
+    r = float(ustrip(c.r))
+    cx, cy = float.(ustrip.(c.center))
+    U = typeof(r)
+
     # Build transformation matrix A: translate ∘ uniform scale (unit circle → circle)
     # A = T * S where S = diag(r, r, 1)
     A = @SMatrix [
-        c.r     T(0)    c.center[1];
-        T(0)    c.r     c.center[2];
-        T(0)    T(0)    T(1)
+        r       U(0)    cx;
+        U(0)    r       cy;
+        U(0)    U(0)    U(1)
     ]
 
     # Apply conic transformation: Q = A^{-T} * CIRCLE * A^{-1}
     invA = inv(A)
     Q = transpose(invA) * CIRCLE * invA
 
-    return HomCircleMat{T}(Tuple(Q))
+    return HomCircleMat{U}(Tuple(Q))
 end
 
 # Delegate HomEllipseMat(::Circle) to HomCircleMat for type correctness
@@ -276,6 +277,8 @@ conic_trait(Q)  # EllipseTrait()
 """
 conic_trait(::HomCircleMat) = CircleTrait()
 conic_trait(::HomEllipseMat) = EllipseTrait()
+
+# Note: conic_trait(::Type{...}) is defined in transforms.jl for use with promote_rule
 
 """
     Ellipse(Q::Union{HomEllipseMat{T}, HomCircleMat{T}}) -> Ellipse{T}
@@ -377,31 +380,55 @@ function GeometryBasics.Circle(Q::Union{HomEllipseMat{T}, HomCircleMat{T}}; atol
 end
 
 """
-    (H::PlanarHomographyMat)(Q::Union{HomEllipseMat, HomCircleMat}) -> HomEllipseMat
+Transform conic by any homogeneous transformation: Q' = H^{-T} * Q * H^{-1} (contravariant).
 
-Transform conic by homography: Q' = H^{-T} * Q * H^{-1} (contravariant transformation).
+Works with all transform types (HomRotMat, HomTransMat, EuclideanMat, SimilarityMat, AffineMat, etc.)
+and all conic types (HomCircleMat, HomEllipseMat).
 
-Note: Transforming a circle (HomCircleMat) by a general homography typically produces
-an ellipse, so the result is always HomEllipseMat.
+Result type is determined by trait promotion:
+- Circle + Similarity (rotation/translation/uniform scale) → Circle (preserves circularity)
+- Circle + Anisotropic/Affine/Projective → Ellipse (breaks circularity)
+- Ellipse + Any transform → Ellipse
 
-# Example
+# Examples
 ```julia
+# Similarity transform preserves circles
+R = HomRotMat{Float64}(...)
+Q_circle = HomCircleMat(circle)
+Q_rotated = R(Q_circle)  # → HomCircleMat (still a circle!)
+
+# Affine transform breaks circularity
+A = AffineMat{Float64}(...)
+Q_ellipse = A(Q_circle)  # → HomEllipseMat (now an ellipse)
+
+# Homography for image warping
 H = PlanarHomographyMat(camera)
-Q = HomCircleMat(circle)
-Q_warped = H(Q)  # Apply conic transformation → HomEllipseMat
-ellipse = Ellipse(Q_warped)  # Extract warped ellipse
+Q_warped = H(Q_circle)  # → HomEllipseMat
+ellipse = Ellipse(Q_warped)
 ```
 """
-function (H::PlanarHomographyMat{T1})(Q::Union{HomEllipseMat{T2}, HomCircleMat{T2}}) where {T1, T2}
-    T = promote_type(T1, T2)
-    H_mat = SMatrix{3,3,T}(H)
-    Q_mat = SMatrix{3,3,T}(Q)
+# Generate call operator methods for all transform types
+for TransformType in (:HomRotMat, :HomTransMat, :HomScaleIsoMat, :HomScaleAnisoMat,
+                      :EuclideanMat, :SimilarityMat, :AffineMat, :PlanarHomographyMat)
+    for ConicType in (:HomCircleMat, :HomEllipseMat)
+        @eval begin
+            function (H::$TransformType)(Q::$ConicType)
+                T1 = eltype(H)
+                T2 = eltype(Q)
+                T = promote_type(T1, T2)
+                ResultType = conic_result_type($TransformType, $ConicType)
 
-    # Apply conic transformation: Q' = H^{-T} * Q * H^{-1}
-    invH = inv(H_mat)
-    Q_warped = transpose(invH) * Q_mat * invH
+                H_mat = SMatrix{3,3,T}(H)
+                Q_mat = SMatrix{3,3,T}(Q)
 
-    return HomEllipseMat{T}(Tuple(Q_warped))
+                # Apply conic transformation: Q' = H^{-T} * Q * H^{-1}
+                invH = inv(H_mat)
+                Q_warped = transpose(invH) * Q_mat * invH
+
+                return similar_type(ResultType, T)(Tuple(Q_warped))
+            end
+        end
+    end
 end
 
 # =============================================================================
@@ -491,6 +518,70 @@ function Base.in(e::Ellipse, r::Rect)
     min_pt, max_pt = extrema(e)
     return min_pt in r && max_pt in r
 end
+
+# =============================================================================
+# Translation Operators for Circles and Ellipses
+# =============================================================================
+
+"""
+    Base.+(c::Circle, offset) -> Circle
+
+Translate a circle by adding a 2D offset vector to its center.
+
+# Example
+```julia
+circle = Circle(Point2(5.0, 3.0), 2.5)
+offset = SVector(1.0, -2.0)
+translated = circle + offset  # Circle at (6.0, 1.0) with radius 2.5
+```
+"""
+Base.:+(c::GeometryBasics.Circle, offset) =
+    GeometryBasics.Circle(c.center + offset, c.r)
+
+"""
+    Base.-(c::Circle, offset) -> Circle
+
+Translate a circle by subtracting a 2D offset vector from its center.
+
+# Example
+```julia
+circle = Circle(Point2(5.0, 3.0), 2.5)
+offset = SVector(1.0, -2.0)
+translated = circle - offset  # Circle at (4.0, 5.0) with radius 2.5
+```
+"""
+Base.:-(c::GeometryBasics.Circle, offset) =
+    GeometryBasics.Circle(c.center - offset, c.r)
+
+"""
+    Base.+(e::Ellipse, offset) -> Ellipse
+
+Translate an ellipse by adding a 2D offset vector to its center.
+
+# Example
+```julia
+ellipse = Ellipse(Point2(10.0, 20.0), 5.0, 3.0, π/4)
+offset = SVector(2.0, -1.0)
+translated = ellipse + offset  # Ellipse at (12.0, 19.0) with same axes and orientation
+```
+"""
+Base.:+(e::Ellipse{T}, offset) where {T} =
+    Ellipse{T}(e.center + offset, e.a, e.b, e.θ)
+
+"""
+    Base.-(e::Ellipse, offset) -> Ellipse
+
+Translate an ellipse by subtracting a 2D offset vector from its center.
+
+# Example
+```julia
+ellipse = Ellipse(Point2(10.0, 20.0), 5.0, 3.0, π/4)
+offset = SVector(2.0, -1.0)
+translated = ellipse - offset  # Ellipse at (8.0, 21.0) with same axes and orientation
+```
+"""
+Base.:-(e::Ellipse{T}, offset) where {T} =
+    Ellipse{T}(e.center - offset, e.a, e.b, e.θ)
 
 # =============================================================================
 # Circle Intersection

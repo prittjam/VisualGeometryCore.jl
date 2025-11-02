@@ -1,7 +1,7 @@
 module VisualGeometryCore
 
 # Geometry and coordinate systems
-using GeometryBasics: GeometryBasics, Vec2, HyperRectangle, Point2f
+using GeometryBasics: GeometryBasics, Vec2, HyperRectangle, Point2f, Rect2
 import GeometryBasics: Point2, Point2i, Rect, Circle
 using StaticArrays
 using LinearAlgebra
@@ -36,8 +36,8 @@ using FileIO: save
 using Transducers
 
 # Export geometry basics
-export Point2, Rect, Vec2, HyperRectangle, Circle, Point2f
-export cartesian_ranges
+export Point2, Rect, Rect2, Vec2, HyperRectangle, Circle, Point2f
+export cartesian_ranges, center, ranges
 
 # Export transforms and conics functionality
 export HomRotMat, HomTransMat, HomScaleIsoMat, HomScaleAnisoMat, EuclideanMat, SimilarityMat, AffineMat, PlanarHomographyMat
@@ -50,6 +50,9 @@ export ConicTrait, CircleTrait, EllipseTrait, conic_trait
 
 # Export blob filtering functions
 export light_blobs, dark_blobs
+
+# Export feature polarity types
+export FeaturePolarity, PositiveFeature, NegativeFeature, ImageFeature
 
 # Export camera models and sensors
 export Sensor, CMOS_SENSORS
@@ -77,12 +80,12 @@ export ScaleOctave, ScaleLevelView
 export GaussianImage, HessianImages, LaplacianImage
 export Size2
 export Gray, N0f8, N0f16
+export px, pd, dpi, pt  # Custom logical units
 
 # Export local features (kernels and derivatives)
 export DERIVATIVE_KERNELS, DERIVATIVE_KERNELS_3D
 export hessian_determinant_response, laplacian_response
 export detect_features  # Main public API - returns IsoBlobDetection
-export detect_extrema   # Deprecated - for backward compatibility
 export Extremum3D, find_extrema_3d, refine_extremum_3d, refine_extrema  # Low-level API
 export apply!  # Apply transform to ScaleSpaceResponse
 
