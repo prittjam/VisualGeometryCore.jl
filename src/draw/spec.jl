@@ -78,7 +78,7 @@ function Imshow(x_bounds, y_bounds, pattern;
         height=Makie.Fixed(scene_height),
         tellwidth=true,
         tellheight=true,
-        scenekw=(camera=campixel!, limits=(0, scene_width, 0, scene_height))
+        scenekw=(camera=campixel!,)
     )
 
     push!(lscene.then_funcs, flip_y_axis)
@@ -116,7 +116,7 @@ function Imshow(pattern; interpolate=false, rasterize=true, width=nothing, heigh
         height=Makie.Fixed(scene_height),
         tellwidth=true,
         tellheight=true,
-        scenekw=(camera=campixel!, limits=(0, scene_width, 0, scene_height))
+        scenekw=(camera=campixel!,)
     )
 
     # Add callback to flip y-axis after scene is created
