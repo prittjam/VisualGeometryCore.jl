@@ -7,7 +7,7 @@ using Unitful: ustrip
 import Makie.SpecApi as MakieSpec
 
 """
-    Imshow(pattern; interpolate=false, rasterize=true, width=nothing, height=nothing) -> LScene
+    Imshow(pattern; width=nothing, height=nothing, scenekw=(camera=campixel!,), imagekw=(interpolate=false, rasterize=true)) -> LScene
     Imshow(x_bounds, y_bounds, pattern; kwargs...) -> LScene
 
 Create an LScene spec for displaying an image with proper orientation (y-axis flipped).
@@ -23,10 +23,13 @@ Bounds can be specified as positional arguments (matching Makie API conventions)
 - `y_bounds`: Y-axis bounds (range, tuple, interval, or any type Makie.Image accepts)
 
 # Keyword Arguments
-- `interpolate::Bool=false`: Enable image interpolation
-- `rasterize::Bool=true`: Rasterize image for efficient PDF serialization (prevents huge PDFs)
 - `width::Union{Nothing,Int}=nothing`: LScene width. If nothing, uses pattern width.
 - `height::Union{Nothing,Int}=nothing`: LScene height. If nothing, uses pattern height.
+- `scenekw::NamedTuple=(camera=campixel!,)`: Scene keyword arguments (e.g., camera, backgroundcolor, limits).
+  Defaults to pixel-aligned camera. Users can override by passing a complete NamedTuple.
+- `imagekw::NamedTuple=(interpolate=false, rasterize=true)`: Image keyword arguments passed to Makie.Image
+  (e.g., interpolate, rasterize, colormap, colorrange, alpha, visible).
+  Defaults to non-interpolated, rasterized images for clean rendering.
 
 Returns an LScene spec that can be used with SpecApi for composable plotting.
 
@@ -37,11 +40,19 @@ import VisualGeometryCore.Spec as S
 # Basic usage - image fills scene
 lscene = S.Imshow(img)
 
-# With bounds as ranges
-lscene = S.Imshow(50:150, 50:150, img; width=200, height=200)
+# With custom scene background
+lscene = S.Imshow(img; scenekw=(backgroundcolor=:lightblue,))
+
+# With interpolation enabled
+lscene = S.Imshow(img; imagekw=(interpolate=true, rasterize=true))
 
 # With bounds as tuples
 lscene = S.Imshow((50, 150), (50, 150), img; width=200, height=200)
+
+# Custom coordinate system (normalized [0,1])
+lscene = S.Imshow((0.2, 0.8), (0.2, 0.8), img;
+                  width=200, height=200,
+                  scenekw=(limits=(0, 1, 0, 1),))
 
 # Add overlays using SpecApi
 lscene = S.Imshow(img)
@@ -52,15 +63,16 @@ plot(MakieSpec.GridLayout([lscene]))
 """
 # Dispatch: bounds (ranges, tuples, intervals) - pass directly to Spec.Image
 function Imshow(x_bounds, y_bounds, pattern;
-                interpolate=false, rasterize=true, width=nothing, height=nothing)
+                width=nothing, height=nothing,
+                scenekw=(camera=campixel!,),
+                imagekw=(interpolate=false, rasterize=true))
     # Scene dimensions: use provided or pattern dimensions (width, height)
     pattern_width, pattern_height = reverse(size(pattern))
     scene_width = something(width, pattern_width)
     scene_height = something(height, pattern_height)
 
-    # Pass bounds directly to Spec.Image (accepts tuples, intervals, or EndPoints)
-    image_spec = MakieSpec.Image(x_bounds, y_bounds, transpose(pattern);
-                                 interpolate=interpolate, rasterize=rasterize)
+    # Pass bounds and imagekw directly to Spec.Image
+    image_spec = MakieSpec.Image(x_bounds, y_bounds, transpose(pattern); imagekw...)
 
     # Use then_funcs to apply y-flip transformation after scene is created
     function flip_y_axis(lscene_block)
@@ -78,7 +90,7 @@ function Imshow(x_bounds, y_bounds, pattern;
         height=Makie.Fixed(scene_height),
         tellwidth=true,
         tellheight=true,
-        scenekw=(camera=campixel!,)
+        scenekw=scenekw
     )
 
     push!(lscene.then_funcs, flip_y_axis)
@@ -86,14 +98,17 @@ function Imshow(x_bounds, y_bounds, pattern;
 end
 
 # Dispatch: no bounds (image fills scene)
-function Imshow(pattern; interpolate=false, rasterize=true, width=nothing, height=nothing)
+function Imshow(pattern;
+                width=nothing, height=nothing,
+                scenekw=(camera=campixel!,),
+                imagekw=(interpolate=false, rasterize=true))
     # Scene dimensions: use provided or pattern dimensions (width, height)
     pattern_width, pattern_height = reverse(size(pattern))
     scene_width = something(width, pattern_width)
     scene_height = something(height, pattern_height)
 
-    # Create image spec without bounds (fills scene)
-    image_spec = MakieSpec.Image(transpose(pattern); interpolate=interpolate, rasterize=rasterize)
+    # Create image spec without bounds and pass imagekw
+    image_spec = MakieSpec.Image(transpose(pattern); imagekw...)
 
     # Use then_funcs to apply y-flip transformation after scene is created
     function flip_y_axis(lscene_block)
@@ -116,7 +131,7 @@ function Imshow(pattern; interpolate=false, rasterize=true, width=nothing, heigh
         height=Makie.Fixed(scene_height),
         tellwidth=true,
         tellheight=true,
-        scenekw=(camera=campixel!,)
+        scenekw=scenekw
     )
 
     # Add callback to flip y-axis after scene is created
