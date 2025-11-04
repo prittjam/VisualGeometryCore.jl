@@ -99,7 +99,7 @@ end# ===========================================================================
 # =============================================================================
 
 """
-    to_logical_units(q::Quantity{<:Real, 𝐋}, render_density::LogicalDensity)
+    logical_units(q::Quantity{<:Real, 𝐋}, render_density::LogicalDensity)
 
 Convert a length quantity to logical units (pd or px) using the specified render density.
 
@@ -112,11 +112,11 @@ Convert a length quantity to logical units (pd or px) using the specified render
 
 # Example
 ```julia
-to_logical_units(10.0mm, 300dpi)  # Returns value in pd
-to_logical_units(10.0mm, 300px/inch)  # Returns value in px
+logical_units(10.0mm, 300dpi)  # Returns value in pd
+logical_units(10.0mm, 300px/inch)  # Returns value in px
 ```
 """
-function to_logical_units(q::Quantity{<:Real, Unitful.𝐋}, render_density::LogicalDensity)
+function logical_units(q::Quantity{<:Real, Unitful.𝐋}, render_density::LogicalDensity)
     # Multiplication by density (𝐍 𝐋^-1) converts physical (𝐋) to logical (𝐍)
     scaled = q * render_density
 
@@ -140,7 +140,7 @@ function to_logical_units(q::Quantity{<:Real, Unitful.𝐋}, render_density::Log
 end
 
 """
-    to_physical_units(q::Quantity{<:Real, 𝐍}, render_density::LogicalDensity)
+    physical_units(q::Quantity{<:Real, 𝐍}, render_density::LogicalDensity)
 
 Convert a logical quantity (pd or px) to physical length units using the specified render density.
 
@@ -153,11 +153,11 @@ Convert a logical quantity (pd or px) to physical length units using the specifi
 
 # Example
 ```julia
-to_physical_units(300.0pd, 300dpi)  # Returns value in inches
-to_physical_units(300.0pd, 300pd/mm)  # Returns value in mm
+physical_units(300.0pd, 300dpi)  # Returns value in inches
+physical_units(300.0pd, 300pd/mm)  # Returns value in mm
 ```
 """
-function to_physical_units(q::Quantity{<:Real, 𝐍}, render_density::LogicalDensity)
+function physical_units(q::Quantity{<:Real, 𝐍}, render_density::LogicalDensity)
     # Division by density (𝐍 𝐋^-1) converts logical (𝐍) to physical (𝐋)
     scaled = q / render_density
 

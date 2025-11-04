@@ -80,7 +80,7 @@ const CMOS_SENSORS = ImmutableDict(
 
 # Map pixel conventions to their corner offsets (in units of pixels)
 # Corner offset is the position of the top-left corner of the image relative to (0,0)
-const PIXEL_CONVENTIONS = ImmutableDict(
+const INTRINSICS_COORDINATE_OFFSET = ImmutableDict(
     # OpenCV/VLFeat: pixel center [0,0] at (0,0) → corner at (-0.5, -0.5)
     :opencv => Vec2(-0.5, -0.5),
     :vlfeat => Vec2(-0.5, -0.5),
@@ -99,15 +99,15 @@ const PIXEL_CONVENTIONS = ImmutableDict(
 # =============================================================================
 
 """
-    Rect(sensor::Sensor; pixel_convention::Symbol=:opencv) -> Rect
+    Rect(sensor::Sensor; image_origin::Symbol=:opencv) -> Rect
 
-Create a Rect representing the sensor bounds using the specified pixel coordinate convention.
+Create a Rect representing the sensor bounds using the specified image origin convention.
 
 The Rect represents the image area covered by the sensor pixels, from the top-left corner
 to the bottom-right corner. The convention determines where pixel centers are located relative
 to integer coordinates.
 
-# Pixel Conventions
+# Image Origin Conventions
 
 - **`:opencv`** or **`:vlfeat`** (default): Top-left pixel center at (0, 0)
   - Rect origin (top-left corner): (-0.5, -0.5)
@@ -126,7 +126,7 @@ to integer coordinates.
 
 # Arguments
 - `sensor::Sensor`: Sensor with resolution in pixels
-- `pixel_convention::Symbol=:opencv`: Pixel coordinate convention
+- `image_origin::Symbol=:opencv`: Image origin convention
 
 # Returns
 Rect with origin at top-left corner and widths equal to sensor resolution
@@ -140,11 +140,11 @@ rect_opencv = Rect(sensor)
 # Rect origin: (-0.5px, -0.5px), widths: (1920px, 1200px)
 
 # Makie convention: corner at (0, 0)
-rect_makie = Rect(sensor; pixel_convention=:makie)
+rect_makie = Rect(sensor; image_origin=:makie)
 # Rect origin: (0px, 0px), widths: (1920px, 1200px)
 
 # MATLAB convention: corner at (0.5, 0.5)
-rect_matlab = Rect(sensor; pixel_convention=:matlab)
+rect_matlab = Rect(sensor; image_origin=:matlab)
 # Rect origin: (0.5px, 0.5px), widths: (1920px, 1200px)
 
 # Use with CartesianIndices for warping
@@ -153,14 +153,14 @@ output_axes = indices.indices
 warped = warp(image, transform, output_axes)
 ```
 """
-function Rect(sensor::Sensor; pixel_convention::Symbol=:opencv)
+function Rect(sensor::Sensor; image_origin::Symbol=:opencv)
     # Look up corner offset for this convention
-    if !haskey(PIXEL_CONVENTIONS, pixel_convention)
-        valid = join(sort(collect(keys(PIXEL_CONVENTIONS))), ", :")
-        error("Unknown pixel convention :$pixel_convention. Valid options: :$valid")
+    if !haskey(INTRINSICS_COORDINATE_OFFSET, image_origin)
+        valid = join(sort(collect(keys(INTRINSICS_COORDINATE_OFFSET))), ", :")
+        error("Unknown image origin :$image_origin. Valid options: :$valid")
     end
 
-    offset_vec = PIXEL_CONVENTIONS[pixel_convention]
+    offset_vec = INTRINSICS_COORDINATE_OFFSET[image_origin]
 
     # Get resolution widths (has units)
     widths = Vec2(sensor.resolution.width, sensor.resolution.height)
@@ -172,13 +172,13 @@ function Rect(sensor::Sensor; pixel_convention::Symbol=:opencv)
 end
 
 """
-    Rect2(sensor::Sensor; pixel_convention::Symbol=:opencv) -> Rect2
+    Rect2(sensor::Sensor; image_origin::Symbol=:opencv) -> Rect2
 
-Convenience alias for `Rect(sensor; pixel_convention)`.
+Convenience alias for `Rect(sensor; image_origin)`.
 
 Returns a `Rect2` (alias for `HyperRectangle{2}`) representing the sensor bounds
-using the specified pixel coordinate convention.
+using the specified image origin convention.
 
-See [`Rect(::Sensor)`](@ref) for full documentation of pixel conventions and usage.
+See [`Rect(::Sensor)`](@ref) for full documentation of image origin conventions and usage.
 """
-Rect2(sensor::Sensor; pixel_convention::Symbol=:opencv) = Rect(sensor; pixel_convention=pixel_convention)
+Rect2(sensor::Sensor; image_origin::Symbol=:opencv) = Rect(sensor; image_origin=image_origin)

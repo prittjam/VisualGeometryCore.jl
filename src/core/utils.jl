@@ -150,6 +150,106 @@ Create a Rect from a Size2 with origin at (0,0) and widths filled from the size 
 Rect(s::Size2{T}) where T = Rect(Point2{T}(zero(T), zero(T)), Vec2{T}(s.width, s.height))
 
 """
+    intervals(r::HyperRectangle{N}) -> NTuple{N, ClosedInterval}
+
+Convert an N-dimensional HyperRectangle to a tuple of closed intervals, one per axis.
+
+# Returns
+An N-tuple of `ClosedInterval` objects where each interval spans from
+`origin[i]` to `origin[i] + widths[i]` for dimension `i`.
+
+# Examples
+```julia
+# 2D rectangle
+rect = Rect(Point2(1.0, 2.0), Vec2(10.0, 20.0))
+x_int, y_int = intervals(rect)  # (1.0..11.0, 2.0..22.0)
+
+# 3D box
+box = HyperRectangle(Point3(0.0, 0.0, 0.0), Vec3(1.0, 2.0, 3.0))
+x_int, y_int, z_int = intervals(box)  # (0.0..1.0, 0.0..2.0, 0.0..3.0)
+```
+"""
+intervals(r::HyperRectangle{N}) where N =
+    ntuple(i -> r.origin[i] .. (r.origin[i] + r.widths[i]), N)
+
+# =============================================================================
+# Random Sampling
+# =============================================================================
+
+"""
+    rand([rng::AbstractRNG], r::HyperRectangle{N,T}) -> Point{N,T}
+
+Generate a single random point uniformly distributed inside the HyperRectangle.
+
+# Arguments
+- `rng::AbstractRNG`: Random number generator (optional, defaults to global RNG)
+- `r::HyperRectangle{N,T}`: The rectangle to sample from
+
+# Returns
+A `Point{N,T}` uniformly sampled from the interior of the rectangle.
+
+# Examples
+```julia
+using Random
+
+# 2D rectangle
+rect = Rect(Point2(0.0, 0.0), Vec2(10.0, 20.0))
+pt = rand(rect)  # Random point in [0,10] × [0,20]
+
+# With custom RNG
+rng = MersenneTwister(1234)
+pt = rand(rng, rect)
+
+# 3D box
+box = HyperRectangle(Point3(1.0, 2.0, 3.0), Vec3(4.0, 5.0, 6.0))
+pt = rand(box)  # Random point in [1,5] × [2,7] × [3,9]
+```
+"""
+function Random.rand(rng::AbstractRNG, r::HyperRectangle{N,T}) where {N,T}
+    # Sample uniformly in [0,1]^N and scale/offset to rectangle bounds
+    random_offset = T.(rand(rng, N))
+    return r.origin .+ random_offset .* r.widths
+end
+
+Random.rand(r::HyperRectangle) = rand(Random.default_rng(), r)
+
+"""
+    rand([rng::AbstractRNG], r::HyperRectangle{N,T}, n::Integer) -> Vector{Point{N,T}}
+
+Generate `n` random points uniformly distributed inside the HyperRectangle.
+
+# Arguments
+- `rng::AbstractRNG`: Random number generator (optional, defaults to global RNG)
+- `r::HyperRectangle{N,T}`: The rectangle to sample from
+- `n::Integer`: Number of points to generate
+
+# Returns
+A `Vector` of `n` points, each uniformly sampled from the interior of the rectangle.
+
+# Examples
+```julia
+using Random
+
+# Generate 1000 random points in a 2D rectangle
+rect = Rect(Point2(0.0, 0.0), Vec2(10.0, 20.0))
+points = rand(rect, 1000)
+
+# With custom RNG
+rng = MersenneTwister(1234)
+points = rand(rng, rect, 1000)
+
+# 3D box
+box = HyperRectangle(Point3(0.0, 0.0, 0.0), Vec3(1.0, 1.0, 1.0))
+points = rand(box, 500)  # 500 random points in unit cube
+```
+"""
+function Random.rand(rng::AbstractRNG, r::HyperRectangle{N,T}, n::Integer) where {N,T}
+    return [rand(rng, r) for _ in 1:n]
+end
+
+Random.rand(r::HyperRectangle, n::Integer) = rand(Random.default_rng(), r, n)
+
+"""
     ranges(p1::StaticVector{N,<:Integer}, p2::StaticVector{N,<:Integer}) -> NTuple{N, UnitRange{<:Integer}}
 
 Convert two N-dimensional integer points to a tuple of ranges suitable for CartesianIndices.
@@ -208,18 +308,18 @@ blobs_makie = [@set blob.center = blob.center .+ offset for blob in blobs_opencv
 ```
 """
 function image_origin_offset(; from::Symbol, to::Symbol)
-    # Use PIXEL_CONVENTIONS from sensors.jl
-    if !haskey(PIXEL_CONVENTIONS, from)
-        valid = join(sort(collect(keys(PIXEL_CONVENTIONS))), ", :")
+    # Use INTRINSICS_COORDINATE_OFFSET from sensors.jl
+    if !haskey(INTRINSICS_COORDINATE_OFFSET, from)
+        valid = join(sort(collect(keys(INTRINSICS_COORDINATE_OFFSET))), ", :")
         error("Unknown source convention :$from. Valid options: :$valid")
     end
-    if !haskey(PIXEL_CONVENTIONS, to)
-        valid = join(sort(collect(keys(PIXEL_CONVENTIONS))), ", :")
+    if !haskey(INTRINSICS_COORDINATE_OFFSET, to)
+        valid = join(sort(collect(keys(INTRINSICS_COORDINATE_OFFSET))), ", :")
         error("Unknown target convention :$to. Valid options: :$valid")
     end
 
     # Offset = destination_corner - source_corner (with units of px)
-    return (PIXEL_CONVENTIONS[to] .- PIXEL_CONVENTIONS[from]) .* px
+    return (INTRINSICS_COORDINATE_OFFSET[to] .- INTRINSICS_COORDINATE_OFFSET[from]) .* px
 end
 
 

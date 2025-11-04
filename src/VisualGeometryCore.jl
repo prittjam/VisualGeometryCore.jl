@@ -7,6 +7,8 @@ using StaticArrays
 using LinearAlgebra
 using CoordinateTransformations
 using Rotations
+using Random
+import Random: rand
 
 # Units and physical quantities
 using Unitful: Unitful, m, mm, cm, inch, ft, @refunit, @unit, @dimension, uconvert, unit, 𝐋, Quantity, μm, rad, °, dimension, ustrip
@@ -31,20 +33,21 @@ using ImageFiltering: ImageFiltering, Kernel, imfilter, centered, Fill, imfilter
 using ImageTransformations: imresize, warp
 using ImageCore: channelview
 using Interpolations
+using IntervalSets
 using StructArrays
 using FileIO: save
 using Transducers
 
 # Export geometry basics
 export Point2, Rect, Rect2, Vec2, HyperRectangle, Circle, Point2f
-export cartesian_ranges, center, ranges
+export cartesian_ranges, center, ranges, intervals
 
 # Export transforms and conics functionality
 export HomRotMat, HomTransMat, HomScaleIsoMat, HomScaleAnisoMat, EuclideanMat, SimilarityMat, AffineMat, PlanarHomographyMat
 export HomEllipseMat, HomCircleMat
 export EuclideanMap
 export to_homogeneous, to_affine, to_euclidean, result_type
-export Ellipse
+export Ellipse, is_ellipse
 export gradient
 export ConicTrait, CircleTrait, EllipseTrait, conic_trait
 

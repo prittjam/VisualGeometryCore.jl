@@ -281,6 +281,53 @@ conic_trait(::HomEllipseMat) = EllipseTrait()
 # Note: conic_trait(::Type{...}) is defined in transforms.jl for use with promote_rule
 
 """
+    is_ellipse(Q::Union{HomEllipseMat, HomCircleMat}) -> Bool
+
+Check if a conic matrix represents a valid ellipse without constructing it.
+
+Returns `true` if the conic satisfies the conditions for an ellipse:
+1. Discriminant γ < 0 (ellipse criterion)
+2. Quadratic form A is positive definite (eigenvalues > 0)
+
+This function is useful for filtering degenerate conics (parabolas, hyperbolas)
+before attempting construction.
+
+# Examples
+```julia
+# Filter valid ellipses from warped conics
+valid_conics = filter(is_ellipse, Q_warped)
+ellipses = Ellipse.(valid_conics)
+```
+"""
+function is_ellipse(Q::Union{HomEllipseMat{T}, HomCircleMat{T}}) where {T}
+    C = SMatrix{3,3,T}(Q)
+
+    # Extract 2×2 submatrix A and 2-vector b
+    A = SMatrix{2,2,T}(C[1,1], C[2,1], C[1,2], C[2,2])
+    b = SVector{2,T}(C[1,3], C[2,3])
+
+    # Compute center: -A⁻¹b
+    # First check if A is invertible
+    det_A = A[1,1] * A[2,2] - A[1,2] * A[2,1]
+    abs(det_A) < eps(T) && return false
+
+    center_vec = -(A \ b)
+
+    # Compute constant term after centering: γ = c - b'A⁻¹b = C[3,3] + b'center
+    γ = C[3,3] + dot(b, center_vec)
+
+    # Check ellipse discriminant condition
+    γ >= zero(T) && return false
+
+    # Check that A is positive definite via eigenvalues
+    A_sym = (A + transpose(A)) / T(2)
+    eigen_result = eigen(Symmetric(A_sym))
+    eigenvals = eigen_result.values
+
+    return all(>(zero(T)), eigenvals)
+end
+
+"""
     Ellipse(Q::Union{HomEllipseMat{T}, HomCircleMat{T}}) -> Ellipse{T}
 
 Extract Ellipse from conic matrix Q using robust eigenvalue decomposition
@@ -298,6 +345,9 @@ ellipse = Ellipse(Q_warped)  # Extract ellipse parameters
 ```
 """
 function Ellipse(Q::Union{HomEllipseMat{T}, HomCircleMat{T}}) where {T}
+    # Runtime check using is_ellipse predicate
+    @assert is_ellipse(Q) "Conic does not represent a valid ellipse (failed discriminant or positive definite check)."
+
     C = SMatrix{3,3,T}(Q)
 
     # Extract 2×2 submatrix A and 2-vector b using SMatrix/SVector for type stability
@@ -310,17 +360,12 @@ function Ellipse(Q::Union{HomEllipseMat{T}, HomCircleMat{T}}) where {T}
     # Compute constant term after centering: γ = c - b'A⁻¹b = C[3,3] + b'center
     γ = C[3,3] + dot(b, center_vec)
 
-    @assert γ < 0 "Conic does not represent an ellipse (discriminant should be < 0)."
-
     # Use symmetric eigenvalue decomposition (guarantees real eigenvalues)
     # Force A to be exactly symmetric to avoid numerical issues
     A_sym = (A + transpose(A)) / T(2)
     eigen_result = eigen(Symmetric(A_sym))
     eigenvals = eigen_result.values  # Guaranteed to be Vector{T} (real)
     eigenvecs = eigen_result.vectors
-
-    # Check that A is positive definite
-    @assert all(>(zero(T)), eigenvals) "Quadratic form must be positive definite for an ellipse."
 
     # Compute axis lengths: for centered ellipse x'Ax = -γ
     # In principal coordinates: λ₁u² + λ₂v² = -γ, so axes are √(-γ/λᵢ)

@@ -132,7 +132,33 @@ StructTypes.StructType(::Type{IsoBlobDetection}) = StructTypes.Struct()
 # =============================================================================
 
 """
-    to_logical_units(blob::AbstractBlob, render_density::LogicalDensity)
+    Unitful.ustrip(blob::AbstractBlob)
+
+Strip units from a blob, returning a new blob with unitless coordinates and scale.
+
+This enables the convenient syntax `ustrip.(blobs)` to strip units from a vector of blobs.
+
+# Example
+```julia
+using Unitful: ustrip
+
+# Blob with units
+blob_px = IsoBlob(Point2(100.0px, 200.0px), 5.0px)
+
+# Strip units
+blob_unitless = ustrip(blob_px)  # IsoBlob(Point2(100.0, 200.0), 5.0)
+
+# Strip units from vector of blobs
+blobs_unitless = ustrip.(blobs)
+```
+"""
+function Unitful.ustrip(blob::AbstractBlob)
+    # Strip units using broadcasting - much simpler!
+    return ConstructionBase.setproperties(blob, (center=ustrip.(blob.center), σ=ustrip(blob.σ)))
+end
+
+"""
+    logical_units(blob::AbstractBlob, render_density::LogicalDensity)
 
 Convert an AbstractBlob from physical units to logical units using the specified render density.
 
@@ -149,20 +175,20 @@ Convert an AbstractBlob from physical units to logical units using the specified
 blob_mm = IsoBlob(Point2(10.0mm, 20.0mm), 2.0mm)
 
 # Convert to logical units at 300 DPI (print) or 96 DPI (screen)
-blob_logical = to_logical_units(blob_mm, 300dpi)
+blob_logical = logical_units(blob_mm, 300dpi)
 ```
 """
-function to_logical_units(blob::AbstractBlob, render_density::LogicalDensity)
+function logical_units(blob::AbstractBlob, render_density::LogicalDensity)
     # Use atomic quantity conversion for each component
-    center_logical = to_logical_units.(blob.center, Ref(render_density))
-    σ_logical = to_logical_units(blob.σ, render_density)
+    center_logical = logical_units.(blob.center, Ref(render_density))
+    σ_logical = logical_units(blob.σ, render_density)
 
     # Create new blob with converted units
     return ConstructionBase.setproperties(blob, (center=center_logical, σ=σ_logical))
 end
 
 """
-    to_physical_units(blob::AbstractBlob, render_density::LogicalDensity)
+    physical_units(blob::AbstractBlob, render_density::LogicalDensity)
 
 Convert an AbstractBlob from logical units to physical units using the specified render density.
 
@@ -179,13 +205,13 @@ Convert an AbstractBlob from logical units to physical units using the specified
 blob_logical = IsoBlob(Point2(300.0pd, 600.0pd), 15.0pd)
 
 # Convert to physical units at 300 DPI (gives inches) or 300pd/mm (gives mm)
-blob_physical = to_physical_units(blob_logical, 300dpi)
+blob_physical = physical_units(blob_logical, 300dpi)
 ```
 """
-function to_physical_units(blob::AbstractBlob, render_density::LogicalDensity)
+function physical_units(blob::AbstractBlob, render_density::LogicalDensity)
     # Use atomic quantity conversion for each component
-    center_physical = to_physical_units.(blob.center, Ref(render_density))
-    σ_physical = to_physical_units(blob.σ, render_density)
+    center_physical = physical_units.(blob.center, Ref(render_density))
+    σ_physical = physical_units(blob.σ, render_density)
 
     # Create new blob with converted units
     return ConstructionBase.setproperties(blob, (center=center_physical, σ=σ_physical))
