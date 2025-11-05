@@ -313,46 +313,81 @@ conic_trait(::HomEllipseMat) = EllipseTrait()
 
 Check if a conic matrix represents a valid ellipse without constructing it.
 
-Returns `true` if the conic satisfies the conditions for an ellipse:
-1. Discriminant γ < 0 (ellipse criterion)
-2. Quadratic form A is positive definite (eigenvalues > 0)
+This function is **scale- and sign-invariant**: homogeneous conic matrices are
+defined only up to a nonzero scalar multiplier λ, so both C and λC represent
+the same geometric curve. The implementation normalizes the sign to ensure
+consistent classification regardless of the input matrix's scale or sign.
 
-This function is useful for filtering degenerate conics (parabolas, hyperbolas)
-before attempting construction.
+Returns `true` if the conic satisfies the conditions for an ellipse:
+1. Quadratic form A is definite (not indefinite - hyperbolas are rejected)
+2. A is normalized to be positive definite (flip sign if needed)
+3. Discriminant γ < 0 after normalization (ellipse criterion)
+4. A is non-degenerate (eigenvalues not too close to zero)
 
 # Examples
 ```julia
 # Filter valid ellipses from warped conics
 valid_conics = filter(is_ellipse, Q_warped)
 ellipses = Ellipse.(valid_conics)
+
+# Works regardless of sign
+Q1 = HomEllipseMat(ellipse)
+Q2 = HomEllipseMat{Float64}(Tuple(-1.0 .* SMatrix{3,3}(Q1)))
+is_ellipse(Q1) == is_ellipse(Q2)  # true
 ```
 """
 function is_ellipse(Q::Union{HomEllipseMat{T}, HomCircleMat{T}}) where {T}
-    C = SMatrix{3,3,T}(Q)
+    # Symmetrize for numerical robustness
+    C_raw = SMatrix{3,3,T}(Q)
+    C = (C_raw + transpose(C_raw)) / T(2)
 
-    # Extract 2×2 submatrix A and 2-vector b
+    # Extract 2×2 submatrix A, 2-vector b, and scalar c from C = [A b; b' c]
     A = SMatrix{2,2,T}(C[1,1], C[2,1], C[1,2], C[2,2])
     b = SVector{2,T}(C[1,3], C[2,3])
+    c = C[3,3]
 
-    # Compute center: -A⁻¹b
-    # First check if A is invertible
-    det_A = A[1,1] * A[2,2] - A[1,2] * A[2,1]
-    abs(det_A) < eps(T) && return false
+    # Compute eigenvalues of A to determine definiteness
+    eigen_result = eigen(Symmetric(A))
+    eigenvals = eigen_result.values
+    λ_min, λ_max = extrema(eigenvals)
 
+    # Tolerance for near-zero checks
+    tol = sqrt(eps(T))
+
+    # Check for degeneracy: if smallest |eigenvalue| is too small, A is near-singular
+    if abs(λ_min) < tol
+        return false
+    end
+
+    # Determine definiteness of A:
+    # - If both eigenvalues have same sign: definite (ellipse or degenerate ellipse)
+    # - If eigenvalues have opposite signs: indefinite (hyperbola)
+    if λ_min * λ_max < zero(T)
+        # Indefinite: hyperbola
+        return false
+    end
+
+    # Normalize sign: ensure A is positive definite
+    # If both eigenvalues are negative, multiply entire matrix by -1
+    if λ_max < zero(T)
+        # A is negative definite, flip sign
+        C = -C
+        A = -A
+        b = -b
+        c = -c
+        # Note: eigenvalues also flip sign, but we don't need to recompute
+    end
+
+    # At this point, A is positive definite (both eigenvalues > 0)
+    # Compute center: x₀ = -A⁻¹b
     center_vec = -(A \ b)
 
-    # Compute constant term after centering: γ = c - b'A⁻¹b = C[3,3] + b'center
-    γ = C[3,3] + dot(b, center_vec)
+    # Compute discriminant after centering: γ = c - b'A⁻¹b = c + b'x₀
+    γ = c + dot(b, center_vec)
 
-    # Check ellipse discriminant condition
-    γ >= zero(T) && return false
-
-    # Check that A is positive definite via eigenvalues
-    A_sym = (A + transpose(A)) / T(2)
-    eigen_result = eigen(Symmetric(A_sym))
-    eigenvals = eigen_result.values
-
-    return all(>(zero(T)), eigenvals)
+    # For a real, non-degenerate ellipse: γ < 0 when A is positive definite
+    # Use tolerance for numerical comparison
+    return γ < -tol
 end
 
 """
