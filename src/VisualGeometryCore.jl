@@ -62,7 +62,7 @@ export Sensor, CMOS_SENSORS
 export AbstractIntrinsics
 export Camera, StereoRig, pose, lookat, epipolarmap
 export CameraCalibrationMatrix  # 3x3 calibration matrix K
-export focal_length, sensor_size, pixel_density, aspect_ratio
+export focal_length, sensor_size, pixel_density, aspect_ratio, pixel_centers
 export p3p  # P3P solver for camera pose estimation
 export ProjectiveMap  # Projective homography R^2 → P^2 (follows CoordinateTransformations naming)
 export ImageWarp  # Image warping with PerspectiveMap ∘ ProjectiveMap composition

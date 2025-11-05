@@ -182,3 +182,63 @@ using the specified image origin convention.
 See [`Rect(::Sensor)`](@ref) for full documentation of image origin conventions and usage.
 """
 Rect2(sensor::Sensor; image_origin::Symbol=:opencv) = Rect(sensor; image_origin=image_origin)
+
+# =============================================================================
+# Pixel Center Ranges
+# =============================================================================
+
+"""
+    pixel_centers(sensor::Sensor; image_origin::Symbol=:opencv) -> Tuple{UnitRange, UnitRange}
+
+Return unitless ranges of pixel center coordinates for the sensor using the specified image origin convention.
+
+This function leverages `Rect(sensor; image_origin)` and adjusts the extrema to represent the
+actual coordinate range of pixel centers (from first pixel center to last pixel center).
+
+# Arguments
+- `sensor::Sensor`: Sensor with resolution in pixels
+- `image_origin::Symbol=:opencv`: Image origin convention
+
+# Returns
+A tuple `(x_range, y_range)` of unitless `UnitRange` representing pixel center coordinates.
+
+# Examples
+```julia
+sensor = Sensor(Size2(width=1920px, height=1200px), 5.86μm)
+
+# OpenCV convention: pixel centers from (0, 0) to (1919, 1199)
+x_range, y_range = pixel_centers(sensor)  # 0:1919, 0:1199
+
+# Julia convention: pixel centers from (1, 1) to (1920, 1200)
+x_range, y_range = pixel_centers(sensor; image_origin=:julia)  # 1:1920, 1:1200
+
+# Makie convention: pixel centers from (0.5, 0.5) to (1919.5, 1199.5)
+x_range, y_range = pixel_centers(sensor; image_origin=:makie)  # 0.5:1919.5, 0.5:1199.5
+
+# Use with warp
+x_range, y_range = pixel_centers(sensor; image_origin=:julia)
+warped = warp(image, transform, reverse((x_range, y_range)))
+```
+"""
+function pixel_centers(sensor::Sensor; image_origin::Symbol=:opencv)
+    # Get the rect bounds (corner to corner)
+    rect = Rect(sensor; image_origin=image_origin)
+
+    # Adjust extrema: add 0.5 to top_left (first pixel center), subtract 0.5 from bottom_right (last pixel center)
+    top_left, bottom_right = extrema(rect)
+    offset = 0.5 .* (oneunit(top_left[1]), oneunit(top_left[2]))
+    top_left_center = top_left .+ offset
+    bottom_right_center = bottom_right .- offset
+
+    # Strip units and create UnitRange
+    x_start = ustrip(top_left_center[1])
+    x_end = ustrip(bottom_right_center[1])
+    y_start = ustrip(top_left_center[2])
+    y_end = ustrip(bottom_right_center[2])
+
+    # Convert to Int when endpoints are exactly integers, otherwise use Float64
+    x_range = (isinteger(x_start) && isinteger(x_end)) ? UnitRange(Int(x_start), Int(x_end)) : UnitRange(x_start, x_end)
+    y_range = (isinteger(y_start) && isinteger(y_end)) ? UnitRange(Int(y_start), Int(y_end)) : UnitRange(y_start, y_end)
+
+    return (x_range, y_range)
+end

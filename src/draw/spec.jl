@@ -1,14 +1,14 @@
 module Spec
 
 using Makie
-using ..VisualGeometryCore: AbstractBlob
+using ..VisualGeometryCore: AbstractBlob, INTRINSICS_COORDINATE_OFFSET
 using GeometryBasics
 using Unitful: ustrip
 import Makie.SpecApi as MakieSpec
 
 """
-    Imshow(pattern; width=nothing, height=nothing, scenekw=(camera=campixel!,), imagekw=(interpolate=false, rasterize=true)) -> LScene
-    Imshow(x_bounds, y_bounds, pattern; kwargs...) -> LScene
+    Imshow(img; width=nothing, height=nothing, scenekw=(camera=campixel!,), imagekw=(interpolate=false, rasterize=true), image_origin=:makie) -> LScene
+    Imshow(x_bounds, y_bounds, img; kwargs...) -> LScene
 
 Create an LScene spec for displaying an image with proper orientation (y-axis flipped).
 
@@ -18,13 +18,13 @@ Bounds can be specified as positional arguments (matching Makie API conventions)
 - Intervals: `Imshow(1..100, 1..200, img)` (if IntervalSets is available)
 
 # Arguments
-- `pattern`: Image matrix (AbstractMatrix{<:Colorant})
+- `img`: Image matrix (AbstractMatrix{<:Colorant})
 - `x_bounds`: X-axis bounds (range, tuple, interval, or any type Makie.Image accepts)
 - `y_bounds`: Y-axis bounds (range, tuple, interval, or any type Makie.Image accepts)
 
 # Keyword Arguments
-- `width::Union{Nothing,Int}=nothing`: LScene width. If nothing, uses pattern width.
-- `height::Union{Nothing,Int}=nothing`: LScene height. If nothing, uses pattern height.
+- `width::Union{Nothing,Int}=nothing`: LScene width. If nothing, uses image width.
+- `height::Union{Nothing,Int}=nothing`: LScene height. If nothing, uses image height.
 - `scenekw::NamedTuple=(camera=campixel!,)`: Scene keyword arguments (e.g., camera, backgroundcolor, limits).
   Defaults to pixel-aligned camera. Users can override by passing a complete NamedTuple.
 - `imagekw::NamedTuple=(interpolate=false, rasterize=true)`: Image keyword arguments passed to Makie.Image
@@ -62,17 +62,17 @@ plot(MakieSpec.GridLayout([lscene]))
 ```
 """
 # Dispatch: bounds (ranges, tuples, intervals) - pass directly to Spec.Image
-function Imshow(x_bounds, y_bounds, pattern;
+function Imshow(x_bounds, y_bounds, img;
                 width=nothing, height=nothing,
                 scenekw=(camera=campixel!,),
                 imagekw=(interpolate=false, rasterize=true))
-    # Scene dimensions: use provided or pattern dimensions (width, height)
-    pattern_width, pattern_height = reverse(size(pattern))
-    scene_width = something(width, pattern_width)
-    scene_height = something(height, pattern_height)
+    # Scene dimensions: use provided or image dimensions (width, height)
+    img_width, img_height = reverse(size(img))
+    scene_width = something(width, img_width)
+    scene_height = something(height, img_height)
 
     # Pass bounds and imagekw directly to Spec.Image
-    image_spec = MakieSpec.Image(x_bounds, y_bounds, transpose(pattern); imagekw...)
+    image_spec = MakieSpec.Image(x_bounds, y_bounds, transpose(img); imagekw...)
 
     # Use then_funcs to apply y-flip transformation after scene is created
     function flip_y_axis(lscene_block)
@@ -97,18 +97,29 @@ function Imshow(x_bounds, y_bounds, pattern;
     return lscene
 end
 
-# Dispatch: no bounds (image fills scene)
-function Imshow(pattern;
+# Dispatch: no bounds (image fills scene) - compute bounds from image_origin
+function Imshow(img;
                 width=nothing, height=nothing,
                 scenekw=(camera=campixel!,),
-                imagekw=(interpolate=false, rasterize=true))
-    # Scene dimensions: use provided or pattern dimensions (width, height)
-    pattern_width, pattern_height = reverse(size(pattern))
-    scene_width = something(width, pattern_width)
-    scene_height = something(height, pattern_height)
+                imagekw=(interpolate=false, rasterize=true),
+                image_origin::Symbol=:makie)
+    # Scene dimensions: use provided or image dimensions (width, height)
+    img_width, img_height = reverse(size(img))
+    scene_width = something(width, img_width)
+    scene_height = something(height, img_height)
 
-    # Create image spec without bounds and pass imagekw
-    image_spec = MakieSpec.Image(transpose(pattern); imagekw...)
+    # Get corner offset for the specified convention
+    offset = INTRINSICS_COORDINATE_OFFSET[image_origin]
+
+    # Compute bounds: offset to offset + (width, height)
+    # For julia: (0.5, 0.5) to (0.5 + width, 0.5 + height)
+    # For opencv: (-0.5, -0.5) to (-0.5 + width, -0.5 + height)
+    # For makie: (0.0, 0.0) to (width, height)
+    x_bounds = (offset[1], offset[1] + img_width)
+    y_bounds = (offset[2], offset[2] + img_height)
+
+    # Create image spec with computed bounds and pass imagekw
+    image_spec = MakieSpec.Image(x_bounds, y_bounds, transpose(img); imagekw...)
 
     # Use then_funcs to apply y-flip transformation after scene is created
     function flip_y_axis(lscene_block)
