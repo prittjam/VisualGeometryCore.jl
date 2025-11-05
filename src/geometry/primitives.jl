@@ -92,6 +92,34 @@ Return the major axis radius of the ellipse as required by GeometryBasics interf
 """
 GeometryBasics.radius(e::Ellipse) = max(e.a, e.b)  # Major axis radius
 
+"""
+    GeometryBasics.origin(e::Ellipse) -> Point2
+
+Get the center of an ellipse as its origin, making it compatible with generic
+GeometryBasics primitives for coordinate convention conversion and transformations.
+
+# Example
+```julia
+ellipse = Ellipse(Point2(100.0, 150.0), 30.0, 20.0, π/4)
+pos = origin(ellipse)  # Returns Point2(100.0, 150.0)
+```
+"""
+GeometryBasics.origin(e::Ellipse) = e.center
+
+"""
+    GeometryBasics.origin(c::Circle) -> Point2
+
+Get the center of a circle as its origin, making it compatible with generic
+GeometryBasics primitives for coordinate convention conversion and transformations.
+
+# Example
+```julia
+circle = Circle(Point2(50.0, 75.0), 10.0)
+pos = origin(circle)  # Returns Point2(50.0, 75.0)
+```
+"""
+GeometryBasics.origin(c::GeometryBasics.Circle) = c.center
+
 # GeometryBasics coordinates method for ellipse boundary points
 # This follows the GeometryBasics convention - decompose will call this automatically
 function GeometryBasics.coordinates(e::Ellipse{T}, nvertices=32) where {T}
