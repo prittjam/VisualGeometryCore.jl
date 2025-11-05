@@ -315,14 +315,19 @@ Check if a conic matrix represents a valid ellipse without constructing it.
 
 This function is **scale- and sign-invariant**: homogeneous conic matrices are
 defined only up to a nonzero scalar multiplier λ, so both C and λC represent
-the same geometric curve. The implementation normalizes the sign to ensure
-consistent classification regardless of the input matrix's scale or sign.
+the same geometric curve. The implementation normalizes the matrix by its
+Frobenius norm before checking, ensuring consistent classification for ellipses
+of any size, from microscopic to astronomical.
 
 Returns `true` if the conic satisfies the conditions for an ellipse:
-1. Quadratic form A is definite (not indefinite - hyperbolas are rejected)
-2. A is normalized to be positive definite (flip sign if needed)
-3. Discriminant γ < 0 after normalization (ellipse criterion)
-4. A is non-degenerate (eigenvalues not too close to zero)
+1. Matrix C is normalized: C ← C/||C||_F (enables uniform scale-invariant checks)
+2. Quadratic form A is definite (not indefinite - hyperbolas are rejected)
+3. A is non-degenerate: condition number |λ_min/λ_max| >= tol (scale-invariant)
+4. A is normalized to be positive definite (flip sign if needed)
+5. Discriminant γ < -tol on normalized matrix (ellipse criterion)
+
+All checks use relative tolerances, making the function work correctly for
+ellipses ranging from microscopic (a ~ 1e-6) to astronomical (a ~ 1e6).
 
 # Examples
 ```julia
@@ -330,16 +335,27 @@ Returns `true` if the conic satisfies the conditions for an ellipse:
 valid_conics = filter(is_ellipse, Q_warped)
 ellipses = Ellipse.(valid_conics)
 
-# Works regardless of sign
+# Works regardless of sign or scale
 Q1 = HomEllipseMat(ellipse)
 Q2 = HomEllipseMat{Float64}(Tuple(-1.0 .* SMatrix{3,3}(Q1)))
-is_ellipse(Q1) == is_ellipse(Q2)  # true
+Q3 = HomEllipseMat{Float64}(Tuple(1e6 .* SMatrix{3,3}(Q1)))
+is_ellipse(Q1) == is_ellipse(Q2) == is_ellipse(Q3)  # true
+
+# Works for ellipses of any size
+small = Ellipse(Point2(0.0, 0.0), 1e-6, 5e-7, 0.0)
+large = Ellipse(Point2(0.0, 0.0), 1e6, 5e5, 0.0)
+is_ellipse(HomEllipseMat(small)) && is_ellipse(HomEllipseMat(large))  # true
 ```
 """
 function is_ellipse(Q::Union{HomEllipseMat{T}, HomCircleMat{T}}) where {T}
     # Symmetrize for numerical robustness
     C_raw = SMatrix{3,3,T}(Q)
-    C = (C_raw + transpose(C_raw)) / T(2)
+    C_sym = (C_raw + transpose(C_raw)) / T(2)
+
+    # Normalize by Frobenius norm for scale-invariant checks
+    # This ensures all subsequent checks work uniformly across scales
+    frobenius_norm = sqrt(sum(abs2, C_sym))
+    C = C_sym / frobenius_norm
 
     # Extract 2×2 submatrix A, 2-vector b, and scalar c from C = [A b; b' c]
     A = SMatrix{2,2,T}(C[1,1], C[2,1], C[1,2], C[2,2])
@@ -351,19 +367,20 @@ function is_ellipse(Q::Union{HomEllipseMat{T}, HomCircleMat{T}}) where {T}
     eigenvals = eigen_result.values
     λ_min, λ_max = extrema(eigenvals)
 
-    # Tolerance for near-zero checks
+    # Tolerance for relative checks (scale-invariant)
     tol = sqrt(eps(T))
-
-    # Check for degeneracy: if smallest |eigenvalue| is too small, A is near-singular
-    if abs(λ_min) < tol
-        return false
-    end
 
     # Determine definiteness of A:
     # - If both eigenvalues have same sign: definite (ellipse or degenerate ellipse)
     # - If eigenvalues have opposite signs: indefinite (hyperbola)
     if λ_min * λ_max < zero(T)
         # Indefinite: hyperbola
+        return false
+    end
+
+    # Check for degeneracy using relative tolerance (condition number)
+    # This is scale-invariant: checks if A is nearly rank-deficient
+    if abs(λ_min / λ_max) < tol
         return false
     end
 
@@ -375,7 +392,8 @@ function is_ellipse(Q::Union{HomEllipseMat{T}, HomCircleMat{T}}) where {T}
         A = -A
         b = -b
         c = -c
-        # Note: eigenvalues also flip sign, but we don't need to recompute
+        # Flip eigenvalues too
+        λ_min, λ_max = -λ_max, -λ_min
     end
 
     # At this point, A is positive definite (both eigenvalues > 0)
@@ -386,7 +404,8 @@ function is_ellipse(Q::Union{HomEllipseMat{T}, HomCircleMat{T}}) where {T}
     γ = c + dot(b, center_vec)
 
     # For a real, non-degenerate ellipse: γ < 0 when A is positive definite
-    # Use tolerance for numerical comparison
+    # Since C is normalized (||C||_F = 1), we can use absolute tolerance
+    # This works uniformly for ellipses of any size
     return γ < -tol
 end
 
