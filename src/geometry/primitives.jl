@@ -648,6 +648,114 @@ function Base.in(e::Ellipse, r::Rect)
 end
 
 # =============================================================================
+# Ellipse Normalization Transformation
+# =============================================================================
+
+"""
+    ellipse_to_patch_transform(e::Ellipse{T}, patch_size::Real) where {T}
+        -> CoordinateTransformations.AffineMap
+
+Compute the affine transformation that warps an ellipse region to a square patch.
+
+This transformation maps the ellipse to a circle of radius `patch_size/2` centered
+at the origin, suitable for extracting normalized image patches for feature matching.
+
+The transformation is the inverse of the ellipse construction:
+  ellipse → translate(-center) → rotate(-θ) → scale(1/a, 1/b) → scale(patch_size/2) → circle
+
+# Arguments
+- `e::Ellipse{T}`: The ellipse to normalize
+- `patch_size::Real`: The size of the output square patch (default: 2*max(a,b))
+
+# Returns
+- `AffineMap`: Affine transformation from ellipse coordinates to patch coordinates
+
+# Example
+```julia
+using ImageTransformations, CoordinateTransformations
+
+# Ellipse in image coordinates
+ellipse = Ellipse(Point2(100.0, 150.0), 30.0, 20.0, π/4)
+
+# Get transformation to 64x64 patch
+transform = ellipse_to_patch_transform(ellipse, 64)
+
+# Warp image to extract normalized patch
+patch = warp(image, transform, (1:64, 1:64))
+```
+
+# See Also
+- `patch_to_ellipse_transform`: The inverse transformation (patch → ellipse)
+"""
+function ellipse_to_patch_transform(e::Ellipse{T}, patch_size::Real=2*max(e.a, e.b)) where {T}
+    # Build inverse transformation: ellipse → unit circle → patch
+    # 1. Translate ellipse center to origin
+    # 2. Rotate by -θ to align with axes
+    # 3. Scale by (1/a, 1/b) to make unit circle
+    # 4. Scale by patch_size/2 to fill patch
+    # 5. Translate to patch center (patch_size/2, patch_size/2)
+
+    half_size = T(patch_size) / T(2)
+
+    # Combine linear transformations: scale * rotate
+    # A = [half_size 0; 0 half_size] * [1/e.a 0; 0 1/e.b] * RotMatrix(-θ)
+    R = Rotations.RotMatrix{2,T}(-e.θ)
+    S = @SMatrix [half_size/e.a 0; 0 half_size/e.b]
+    A = S * R
+
+    # Compute combined translation: b = [half_size, half_size] - A * center
+    b = SVector{2,T}(half_size, half_size) - A * e.center
+
+    # Construct single affine transformation
+    return CoordinateTransformations.AffineMap(A, b)
+end
+
+"""
+    patch_to_ellipse_transform(e::Ellipse{T}, patch_size::Real) where {T}
+        -> CoordinateTransformations.AffineMap
+
+Compute the affine transformation that warps a square patch back to an ellipse.
+
+This is the inverse of `ellipse_to_patch_transform`, mapping patch coordinates
+back to the original ellipse coordinates in the image.
+
+# Arguments
+- `e::Ellipse{T}`: The target ellipse
+- `patch_size::Real`: The size of the input square patch
+
+# Returns
+- `AffineMap`: Affine transformation from patch coordinates to ellipse coordinates
+
+# Example
+```julia
+# Get inverse transformation (patch → ellipse)
+inv_transform = patch_to_ellipse_transform(ellipse, 64)
+
+# Transform a point from patch coordinates to image coordinates
+patch_point = Point2(32.0, 32.0)  # Center of patch
+image_point = inv_transform(patch_point)  # → ellipse center in image
+```
+"""
+function patch_to_ellipse_transform(e::Ellipse{T}, patch_size::Real=2*max(e.a, e.b)) where {T}
+    # Build forward transformation: patch → unit circle → ellipse
+    # This is the inverse of ellipse_to_patch_transform
+
+    half_size = T(patch_size) / T(2)
+
+    # Combine linear transformations: rotate * scale
+    # A = RotMatrix(θ) * [e.a 0; 0 e.b] * [1/half_size 0; 0 1/half_size]
+    R = Rotations.RotMatrix{2,T}(e.θ)
+    S = @SMatrix [e.a/half_size 0; 0 e.b/half_size]
+    A = R * S
+
+    # Compute combined translation: b = center - A * [half_size, half_size]
+    b = e.center - A * SVector{2,T}(half_size, half_size)
+
+    # Construct single affine transformation
+    return CoordinateTransformations.AffineMap(A, b)
+end
+
+# =============================================================================
 # Translation Operators for Circles and Ellipses
 # =============================================================================
 
