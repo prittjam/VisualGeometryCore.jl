@@ -755,6 +755,85 @@ function patch_to_ellipse_transform(e::Ellipse{T}, patch_size::Real=2*max(e.a, e
     return CoordinateTransformations.AffineMap(A, b)
 end
 
+"""
+    logpolar_to_ellipse_transform(e::Ellipse{T}, patch_size::Real, logpolar_size::Integer;
+                                   r_min::Real=1.0, r_max::Real=patch_size/2) where {T}
+        -> Function
+
+Create a composed transformation that maps log-polar patch coordinates directly to
+image coordinates, avoiding double resampling.
+
+This chains two transformations:
+1. Log-polar → Cartesian patch: (θ_idx, log_r_idx) → (x, y) in patch space
+2. Cartesian patch → Image: (x, y) → image coordinates via ellipse transform
+
+# Arguments
+- `e::Ellipse{T}`: Target ellipse in image coordinates
+- `patch_size::Real`: Size of the intermediate Cartesian patch
+- `logpolar_size::Integer`: Size of the log-polar grid (WxW)
+- `r_min::Real`: Minimum radius (default: 1.0, avoids singularity at origin)
+- `r_max::Real`: Maximum radius (default: patch_size/2)
+
+# Returns
+- `Function`: Takes [row, col] in log-polar grid, returns [row, col] in image
+
+# Grid Convention
+- Log-polar grid: `[1:W, 1:W]` where
+  - Rows encode radius: 1 → r_min, W → r_max (logarithmically)
+  - Columns encode angle: 1 → 0°, W → 360°
+
+# Example
+```julia
+# Extract 128x128 log-polar patch from a scaled ellipse
+ellipse = 1.5 * detected_ellipse
+transform = logpolar_to_ellipse_transform(ellipse, 128, 128)
+
+# Create wrapper for warp (swaps x,y to y,x)
+function swap_xy(p)
+    pt = transform(Point2(p...))
+    return [pt[2], pt[1]]
+end
+
+logpolar_patch = warp(image, swap_xy, (1:128, 1:128))
+```
+"""
+function logpolar_to_ellipse_transform(e::Ellipse{T},
+                                       patch_size::Real,
+                                       logpolar_size::Integer;
+                                       r_min::Real=1.0,
+                                       r_max::Real=patch_size/2) where {T}
+    # Get the cartesian patch → image transform
+    cart_to_image = patch_to_ellipse_transform(e, patch_size)
+
+    # Parameters for log-polar mapping
+    W = T(logpolar_size)
+    log_r_min = log(T(r_min))
+    log_r_max = log(T(r_max))
+    half_patch = T(patch_size) / T(2)
+
+    # Create composed transformation
+    function logpolar_to_image(p)
+        col_idx, row_idx = T(p[1]), T(p[2])  # (θ_idx, log_r_idx)
+
+        # Map indices to log-polar coordinates
+        # Column (1 to W) → angle (0 to 2π)
+        θ = T(2π) * (col_idx - T(0.5)) / W
+
+        # Row (1 to W) → log(r) (log_r_min to log_r_max)
+        log_r = log_r_min + (log_r_max - log_r_min) * (row_idx - T(0.5)) / W
+        r = exp(log_r)
+
+        # Convert to Cartesian patch coordinates (centered at patch_size/2)
+        x_patch = half_patch + r * cos(θ)
+        y_patch = half_patch + r * sin(θ)
+
+        # Apply the affine transform to get image coordinates
+        return cart_to_image(Point2(x_patch, y_patch))
+    end
+
+    return logpolar_to_image
+end
+
 # =============================================================================
 # Translation Operators for Circles and Ellipses
 # =============================================================================
