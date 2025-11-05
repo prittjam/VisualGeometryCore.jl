@@ -327,7 +327,7 @@ Returns `true` if the conic satisfies the conditions for an ellipse:
 5. Discriminant γ < -tol on normalized matrix (ellipse criterion)
 
 All checks use relative tolerances, making the function work correctly for
-ellipses ranging from microscopic (a ~ 1e-6) to astronomical (a ~ 1e6).
+ellipses ranging from sub-pixel precision (a ~ 1e-5) to mega-pixel scale (a ~ 1e6+).
 
 # Examples
 ```julia
@@ -368,7 +368,8 @@ function is_ellipse(Q::Union{HomEllipseMat{T}, HomCircleMat{T}}) where {T}
     λ_min, λ_max = extrema(eigenvals)
 
     # Tolerance for relative checks (scale-invariant)
-    tol = sqrt(eps(T))
+    # Use smaller tolerance to support sub-pixel precision ellipses (a ~ 1e-5)
+    tol = eps(T)^(T(3)/T(4))  # ≈ 3.7e-12 for Float64
 
     # Determine definiteness of A:
     # - If both eigenvalues have same sign: definite (ellipse or degenerate ellipse)
