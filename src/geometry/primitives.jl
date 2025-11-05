@@ -820,6 +820,65 @@ Base.:-(e::Ellipse{T}, offset) where {T} =
     Ellipse{T}(e.center - offset, e.a, e.b, e.θ)
 
 # =============================================================================
+# Uniform Scaling Operators for Circles and Ellipses
+# =============================================================================
+
+"""
+    Base.:*(s::Real, c::Circle) -> Circle
+    Base.:*(c::Circle, s::Real) -> Circle
+
+Uniformly scale a circle by multiplying its radius by a scale factor.
+
+# Arguments
+- `s::Real`: Scale factor (must be positive)
+- `c::Circle`: Circle to scale
+
+# Returns
+- `Circle`: Scaled circle with same center
+
+# Example
+```julia
+circle = Circle(Point2(5.0, 3.0), 2.5)
+scaled = 2.0 * circle  # Circle at (5.0, 3.0) with radius 5.0
+```
+"""
+Base.:*(s::Real, c::GeometryBasics.Circle) =
+    GeometryBasics.Circle(c.center, s * c.r)
+
+Base.:*(c::GeometryBasics.Circle, s::Real) = s * c
+
+"""
+    Base.:*(s::Real, e::Ellipse) -> Ellipse
+    Base.:*(e::Ellipse, s::Real) -> Ellipse
+
+Uniformly scale an ellipse by multiplying both semi-axes by a scale factor.
+
+The center and orientation angle remain unchanged. This operation preserves
+the ellipse's aspect ratio while scaling its size.
+
+# Arguments
+- `s::Real`: Scale factor (must be positive)
+- `e::Ellipse`: Ellipse to scale
+
+# Returns
+- `Ellipse`: Scaled ellipse with same center and orientation
+
+# Example
+```julia
+ellipse = Ellipse(Point2(10.0, 20.0), 5.0, 3.0, π/4)
+scaled = 2.0 * ellipse  # Ellipse at (10.0, 20.0) with a=10.0, b=6.0, θ=π/4
+
+# Useful for patch extraction with context
+patch_region = 1.5 * detected_ellipse
+transform = patch_to_ellipse_transform(patch_region, 128)
+```
+"""
+Base.:*(s::Real, e::Ellipse{T}) where {T} =
+    Ellipse{T}(e.center, s * e.a, s * e.b, e.θ)
+
+Base.:*(e::Ellipse{T}, s::Real) where {T} = s * e
+
+# =============================================================================
 # Circle Intersection
 # =============================================================================
 
