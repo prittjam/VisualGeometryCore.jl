@@ -3,35 +3,35 @@
 # ========================================================================
 
 """
-    Rect(ranges::Tuple{AbstractRange, AbstractRange}; align_corners::Bool=true)
+    Rect(ranges::Tuple{AbstractRange, AbstractRange}; align_corners::Bool=false)
         -> GeometryBasics.Rect
 
 Construct a Rect from a tuple of ranges representing array axes.
 
 # Arguments
 - `ranges`: Tuple of (x_range, y_range) representing the grid
-- `align_corners`: Alignment mode (default: true)
+- `align_corners`: Alignment mode (default: false)
   - `true`: Rect corners align to range endpoints
-  - `false`: Range values are pixel centers, extend by half-step
+  - `false`: Range values are pixel centers, extend by half-step (default)
 
 # Alignment Modes
 
-**`align_corners = true` (default):**
-Range endpoints define the rectangle boundaries.
-```julia
-rx, ry = 1:4, 1:3
-# Rect from (1, 1) to (4, 3)
-rect = Rect((rx, ry); align_corners=true)
-```
-
-**`align_corners = false`:**
+**`align_corners = false` (default):**
 Range values are treated as pixel/cell centers. The rectangle is extended
 by half a step size on each side to cover the full pixel area.
 ```julia
 rx, ry = 1:4, 1:3
 # Rect from (0.5, 0.5) to (4.5, 3.5)
 # Each pixel center has ±0.5 extent
-rect = Rect((rx, ry); align_corners=false)
+rect = Rect((rx, ry))  # Default: align_corners=false
+```
+
+**`align_corners = true`:**
+Range endpoints define the rectangle boundaries.
+```julia
+rx, ry = 1:4, 1:3
+# Rect from (1, 1) to (4, 3)
+rect = Rect((rx, ry); align_corners=true)
 ```
 
 # Examples
@@ -40,19 +40,23 @@ rect = Rect((rx, ry); align_corners=false)
 x_range = 1:640
 y_range = 1:480
 
-# Align to corners (range endpoints)
-rect1 = Rect((x_range, y_range))  # From (1, 1) to (640, 480)
+# Default: treat as pixel centers (extend by ±0.5)
+rect1 = Rect((x_range, y_range))  # From (0.5, 0.5) to (640.5, 480.5)
 
-# Treat as pixel centers (extend by ±0.5)
-rect2 = Rect((x_range, y_range); align_corners=false)  # From (0.5, 0.5) to (640.5, 480.5)
+# Align to corners (range endpoints)
+rect2 = Rect((x_range, y_range); align_corners=true)  # From (1, 1) to (640, 480)
 
 # Non-unit step
 x_range = 0.0:0.1:1.0  # 11 points
-rect3 = Rect((x_range, x_range); align_corners=false)  # From (-0.05, -0.05) to (1.05, 1.05)
+rect3 = Rect((x_range, x_range))  # From (-0.05, -0.05) to (1.05, 1.05)
+
+# Note: Different from Rect(CartesianIndices) which uses discrete index space
+# Rect(CartesianIndices(A)) - discrete indices, no half-step extension
+# Rect(axes(A))             - pixel centers with extent (default align_corners=false)
 ```
 """
 function GeometryBasics.Rect(ranges::Tuple{AbstractRange, AbstractRange};
-                            align_corners::Bool=true)
+                            align_corners::Bool=false)
     rx, ry = ranges
     T = promote_type(eltype(rx), eltype(ry))
 
