@@ -41,7 +41,7 @@ using Transducers
 
 # Export geometry basics
 export Point2, Rect, Rect2, Vec2, HyperRectangle, Circle, Point2f
-export cartesian_ranges, center, ranges, intervals
+export cartesian_ranges, center, ranges
 export ClosedInterval  # Re-export from IntervalSets for convenience
 
 # Export transforms and conics functionality

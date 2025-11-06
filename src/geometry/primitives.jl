@@ -45,32 +45,6 @@ function ClosedInterval(r::AbstractRange; align_corners::Bool=false)
     end
 end
 
-"""
-    intervals(ranges::Tuple{AbstractRange, AbstractRange}; align_corners::Bool=false)
-        -> Tuple{ClosedInterval, ClosedInterval}
-
-Convert a tuple of ranges to a tuple of closed intervals.
-
-# Arguments
-- `ranges`: Tuple of (x_range, y_range)
-- `align_corners`: Alignment mode (default: false)
-
-# Returns
-- Tuple of intervals (interval_x, interval_y)
-
-# Example
-```julia
-rx, ry = 1:640, 1:480
-ix, iy = intervals((rx, ry); align_corners=false)
-rect = Rect((ix, iy))  # Create rect from intervals
-```
-"""
-function intervals(ranges::Tuple{AbstractRange, AbstractRange}; align_corners::Bool=false)
-    rx, ry = ranges
-    return (ClosedInterval(rx; align_corners=align_corners),
-            ClosedInterval(ry; align_corners=align_corners))
-end
-
 # ========================================================================
 # Rect Constructors from Intervals
 # ========================================================================
@@ -98,10 +72,11 @@ ix = ClosedInterval(0.5, 640.5)
 iy = ClosedInterval(0.5, 480.5)
 rect = Rect((ix, iy))  # origin=[0.5, 0.5], widths=[640, 480]
 
-# From ranges via interval conversion
+# From ranges via explicit interval conversion
 rx, ry = 1:640, 1:480
-intervals_tuple = intervals((rx, ry); align_corners=false)
-rect = Rect(intervals_tuple)
+ix = ClosedInterval(rx; align_corners=false)
+iy = ClosedInterval(ry; align_corners=false)
+rect = Rect((ix, iy))
 ```
 """
 function GeometryBasics.Rect(intervals::Tuple{ClosedInterval, ClosedInterval})
@@ -115,63 +90,6 @@ function GeometryBasics.Rect(intervals::Tuple{ClosedInterval, ClosedInterval})
     return GeometryBasics.Rect(origin, widths)
 end
 
-"""
-    Rect(ranges::Tuple{AbstractRange, AbstractRange}; align_corners::Bool=false)
-        -> GeometryBasics.Rect
-
-Construct a Rect from a tuple of ranges representing array axes.
-
-This is a convenience method that converts ranges to intervals and then to a Rect.
-
-# Arguments
-- `ranges`: Tuple of (x_range, y_range) representing the grid
-- `align_corners`: Alignment mode (default: false)
-  - `true`: Rect corners align to range endpoints
-  - `false`: Range values are pixel centers, extend by half-step (default)
-
-# Alignment Modes
-
-**`align_corners = false` (default):**
-Range values are treated as pixel/cell centers. The rectangle is extended
-by half a step size on each side to cover the full pixel area.
-```julia
-rx, ry = 1:4, 1:3
-# Rect from (0.5, 0.5) to (4.5, 3.5)
-# Each pixel center has ±0.5 extent
-rect = Rect((rx, ry))  # Default: align_corners=false
-```
-
-**`align_corners = true`:**
-Range endpoints define the rectangle boundaries.
-```julia
-rx, ry = 1:4, 1:3
-# Rect from (1, 1) to (4, 3)
-rect = Rect((rx, ry); align_corners=true)
-```
-
-# Examples
-```julia
-# Image axes for a 640x480 image
-x_range = 1:640
-y_range = 1:480
-
-# Default: treat as pixel centers (extend by ±0.5)
-rect1 = Rect((x_range, y_range))  # From (0.5, 0.5) to (640.5, 480.5)
-
-# Align to corners (range endpoints)
-rect2 = Rect((x_range, y_range); align_corners=true)  # From (1, 1) to (640, 480)
-
-# Equivalent two-step process via interval constructors
-ix = ClosedInterval(x_range; align_corners=false)
-iy = ClosedInterval(y_range; align_corners=false)
-rect3 = Rect((ix, iy))  # Same as rect1
-```
-"""
-function GeometryBasics.Rect(ranges::Tuple{AbstractRange, AbstractRange};
-                            align_corners::Bool=false)
-    # Delegate to interval-based constructor
-    return Rect(intervals(ranges; align_corners=align_corners))
-end
 
 # ========================================================================
 # Ellipses

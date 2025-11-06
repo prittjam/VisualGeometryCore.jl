@@ -323,28 +323,6 @@ function image_origin_offset(; from::Symbol, to::Symbol)
 end
 
 
-"""
-    CartesianIndices(r::Rect)
-
-Create CartesianIndices from a Rect.
-"""
-Base.CartesianIndices(r::Rect{Integer}) =
-    CartesianIndices((r.origin[2]:r.origin[2]+r.widths[2]-1, r.origin[1]:r.origin[1]+r.widths[1]-1))
-
-"""
-    Rect(indices::CartesianIndices)
-
-Create a Rect from CartesianIndices.
-"""
-function Rect(indices::CartesianIndices{2})
-    ranges = indices.indices
-    y_range, x_range = ranges  # CartesianIndices uses (row, col) = (y, x) ordering
-    origin = Point2(first(x_range), first(y_range))
-    widths = Vec2(length(x_range), length(y_range))
-
-    return Rect(origin, widths)
-end
-
 Point2i(index::CartesianIndex{2}) = Point2{Int}(index[2], index[1])
 Point2(index::CartesianIndex{2}) = Point2i(index)
 
