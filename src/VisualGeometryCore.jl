@@ -34,6 +34,7 @@ using ImageTransformations: imresize, warp
 using ImageCore: channelview
 using Interpolations
 using IntervalSets
+using IntervalSets: ClosedInterval, leftendpoint, rightendpoint
 using StructArrays
 using FileIO: save
 using Transducers
@@ -41,6 +42,7 @@ using Transducers
 # Export geometry basics
 export Point2, Rect, Rect2, Vec2, HyperRectangle, Circle, Point2f
 export cartesian_ranges, center, ranges, intervals
+export ClosedInterval  # Re-export from IntervalSets for convenience
 
 # Export transforms and conics functionality
 export HomRotMat, HomTransMat, HomScaleIsoMat, HomScaleAnisoMat, EuclideanMat, SimilarityMat, AffineMat, PlanarHomographyMat

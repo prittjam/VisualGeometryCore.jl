@@ -1,12 +1,127 @@
 # ========================================================================
-# Rect Constructors
+# Interval Constructors from Ranges
 # ========================================================================
+
+"""
+    ClosedInterval(range::AbstractRange; align_corners::Bool=false)
+        -> ClosedInterval
+
+Construct a closed interval from a range representing its geometric extent.
+
+# Arguments
+- `range::AbstractRange`: The range to convert
+- `align_corners::Bool`: Alignment mode (default: false)
+  - `true`: Interval endpoints are range endpoints [first, last]
+  - `false`: Range values are centers, extend by ±step/2
+
+# Returns
+- `ClosedInterval`: Geometric interval [a, b]
+
+# Examples
+```julia
+# Discrete endpoints (closed interval of range bounds)
+r = 1:10
+ClosedInterval(r; align_corners=true)   # [1, 10]
+
+# Pixel centers with extent
+ClosedInterval(r; align_corners=false)  # [0.5, 10.5]
+
+# Non-unit step
+r = 0.0:0.1:1.0
+ClosedInterval(r; align_corners=false)  # [-0.05, 1.05]
+```
+"""
+function ClosedInterval(r::AbstractRange; align_corners::Bool=false)
+    T = eltype(r)
+
+    if align_corners
+        # Interval defined by range endpoints
+        return ClosedInterval(T(first(r)), T(last(r)))
+    else
+        # Range values are centers, extend by half-step
+        T_out = T <: Integer ? Float64 : T
+        s = T_out(step(r))
+        return ClosedInterval(T_out(first(r)) - s/2, T_out(last(r)) + s/2)
+    end
+end
+
+"""
+    intervals(ranges::Tuple{AbstractRange, AbstractRange}; align_corners::Bool=false)
+        -> Tuple{ClosedInterval, ClosedInterval}
+
+Convert a tuple of ranges to a tuple of closed intervals.
+
+# Arguments
+- `ranges`: Tuple of (x_range, y_range)
+- `align_corners`: Alignment mode (default: false)
+
+# Returns
+- Tuple of intervals (interval_x, interval_y)
+
+# Example
+```julia
+rx, ry = 1:640, 1:480
+ix, iy = intervals((rx, ry); align_corners=false)
+rect = Rect((ix, iy))  # Create rect from intervals
+```
+"""
+function intervals(ranges::Tuple{AbstractRange, AbstractRange}; align_corners::Bool=false)
+    rx, ry = ranges
+    return (ClosedInterval(rx; align_corners=align_corners),
+            ClosedInterval(ry; align_corners=align_corners))
+end
+
+# ========================================================================
+# Rect Constructors from Intervals
+# ========================================================================
+
+"""
+    Rect(intervals::Tuple{ClosedInterval, ClosedInterval})
+        -> GeometryBasics.Rect
+
+Construct a Rect from a tuple of closed intervals.
+
+The intervals directly define the rectangle bounds with no interpretation.
+
+# Arguments
+- `intervals`: Tuple of (interval_x, interval_y)
+
+# Returns
+- `Rect`: Rectangle with origin at (left, bottom) and widths (Δx, Δy)
+
+# Examples
+```julia
+using IntervalSets
+
+# From explicit intervals
+ix = ClosedInterval(0.5, 640.5)
+iy = ClosedInterval(0.5, 480.5)
+rect = Rect((ix, iy))  # origin=[0.5, 0.5], widths=[640, 480]
+
+# From ranges via interval conversion
+rx, ry = 1:640, 1:480
+intervals_tuple = intervals((rx, ry); align_corners=false)
+rect = Rect(intervals_tuple)
+```
+"""
+function GeometryBasics.Rect(intervals::Tuple{ClosedInterval, ClosedInterval})
+    ix, iy = intervals
+    T = promote_type(eltype(ix), eltype(iy))
+
+    origin = Point2{T}(T(leftendpoint(ix)), T(leftendpoint(iy)))
+    widths = Vec2{T}(T(rightendpoint(ix) - leftendpoint(ix)),
+                     T(rightendpoint(iy) - leftendpoint(iy)))
+
+    return GeometryBasics.Rect(origin, widths)
+end
 
 """
     Rect(ranges::Tuple{AbstractRange, AbstractRange}; align_corners::Bool=false)
         -> GeometryBasics.Rect
 
 Construct a Rect from a tuple of ranges representing array axes.
+
+This is a convenience method that converts ranges to intervals and then to a Rect.
 
 # Arguments
 - `ranges`: Tuple of (x_range, y_range) representing the grid
@@ -46,41 +161,16 @@ rect1 = Rect((x_range, y_range))  # From (0.5, 0.5) to (640.5, 480.5)
 # Align to corners (range endpoints)
 rect2 = Rect((x_range, y_range); align_corners=true)  # From (1, 1) to (640, 480)
 
-# Non-unit step
-x_range = 0.0:0.1:1.0  # 11 points
-rect3 = Rect((x_range, x_range))  # From (-0.05, -0.05) to (1.05, 1.05)
-
-# Note: Different from Rect(CartesianIndices) which uses discrete index space
-# Rect(CartesianIndices(A)) - discrete indices, no half-step extension
-# Rect(axes(A))             - pixel centers with extent (default align_corners=false)
+# Equivalent two-step process via interval constructors
+ix = ClosedInterval(x_range; align_corners=false)
+iy = ClosedInterval(y_range; align_corners=false)
+rect3 = Rect((ix, iy))  # Same as rect1
 ```
 """
 function GeometryBasics.Rect(ranges::Tuple{AbstractRange, AbstractRange};
                             align_corners::Bool=false)
-    rx, ry = ranges
-    T = promote_type(eltype(rx), eltype(ry))
-
-    if align_corners
-        # Corners align to range endpoints
-        x_min = T(first(rx))
-        y_min = T(first(ry))
-        x_width = T(last(rx) - first(rx))
-        y_width = T(last(ry) - first(ry))
-    else
-        # Range values are centers, extend by half-step on each side
-        # Promote to Float64 if T is integer (since we'll have half-steps)
-        T_out = T <: Integer ? Float64 : T
-        step_x = T_out(step(rx))
-        step_y = T_out(step(ry))
-        x_min = T_out(first(rx)) - step_x / 2
-        y_min = T_out(first(ry)) - step_y / 2
-        x_width = T_out(length(rx)) * step_x  # length pixels × step size
-        y_width = T_out(length(ry)) * step_y
-        T = T_out
-    end
-
-    return GeometryBasics.Rect(Point2{T}(x_min, y_min),
-                              Vec2{T}(x_width, y_width))
+    # Delegate to interval-based constructor
+    return Rect(intervals(ranges; align_corners=align_corners))
 end
 
 # ========================================================================
