@@ -207,9 +207,11 @@ pt = rand(box)  # Random point in [1,5] × [2,7] × [3,9]
 """
 function Random.rand(rng::AbstractRNG, r::HyperRectangle{N,T}) where {N,T}
     # Sample uniformly in [0,1]^N and scale/offset to rectangle bounds
-    random_offset = T.(rand(rng, N))
-    # Ensure we return a Point as documented, not a SizedVector from broadcast
-    return Point{N,T}(r.origin .+ random_offset .* r.widths)
+    # Promote to float type to handle both integer and float rectangles
+    FT = float(T)
+    random_offset = FT.(rand(rng, N))
+    # Result type promotes based on arithmetic (int + float = float)
+    return Point{N}(r.origin .+ random_offset .* r.widths)
 end
 
 Random.rand(r::HyperRectangle) = rand(Random.default_rng(), r)
