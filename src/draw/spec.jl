@@ -1,8 +1,9 @@
 module Spec
 
 using Makie
-using ..VisualGeometryCore: AbstractBlob, INTRINSICS_COORDINATE_OFFSET
+using ..VisualGeometryCore: AbstractBlob, INTRINSICS_COORDINATE_OFFSET, Ellipse
 using GeometryBasics
+using GeometryBasics: Circle, Rect
 using Unitful: ustrip
 import Makie.SpecApi as MakieSpec
 
@@ -247,8 +248,9 @@ function Blobs(blobs;
 
         # Add circles for blob scales using Circle constructor with broadcast
         if sigma_cutoff > 0
-            # Create all circles at once using broadcast
-            circles = Circle.(blobs, Ref(sigma_cutoff))
+            # Create all circles at once using broadcast (strip units first)
+            blobs_unitless = ustrip.(blobs)
+            circles = Circle.(blobs_unitless, Ref(sigma_cutoff))
 
             # Convert circles to point arrays for Makie Lines plotting
             circle_points = GeometryBasics.coordinates.(circles)
@@ -389,6 +391,119 @@ function Ellipses(ellipses;
                                            markersize=markersize,
                                            color=color)
             push!(plot_specs, marker_spec)
+        end
+    end
+
+    return plot_specs
+end
+
+"""
+    Locus(geometry; color=:green, linewidth=1.0, linestyle=:solid, resolution=64)
+    Locus(geometries::AbstractVector; color=:green, linewidth=1.0, linestyle=:solid, resolution=64)
+
+Create a plot spec for the outline (locus) of geometric object(s).
+
+Uses multiple dispatch to handle different geometry types:
+- `Circle`: circular outline
+- `Ellipse`: elliptical outline
+- `Rect`: rectangular outline
+
+Can accept either a single geometry or a collection of geometries.
+
+# Arguments
+- `geometry`: A geometric object (Circle, Ellipse, or Rect)
+- `geometries`: A vector of geometric objects
+
+# Keyword Arguments
+- `color=:green`: Color for the outline(s)
+- `linewidth=1.0`: Width of the outline(s)
+- `linestyle=:solid`: Line style (:solid, :dash, :dot, etc.)
+- `resolution=64`: Number of points for curved geometries (Circle, Ellipse)
+
+Returns a vector of PlotSpec objects that can be composed with SpecApi.
+
+# Examples
+```julia
+import VisualGeometryCore.Spec as S
+
+# Single circle locus
+circle = Circle(Point2(100.0, 100.0), 50.0)
+specs = S.Locus(circle; color=:red, linewidth=2.0)
+
+# Multiple circles
+circles = [Circle(Point2(100.0, 100.0), 50.0), Circle(Point2(200.0, 200.0), 30.0)]
+specs = S.Locus(circles; color=:blue)
+
+# Compose with image
+lscene = S.Imshow(img)
+append!(lscene.plots, S.Locus(circles; color=:yellow))
+plot(S.GridLayout([lscene]))
+```
+"""
+function Locus(circle::Circle;
+               color=:green,
+               linewidth::Float64=1.0,
+               linestyle=:solid,
+               resolution::Int=64)
+    # Generate circle boundary points using GeometryBasics
+    points = GeometryBasics.coordinates(circle, resolution)
+
+    # Close the path by adding the first point at the end
+    closed_points = vcat(points, [points[1]])
+
+    # Return Lines spec
+    return [MakieSpec.Lines(closed_points; color=color, linewidth=linewidth, linestyle=linestyle)]
+end
+
+function Locus(ellipse::Ellipse;
+               color=:green,
+               linewidth::Float64=1.0,
+               linestyle=:solid,
+               resolution::Int=64)
+    # Generate ellipse boundary points using GeometryBasics
+    points = GeometryBasics.coordinates(ellipse, resolution)
+
+    # Close the path by adding the first point at the end
+    closed_points = vcat(points, [points[1]])
+
+    # Return Lines spec
+    return [MakieSpec.Lines(closed_points; color=color, linewidth=linewidth, linestyle=linestyle)]
+end
+
+function Locus(rect::Rect;
+               color=:green,
+               linewidth::Float64=1.0,
+               linestyle=:solid,
+               resolution::Int=64)  # Ignored for rectangles but kept for interface consistency
+    # Extract rectangle corners
+    min_corner = GeometryBasics.minimum(rect)
+    max_corner = GeometryBasics.maximum(rect)
+
+    # Generate rectangle boundary points (clockwise from bottom-left)
+    points = [
+        Point2(min_corner[1], min_corner[2]),  # bottom-left
+        Point2(max_corner[1], min_corner[2]),  # bottom-right
+        Point2(max_corner[1], max_corner[2]),  # top-right
+        Point2(min_corner[1], max_corner[2]),  # top-left
+        Point2(min_corner[1], min_corner[2])   # back to bottom-left (close path)
+    ]
+
+    # Return Lines spec
+    return [MakieSpec.Lines(points; color=color, linewidth=linewidth, linestyle=linestyle)]
+end
+
+# Collection method - flattens results from broadcasting over individual geometries
+function Locus(geometries::AbstractVector;
+               color=:green,
+               linewidth::Float64=1.0,
+               linestyle=:solid,
+               resolution::Int=64)
+    plot_specs = Makie.PlotSpec[]
+
+    if !isempty(geometries)
+        for geometry in geometries
+            # Call the appropriate single-geometry method and collect results
+            append!(plot_specs, Locus(geometry; color=color, linewidth=linewidth, linestyle=linestyle, resolution=resolution))
         end
     end
 

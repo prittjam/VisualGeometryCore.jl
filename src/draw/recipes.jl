@@ -42,7 +42,7 @@ function Makie.convert_arguments(::Type{<:AbstractPlot}, img::AbstractMatrix{<:C
                                  interpolate=false, color=:green, sigma_cutoff::Float64=3.0,
                                  marker=:cross, markersize::Float64=15.0, linewidth::Float64=1.0)
     # Compose by calling Spec functions
-    lscene = Spec.Imshow(img; interpolate=interpolate)
+    lscene = Spec.Imshow(img; imagekw=(interpolate=interpolate,))
     blob_specs = Spec.Blobs(blobs; color=color, sigma_cutoff=sigma_cutoff,
                           marker=marker, markersize=markersize, linewidth=linewidth)
     append!(lscene.plots, blob_specs)
@@ -77,7 +77,7 @@ function Makie.convert_arguments(::Type{<:AbstractPlot}, img::AbstractMatrix{<:C
                                  linewidth::Float64=1.0,
                                  detection_linestyle=:dash, ground_truth_linestyle=:solid)
     # Create base image
-    lscene = Spec.Imshow(img; interpolate=interpolate)
+    lscene = Spec.Imshow(img; imagekw=(interpolate=interpolate,))
 
     # Add ground truth blobs (green, solid)
     gt_specs = Spec.Blobs(ground_truth; color=ground_truth_color, sigma_cutoff=sigma_cutoff,

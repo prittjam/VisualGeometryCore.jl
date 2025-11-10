@@ -1,7 +1,7 @@
 module VisualGeometryCore
 
 # Geometry and coordinate systems
-using GeometryBasics: GeometryBasics, Vec2, HyperRectangle, Point2f, Rect2
+using GeometryBasics: GeometryBasics, Vec2, HyperRectangle, Point2f, Rect2, radius
 import GeometryBasics: Point2, Point2i, Rect, Circle
 using StaticArrays
 using LinearAlgebra
@@ -42,6 +42,9 @@ using Transducers
 # Export geometry basics
 export Point2, Rect, Rect2, Vec2, HyperRectangle, Circle, Point2f
 export cartesian_ranges, center, ranges
+export coord_map, CANONICAL_SQUARE, UNIT_CIRCLE  # Generic coordinate mapping API
+export imgmap  # Image coordinate adaptation for warping
+export logpolar_to_cartesian, logpolar_map, logpolar_patch
 export ClosedInterval  # Re-export from IntervalSets for convenience
 
 # Export transforms and conics functionality
@@ -108,13 +111,14 @@ include("core/types.jl")
 include("core/utils.jl")
 
 # Geometry
-include("geometry/transforms.jl")
+include("geometry/transforms.jl")          # Homogeneous transforms (defines HomCircleMat, HomEllipseMat)
 include("geometry/conversions.jl")
-include("geometry/blobs.jl")         # Load blobs before primitives (AbstractBlob needed)
-include("geometry/primitives.jl")    # primitives uses AbstractBlob
-include("geometry/solvers.jl")       # P3P and other geometric solvers
-include("geometry/cameras/cameras.jl")  # Camera system (includes all camera submodules)
-include("geometry/homography.jl")  # Homography for planar scenes
+include("geometry/blobs.jl")               # Load blobs before primitives (AbstractBlob needed)
+include("geometry/primitives/primitives.jl")  # Geometric primitives (uses AbstractBlob)
+include("geometry/transforms/transforms.jl")  # Coordinate mappings (uses primitives)
+include("geometry/solvers.jl")             # P3P and other geometric solvers
+include("geometry/cameras/cameras.jl")     # Camera system (includes all camera submodules)
+include("geometry/homography.jl")          # Homography for planar scenes
 
 # Feature Detection
 include("feature/scalespace.jl")
