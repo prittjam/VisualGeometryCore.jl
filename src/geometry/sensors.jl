@@ -154,21 +154,23 @@ warped = warp(image, transform, output_axes)
 ```
 """
 function Rect(sensor::Sensor; image_origin::Symbol=:opencv)
-    # Look up corner offset for this convention
-    if !haskey(INTRINSICS_COORDINATE_OFFSET, image_origin)
-        valid = join(sort(collect(keys(INTRINSICS_COORDINATE_OFFSET))), ", :")
-        error("Unknown image origin :$image_origin. Valid options: :$valid")
-    end
+    # Get offset from Julia convention (1-based) to target convention
+    offset = image_origin_offset(from=:julia, to=image_origin)
 
-    offset_vec = INTRINSICS_COORDINATE_OFFSET[image_origin]
+    # Create 1-based ranges and shift by offset
+    w = ustrip(sensor.resolution.width)
+    h = ustrip(sensor.resolution.height)
 
-    # Get resolution widths (has units)
-    widths = Vec2(sensor.resolution.width, sensor.resolution.height)
+    # Create intervals in unitless coordinates
+    ix_unitless = ClosedInterval((1:w) .+ ustrip(offset[1]); align_corners=false)
+    iy_unitless = ClosedInterval((1:h) .+ ustrip(offset[2]); align_corners=false)
 
-    # Create corner offset with proper units
-    corner_offset = Point2(offset_vec[1] * oneunit(widths[1]), offset_vec[2] * oneunit(widths[2]))
+    # Apply units to interval endpoints
+    unit_val = oneunit(sensor.resolution.width)
+    ix = ClosedInterval(leftendpoint(ix_unitless) * unit_val, rightendpoint(ix_unitless) * unit_val)
+    iy = ClosedInterval(leftendpoint(iy_unitless) * unit_val, rightendpoint(iy_unitless) * unit_val)
 
-    return Rect(corner_offset, widths)
+    return Rect((ix, iy))
 end
 
 """
