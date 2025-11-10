@@ -107,7 +107,7 @@ function logpolar_map(geometry::Union{Circle, Ellipse}, logpolar_rect::HyperRect
 end
 
 """
-    logpolar_patch(image::Matrix{Gray{T}}, geometry; patch_size=256, r_min=0.01, interpolation=BSpline(Cubic(Line(OnGrid()))), extrapolation=Flat()) where T<:AbstractFloat
+    logpolar_patch(image::Matrix{Gray{T}}, geometry; patch_size=256, r_min=0.01, image_origin=:julia, interpolation=BSpline(Cubic(Line(OnGrid()))), extrapolation=Flat()) where T<:AbstractFloat
 
 Extract a log-polar patch from an image around a circular or elliptical region.
 
@@ -120,6 +120,7 @@ of setting up the transformation and applying it with proper coordinate conventi
 - `geometry::Union{Circle, Ellipse}`: Region to extract in image coordinates
 - `patch_size::Integer=256`: Size of output square patch (patch_size × patch_size)
 - `r_min::Real=0.01`: Minimum radius for log-polar transform (avoids singularity at origin)
+- `image_origin::Symbol=:julia`: Coordinate convention for patch (:julia, :opencv, :makie, etc.)
 - `interpolation`: Interpolation method (default: BSpline(Cubic(Line(OnGrid()))))
 - `extrapolation`: Extrapolation method (default: Flat())
 
@@ -159,11 +160,20 @@ patches = logpolar_patch.(Ref(image), circles; patch_size=256)
 function logpolar_patch(image::Matrix{Gray{T}}, geometry::Union{Circle, Ellipse};
                        patch_size::Integer=256,
                        r_min::Real=0.01,
+                       image_origin::Symbol=:julia,
                        interpolation=BSpline(Cubic(Line(OnGrid()))),
                        extrapolation=Flat()) where T<:AbstractFloat
-    # Define patch coordinate system
+    # Define patch coordinate system matching the specified convention
+    # Start with 1-based range and apply offset for target convention
+    offset = image_origin_offset(from=:julia, to=image_origin)
+
+    # Create intervals in the target coordinate system
+    ix = ClosedInterval((1:patch_size) .+ ustrip(offset[1]); align_corners=false)
+    iy = ClosedInterval((1:patch_size) .+ ustrip(offset[2]); align_corners=false)
+    logpolar_rect = Rect((ix, iy))
+
+    # Array axes are always 1-based in Julia
     logpolar_axes = (1:patch_size, 1:patch_size)
-    logpolar_rect = Rect((ClosedInterval(1, patch_size), ClosedInterval(1, patch_size)))
 
     # Create log-polar transformation
     transform = logpolar_map(geometry, logpolar_rect, r_min)
