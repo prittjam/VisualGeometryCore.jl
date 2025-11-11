@@ -55,6 +55,8 @@ export to_homogeneous, to_affine, to_euclidean, result_type
 export Ellipse, is_ellipse
 export gradient
 export ConicTrait, CircleTrait, EllipseTrait, conic_trait
+export dilate  # Dilate circles and ellipses (scale size, keep position)
+export intersects  # Check intersection between geometric primitives
 
 # Export blob filtering functions
 export light_blobs, dark_blobs
@@ -129,8 +131,8 @@ include("feature/detection.jl")
 include("feature/io.jl")
 
 # Visualization
-include("draw/spec.jl")
-include("draw/recipes.jl")
+include("plotting/spec.jl")
+include("plotting/recipes.jl")
 
 function __init__()
     Unitful.register(@__MODULE__)

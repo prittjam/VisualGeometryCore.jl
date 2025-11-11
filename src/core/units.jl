@@ -116,28 +116,8 @@ logical_units(10.0mm, 300dpi)  # Returns value in pd
 logical_units(10.0mm, 300px/inch)  # Returns value in px
 ```
 """
-function logical_units(q::Quantity{<:Real, Unitful.𝐋}, render_density::LogicalDensity)
-    # Multiplication by density (𝐍 𝐋^-1) converts physical (𝐋) to logical (𝐍)
-    scaled = q * render_density
-
-    # Determine target logical unit (pd or px) from density's unit type parameters
-    unit_tuple = typeof(unit(render_density)).parameters[1]
-
-    # Look for logical unit (𝐍 dimension) in the tuple
-    target_unit = pd  # default to pd
-    for u in unit_tuple
-        if dimension(u) == 𝐍
-            if u isa Unitful.Unit{:Pixel}
-                target_unit = px
-            elseif u isa Unitful.Unit{:Dot}
-                target_unit = pd
-            end
-            break
-        end
-    end
-
-    return uconvert(target_unit, scaled)
-end
+logical_units(q::Quantity{<:Real, Unitful.𝐋}, render_density::LogicalDensity) =
+    return uconvert(px, q * render_density)
 
 """
     physical_units(q::Quantity{<:Real, 𝐍}, render_density::LogicalDensity)
@@ -157,36 +137,8 @@ physical_units(300.0pd, 300dpi)  # Returns value in inches
 physical_units(300.0pd, 300pd/mm)  # Returns value in mm
 ```
 """
-function physical_units(q::Quantity{<:Real, 𝐍}, render_density::LogicalDensity)
-    # Division by density (𝐍 𝐋^-1) converts logical (𝐍) to physical (𝐋)
-    scaled = q / render_density
-
-    # Determine target length unit from density's unit type parameters
-    unit_tuple = typeof(unit(render_density)).parameters[1]
-
-    # Special case: dpi is a named compound unit (pd/inch)
-    target_unit = if any(u -> u isa Unitful.Unit{:DotsPerInch}, unit_tuple)
-        inch
-    else
-        # Look for inverted length unit (𝐋^-1 dimension) in the tuple
-        found_unit = mm  # default
-        for u in unit_tuple
-            if dimension(u) == Unitful.𝐋^-1
-                # Extract the base unit (e.g., mm^-1 → mm)
-                unit_str = string(u)
-                unit_name = Symbol(unit_str[1:end-3])  # Remove "^-1"
-                found_unit = getfield(Unitful, unit_name)
-                break
-            elseif dimension(u) == Unitful.𝐋
-                found_unit = u
-                break
-            end
-        end
-        found_unit
-    end
-
-    return uconvert(target_unit, scaled)
-end
+physical_units(q::Quantity{<:Real, 𝐍}, render_density::LogicalDensity) = 
+    return uconvert(mm, q / render_density)
 
 # Type conversion utilities for working with Unitful quantities
 integer(::Type{Quantity{T,D,U}}) where {T,D,U} = Quantity{Int, D, U}

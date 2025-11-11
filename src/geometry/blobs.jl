@@ -414,8 +414,11 @@ println("Found \$(length(dark_spots)) dark blobs out of \$(length(all_blobs)) to
 # Visualize with different colors
 import VisualGeometryCore.Spec as S
 lscene = S.Imshow(img)
-append!(lscene.plots, S.Blobs(light_blobs(all_blobs); color=:yellow))  # Bright blobs in yellow
-append!(lscene.plots, S.Blobs(dark_blobs(all_blobs); color=:blue))     # Dark blobs in blue
+# Convert blobs to circles for visualization (sigma_cutoff = 3.0)
+light_circles = Circle.(light_blobs(all_blobs), Ref(3.0))
+dark_circles = Circle.(dark_blobs(all_blobs), Ref(3.0))
+append!(lscene.plots, S.Locus.(light_circles; color=:yellow, linewidth=2.0))  # Bright blobs in yellow
+append!(lscene.plots, S.Locus.(dark_circles; color=:blue, linewidth=2.0))     # Dark blobs in blue
 ```
 
 See also: [`light_blobs`](@ref), [`detect_features`](@ref)

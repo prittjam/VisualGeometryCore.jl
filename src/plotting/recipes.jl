@@ -7,7 +7,8 @@ import Makie.SpecApi as MakieSpec
 # Note: For image+blob overlays, use SpecApi composition:
 #   import VisualGeometryCore.Spec as S
 #   lscene = S.Imshow(image)
-#   blob_specs = S.Blobs(blobs; color=:red, sigma_cutoff=3.0)
+#   circles = Circle.(blobs, Ref(3.0))  # Convert blobs to circles
+#   blob_specs = S.Locus.(circles; color=:red, linewidth=2.0)
 #   append!(lscene.plots, blob_specs)
 #   fig, _, _ = plot(MakieSpec.GridLayout([lscene]))
 
@@ -29,7 +30,7 @@ Makie.used_attributes(::Type{<:Plot}, ::AbstractMatrix{<:Colorant}, ::Vector{<:A
     Makie.convert_arguments(::Type{<:AbstractPlot}, img::AbstractMatrix{<:Colorant}, blobs::Vector{<:AbstractBlob}; kwargs...)
 
 Convert image and blobs to composed GridLayout with overlay.
-Composes by calling through to Spec.Imshow() and Spec.Blobs().
+Composes by calling through to Spec.Imshow() and Spec.Locus() (after converting blobs to circles).
 
 # Examples
 ```julia
@@ -43,8 +44,9 @@ function Makie.convert_arguments(::Type{<:AbstractPlot}, img::AbstractMatrix{<:C
                                  marker=:cross, markersize::Float64=15.0, linewidth::Float64=1.0)
     # Compose by calling Spec functions
     lscene = Spec.Imshow(img; imagekw=(interpolate=interpolate,))
-    blob_specs = Spec.Blobs(blobs; color=color, sigma_cutoff=sigma_cutoff,
-                          marker=marker, markersize=markersize, linewidth=linewidth)
+    # Convert blobs to circles for visualization
+    circles = Circle.(blobs, Ref(sigma_cutoff))
+    blob_specs = Spec.Locus.(circles; color=color, linewidth=linewidth)
     append!(lscene.plots, blob_specs)
     return MakieSpec.GridLayout([lscene]; rowgaps=Makie.Fixed(0), colgaps=Makie.Fixed(0))
 end
@@ -79,16 +81,16 @@ function Makie.convert_arguments(::Type{<:AbstractPlot}, img::AbstractMatrix{<:C
     # Create base image
     lscene = Spec.Imshow(img; imagekw=(interpolate=interpolate,))
 
-    # Add ground truth blobs (green, solid)
-    gt_specs = Spec.Blobs(ground_truth; color=ground_truth_color, sigma_cutoff=sigma_cutoff,
-                        marker=ground_truth_marker, markersize=ground_truth_markersize,
-                        linewidth=linewidth, linestyle=ground_truth_linestyle)
+    # Add ground truth blobs (green, solid) - convert to circles first
+    gt_circles = Circle.(ground_truth, Ref(sigma_cutoff))
+    gt_specs = Spec.Locus.(gt_circles; color=ground_truth_color,
+                          linewidth=linewidth, linestyle=ground_truth_linestyle)
     append!(lscene.plots, gt_specs)
 
-    # Add detection blobs (blue, dashed)
-    det_specs = Spec.Blobs(detections; color=detection_color, sigma_cutoff=sigma_cutoff,
-                         marker=detection_marker, markersize=detection_markersize,
-                         linewidth=linewidth, linestyle=detection_linestyle)
+    # Add detection blobs (blue, dashed) - convert to circles first
+    det_circles = Circle.(detections, Ref(sigma_cutoff))
+    det_specs = Spec.Locus.(det_circles; color=detection_color,
+                           linewidth=linewidth, linestyle=detection_linestyle)
     append!(lscene.plots, det_specs)
 
     return MakieSpec.GridLayout([lscene]; rowgaps=Makie.Fixed(0), colgaps=Makie.Fixed(0))
@@ -108,10 +110,10 @@ function Makie.convert_arguments(::Type{<:AbstractPlot}, blobs::Vector{<:Abstrac
                                 color=:green, sigma_cutoff::Float64=3.0,
                                 marker=:cross, markersize::Float64=15.0,
                                 linewidth::Float64=1.0, linestyle=:solid)
-    # Return PlotSpec vector
-    return Spec.Blobs(blobs; color=color, sigma_cutoff=sigma_cutoff,
-                    marker=marker, markersize=markersize,
-                    linewidth=linewidth, linestyle=linestyle)
+    # Convert blobs to circles and return PlotSpec vector
+    circles = Circle.(blobs, Ref(sigma_cutoff))
+    return Spec.Locus.(circles; color=color,
+                      linewidth=linewidth, linestyle=linestyle)
 end
 
 # Atomic convert_arguments for blob detections with dashed outlines
@@ -127,10 +129,10 @@ function Makie.convert_arguments(::Type{<:AbstractPlot}, detections::Vector{IsoB
                                 color=:blue, sigma_cutoff::Float64=3.0,
                                 marker=:cross, markersize::Float64=15.0, linewidth::Float64=1.0,
                                 linestyle=:dash)
-    # IsoBlobDetection is already an AbstractBlob, use directly
-    return Spec.Blobs(detections; color=color, sigma_cutoff=sigma_cutoff,
-                    marker=marker, markersize=markersize,
-                    linewidth=linewidth, linestyle=linestyle)
+    # IsoBlobDetection is already an AbstractBlob, convert to circles
+    circles = Circle.(detections, Ref(sigma_cutoff))
+    return Spec.Locus.(circles; color=color,
+                      linewidth=linewidth, linestyle=linestyle)
 end
 
 # =============================================================================
@@ -145,6 +147,5 @@ Or use as: `using VisualGeometryCore; import VisualGeometryCore.Spec as S`
 
 Provides:
 - `Spec.Imshow()` - Image display with y-axis flipping
-- `Spec.Blobs()` - Blob visualization
-- `Spec.Ellipses()` - Ellipse visualization
+- `Spec.Locus()` - Geometric locus visualization for circles and ellipses (use with blobs: `Locus.(Circle.(blobs, sigma_cutoff))`)
 """

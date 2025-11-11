@@ -157,23 +157,24 @@ patches = logpolar_patch.(Ref(image), circles; patch_size=256)
 - [`logpolar_map`](@ref): Lower-level transformation creation
 - [`imgmap`](@ref): Image coordinate adaptation for warping
 """
-function logpolar_patch(image::Matrix{Gray{T}}, geometry::Union{Circle, Ellipse};
-                       patch_size::Integer=256,
-                       r_min::Real=0.01,
-                       image_origin::Symbol=:julia,
-                       interpolation=BSpline(Cubic(Line(OnGrid()))),
-                       extrapolation=Flat()) where T<:AbstractFloat
+function logpolar_patch(image::Matrix{Gray{T}},
+                        geometry::Union{Circle, Ellipse};
+                        patch_size::Integer=256,
+                        r_min::Real=0.01,
+                        image_origin::Symbol=:julia,
+                        interpolation=BSpline(Cubic(Line(OnGrid()))),
+                        extrapolation=Flat()) where T<:AbstractFloat
     # Define patch coordinate system matching the specified convention
     # Start with 1-based range and apply offset for target convention
     offset = image_origin_offset(from=:julia, to=image_origin)
 
-    # Create intervals in the target coordinate system
-    ix = ClosedInterval((1:patch_size) .+ ustrip(offset[1]); align_corners=false)
-    iy = ClosedInterval((1:patch_size) .+ ustrip(offset[2]); align_corners=false)
-    logpolar_rect = Rect((ix, iy))
-
-    # Array axes are always 1-based in Julia
     logpolar_axes = (1:patch_size, 1:patch_size)
+    
+    # Create intervals in the target coordinate system
+    ix = ClosedInterval(logpolar_axes[1] .+ ustrip(offset[1]); align_corners=false)
+    iy = ClosedInterval(logpolar_axes[2] .+ ustrip(offset[2]); align_corners=false)
+
+    logpolar_rect = Rect((ix, iy))
 
     # Create log-polar transformation
     transform = logpolar_map(geometry, logpolar_rect, r_min)
@@ -185,5 +186,6 @@ function logpolar_patch(image::Matrix{Gray{T}}, geometry::Union{Circle, Ellipse}
     # Warp to extract patch (imgmap handles coordinate convention)
     patch = warp(etp, imgmap(transform), logpolar_axes)
 
-    return patch
+    # Clamp values to [0, 1] range
+    return clamp.(patch, 0, 1)
 end
