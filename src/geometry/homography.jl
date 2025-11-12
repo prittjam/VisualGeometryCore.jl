@@ -2,7 +2,7 @@
 # Homography - 2D projective transformations for planar scenes
 # ==============================================================================
 
-# Note: PlanarHomographyMat is defined in transforms.jl as part of the transform hierarchy
+# Note: PlanarHomographyMat is defined in geometry/transforms/homogeneous.jl as part of the transform hierarchy
 
 # Ensure inv returns PlanarHomographyMat
 Base.inv(H::PlanarHomographyMat{T}) where T = PlanarHomographyMat{T}(inv(SMatrix{3,3,T}(H)))

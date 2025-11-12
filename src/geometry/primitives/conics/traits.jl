@@ -2,7 +2,7 @@
 # Conic Trait Dispatch
 # =============================================================================
 #
-# Note: ConicTrait, CircleTrait, and EllipseTrait types are defined in transforms.jl
+# Note: ConicTrait, CircleTrait, and EllipseTrait types are defined in geometry/transforms/homogeneous.jl
 # since they're needed there for transformation result type dispatch.
 
 # Delegate HomEllipseMat(::Circle) to HomCircleMat for type correctness
@@ -31,4 +31,4 @@ conic_trait(Q)  # EllipseTrait()
 conic_trait(::HomCircleMat) = CircleTrait()
 conic_trait(::HomEllipseMat) = EllipseTrait()
 
-# Note: conic_trait(::Type{...}) is defined in transforms.jl for use with promote_rule
+# Note: conic_trait(::Type{...}) is defined in geometry/transforms/homogeneous.jl for use with promote_rule
