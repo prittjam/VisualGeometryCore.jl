@@ -173,11 +173,11 @@ u = SVector(400.0, 300.0)  # px (unitless)
 ray = backproject(camera, u)  # Returns normalized Vec3 direction
 ```
 """
-backproject(model::CameraModel, u::StaticVector{2,Float64}) =
+backproject(model::CameraModel, u::StaticVector{2,Float64})::SVector{3,Float64} =
     backproject(model.intrinsics, model.projection, u)
 
 # Batched version for multiple points
-backproject(model::CameraModel, points::AbstractVector{<:StaticVector{2,Float64}}) =
+backproject(model::CameraModel, points::AbstractVector{<:StaticVector{2,Float64}})::Vector{SVector{3,Float64}} =
     backproject(model.intrinsics, model.projection, points)
 
 """
