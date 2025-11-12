@@ -5,12 +5,12 @@ import Makie.SpecApi as MakieSpec
 
 # Convert arguments for images using SpecApi
 # Note: For image+blob overlays, use SpecApi composition:
-#   import VisualGeometryCore.Spec as S
+#   import Makie.SpecApi as S
 #   lscene = S.Imshow(image)
 #   circles = Circle.(blobs, Ref(3.0))  # Convert blobs to circles
-#   blob_specs = S.Locus.(circles; color=:red, linewidth=2.0)
-#   append!(lscene.plots, blob_specs)
-#   fig, _, _ = plot(MakieSpec.GridLayout([lscene]))
+#   blob_spec = S.Poly(circles, color=(:black, 0.0), strokecolor=:red, strokewidth=2.0)
+#   push!(lscene.plots, blob_spec)
+#   fig, _, _ = plot(S.GridLayout([lscene]))
 
 # Direct convert_arguments for image matrices
 # Returns GridLayout with y-flipped LScene for proper image display
@@ -46,8 +46,8 @@ function Makie.convert_arguments(::Type{<:AbstractPlot}, img::AbstractMatrix{<:C
     lscene = Spec.Imshow(img; imagekw=(interpolate=interpolate,))
     # Convert blobs to circles for visualization
     circles = Circle.(blobs, Ref(sigma_cutoff))
-    blob_specs = Spec.Locus.(circles; color=color, linewidth=linewidth)
-    append!(lscene.plots, blob_specs)
+    blob_spec = MakieSpec.Poly(circles, color=(:black, 0.0), strokecolor=color, strokewidth=linewidth)
+    push!(lscene.plots, blob_spec)
     return MakieSpec.GridLayout([lscene]; rowgaps=Makie.Fixed(0), colgaps=Makie.Fixed(0))
 end
 
@@ -83,15 +83,17 @@ function Makie.convert_arguments(::Type{<:AbstractPlot}, img::AbstractMatrix{<:C
 
     # Add ground truth blobs (green, solid) - convert to circles first
     gt_circles = Circle.(ground_truth, Ref(sigma_cutoff))
-    gt_specs = Spec.Locus.(gt_circles; color=ground_truth_color,
-                          linewidth=linewidth, linestyle=ground_truth_linestyle)
-    append!(lscene.plots, gt_specs)
+    gt_spec = MakieSpec.Poly(gt_circles, color=(:black, 0.0),
+                             strokecolor=ground_truth_color,
+                             strokewidth=linewidth)
+    push!(lscene.plots, gt_spec)
 
     # Add detection blobs (blue, dashed) - convert to circles first
     det_circles = Circle.(detections, Ref(sigma_cutoff))
-    det_specs = Spec.Locus.(det_circles; color=detection_color,
-                           linewidth=linewidth, linestyle=detection_linestyle)
-    append!(lscene.plots, det_specs)
+    det_spec = MakieSpec.Poly(det_circles, color=(:black, 0.0),
+                              strokecolor=detection_color,
+                              strokewidth=linewidth)
+    push!(lscene.plots, det_spec)
 
     return MakieSpec.GridLayout([lscene]; rowgaps=Makie.Fixed(0), colgaps=Makie.Fixed(0))
 end
@@ -110,10 +112,10 @@ function Makie.convert_arguments(::Type{<:AbstractPlot}, blobs::Vector{<:Abstrac
                                 color=:green, sigma_cutoff::Float64=3.0,
                                 marker=:cross, markersize::Float64=15.0,
                                 linewidth::Float64=1.0, linestyle=:solid)
-    # Convert blobs to circles and return PlotSpec vector
+    # Convert blobs to circles and return PlotSpec
     circles = Circle.(blobs, Ref(sigma_cutoff))
-    return Spec.Locus.(circles; color=color,
-                      linewidth=linewidth, linestyle=linestyle)
+    return MakieSpec.Poly(circles, color=(:black, 0.0),
+                         strokecolor=color, strokewidth=linewidth)
 end
 
 # Atomic convert_arguments for blob detections with dashed outlines
@@ -131,8 +133,43 @@ function Makie.convert_arguments(::Type{<:AbstractPlot}, detections::Vector{IsoB
                                 linestyle=:dash)
     # IsoBlobDetection is already an AbstractBlob, convert to circles
     circles = Circle.(detections, Ref(sigma_cutoff))
-    return Spec.Locus.(circles; color=color,
-                      linewidth=linewidth, linestyle=linestyle)
+    return MakieSpec.Poly(circles, color=(:black, 0.0),
+                         strokecolor=color, strokewidth=linewidth)
+end
+
+# =============================================================================
+# Makie Poly Recipe for Ellipse
+# =============================================================================
+
+"""
+    Makie.convert_arguments(::Type{<:Poly}, ellipse::Ellipse)
+
+Convert Ellipse to polygon representation for Makie's poly plotting.
+
+This enables direct use of `poly` with Ellipse objects:
+```julia
+e = Ellipse(Point2(0.0, 0.0), 2.0, 1.0, 0.0)
+poly!(ax, e, color=:red, strokewidth=2)
+```
+"""
+function Makie.convert_arguments(P::Type{<:Poly}, ellipse::Ellipse)
+    return convert_arguments(P, GeometryBasics.Polygon(GeometryBasics.coordinates(ellipse, 64)))
+end
+
+"""
+    Makie.convert_arguments(::Type{<:Poly}, ellipses::Vector{<:Ellipse})
+
+Convert vector of Ellipses to polygon representations for Makie's poly plotting.
+
+This enables direct use of `poly` with colormap support:
+```julia
+ellipses = [Ellipse(Point2(i*3.0, 0.0), 2.0, 1.0, π/6*i) for i in 1:5]
+poly!(ax, ellipses, color=(:black, 0.0), strokecolor=1:5, strokewidth=2, colormap=:viridis)
+```
+"""
+function Makie.convert_arguments(P::Type{<:Poly}, ellipses::Vector{<:Ellipse})
+    polys = [GeometryBasics.Polygon(GeometryBasics.coordinates(e, 64)) for e in ellipses]
+    return convert_arguments(P, polys)
 end
 
 # =============================================================================
@@ -147,5 +184,5 @@ Or use as: `using VisualGeometryCore; import VisualGeometryCore.Spec as S`
 
 Provides:
 - `Spec.Imshow()` - Image display with y-axis flipping
-- `Spec.Locus()` - Geometric locus visualization for circles and ellipses (use with blobs: `Locus.(Circle.(blobs, sigma_cutoff))`)
+- `Spec.Poly()` - Use Makie's poly directly for geometric visualization (works with Circle, Ellipse, Rect)
 """
