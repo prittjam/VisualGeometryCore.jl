@@ -113,11 +113,12 @@ include("core/types.jl")
 include("core/utils.jl")
 
 # Geometry
-include("geometry/transforms.jl")          # Homogeneous transforms (defines HomCircleMat, HomEllipseMat)
-include("geometry/conversions.jl")
+include("geometry/transforms/homogeneous.jl")  # Homogeneous transforms (defines HomEllipseMat) - must come first
 include("geometry/blobs.jl")               # Load blobs before primitives (AbstractBlob needed)
-include("geometry/primitives/primitives.jl")  # Geometric primitives (uses AbstractBlob)
-include("geometry/transforms/transforms.jl")  # Coordinate mappings (uses primitives)
+include("geometry/primitives/primitives.jl")  # Geometric primitives (uses AbstractBlob and HomEllipseMat)
+include("geometry/transforms/conversions.jl")  # Coordinate system conversions (uses primitives)
+include("geometry/transforms/coord_maps.jl")  # Coordinate mappings (uses primitives)
+include("geometry/transforms/logpolar.jl")  # Log-polar transforms (uses primitives)
 include("geometry/solvers.jl")             # P3P and other geometric solvers
 include("geometry/cameras/cameras.jl")     # Camera system (includes all camera submodules)
 include("geometry/homography.jl")          # Homography for planar scenes

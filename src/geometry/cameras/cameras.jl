@@ -8,13 +8,12 @@
 # - intrinsics.jl:      Camera calibration matrices and intrinsics models
 # - projections.jl:     Projection models (pinhole, fisheye, orthographic)
 # - camera_models.jl:   Composable camera model (intrinsics + projection)
-# - cameras.jl:         Complete camera in 3D space (model + pose)
 # - stereo.jl:          Stereo camera rigs and epipolar geometry
 # - utilities.jl:       Helper functions (focal_length, lookat, etc.)
 # ==============================================================================
 
-# Include sensor specifications (from parent geometry directory)
-include("../sensors.jl")
+# Include sensor specifications
+include("sensors.jl")
 
 # Include modular camera components
 include("intrinsics.jl")
