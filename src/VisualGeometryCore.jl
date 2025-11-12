@@ -6,6 +6,7 @@ import GeometryBasics: Point2, Point2i, Rect, Circle
 using StaticArrays
 using LinearAlgebra
 using CoordinateTransformations
+using CoordinateTransformations: PerspectiveMap
 using Rotations
 using Random
 import Random: rand
@@ -25,8 +26,9 @@ using ConstructionBase
 using GLMakie
 using Makie: Makie, campixel!
 import Makie: Fixed as MakieFixed
+import Makie.SpecApi as MakieSpec
 using Colors: Colors, Colorant, Gray
-using FixedPointNumbers: FixedPointNumbers, N0f8, N0f16
+using FixedPointNumbers: FixedPointNumbers, N0f8, N0f16, FixedPoint
 
 # Scale space and image processing functionality
 using ImageFiltering: ImageFiltering, Kernel, imfilter, centered, Fill, imfilter!, kernelfactors
@@ -36,7 +38,7 @@ using Interpolations
 using IntervalSets
 using IntervalSets: ClosedInterval, leftendpoint, rightendpoint
 using StructArrays
-using FileIO: save
+using FileIO: save, load
 using Transducers
 
 # Export geometry basics

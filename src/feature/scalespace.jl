@@ -2,11 +2,7 @@
 Gaussian scale space with 3D cube storage for efficient Hessian and Laplacian computation.
 """
 
-using ImageFiltering: centered, imfilter, imfilter!, Kernel
-using StructArrays
-using Colors, FixedPointNumbers
-using ImageCore: channelview
-using ImageTransformations: imresize
+# All dependencies are imported in the main VisualGeometryCore.jl file
 
 # =============================================================================
 # CORE TYPES AND ABSTRACTIONS
