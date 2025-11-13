@@ -101,6 +101,11 @@ export detect_features  # Main public API - returns IsoBlobDetection
 export Extremum3D, find_extrema_3d, refine_extremum_3d, refine_extrema  # Low-level API
 export apply!  # Apply transform to ScaleSpaceResponse
 
+# Export correspondence types
+export AbstractCspond, Cspond, AttributedCspond, ScoredCspond, Pt2ToPt2, Pt3ToPt2
+export BlobToBlob, BlobToPt2, Pt2ToBlob
+export CspondSet, AttributedCspondSet
+
 # Export image processing utilities
 export vlfeat_upsample
 
@@ -131,6 +136,7 @@ include("feature/responses.jl")  # Must come before kernels.jl (defines ScaleSpa
 include("feature/kernels.jl")
 include("feature/extrema.jl")
 include("feature/detection.jl")
+include("feature/correspondences.jl")  # Correspondence types for feature matching
 include("feature/io.jl")
 
 # Visualization

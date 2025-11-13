@@ -188,11 +188,9 @@ Follows Julia conventions: `rng` is an optional first positional argument (like 
 - `max_retries=1000`: Maximum number of sampling attempts
 
 # Returns
-- `(Rs, ts, u_sampled, X_sampled)`: Tuple containing:
-  - `Rs::Vector{SMatrix{3,3,Float64}}`: Rotation matrices for valid solutions
-  - `ts::Vector{Vec{3,Float64}}`: Translation vectors for valid solutions
-  - `u_sampled::Vector{Point2{Float64}}`: Sampled image points used
-  - `X_sampled::Vector{Point3{Float64}}`: Corresponding 3D points used
+- `(extrinsics, csponds)`: Tuple containing:
+  - `extrinsics::Vector{EuclideanMap}`: Camera extrinsics (world-to-camera transforms) for valid P3P solutions
+  - `csponds::StructArray{Cspond}`: 3D-to-2D point correspondences (3D world point → 2D image point)
 
 Throws an error if no valid configuration is found after max_retries attempts.
 
@@ -209,14 +207,20 @@ model = CameraModel(f, sensor.pitch, pp)
 X = [Point3(100.0, 100.0, 0.0), Point3(200.0, 150.0, 0.0), ...]
 
 # With default RNG
-Rs, ts, u, X_used = sample_p3p(model, X, ustrip(sensor_bounds))
+extrinsics, csponds = sample_p3p(model, X, ustrip(sensor_bounds))
 
 # With explicit RNG for reproducibility
 rng = Random.MersenneTwister(12345)
-Rs, ts, u, X_used = sample_p3p(rng, model, X, ustrip(sensor_bounds))
+extrinsics, csponds = sample_p3p(rng, model, X, ustrip(sensor_bounds))
 
-# Use best solution
-cameras = Camera.(Ref(model), EuclideanMap.(RotMatrix{3,Float64}.(Rs), ts))
+# Access correspondence data (StructArray interface)
+X_used = csponds.source  # All 3D points
+u_used = csponds.target  # All 2D image points
+# Or index individual correspondences: csponds[1].source, csponds[1].target
+
+# Use best extrinsics (e.g., based on reprojection error)
+cameras = Camera.(Ref(model), extrinsics)
+best_camera = cameras[1]  # Or select based on reprojection error
 ```
 """
 # Method with default RNG
@@ -244,16 +248,18 @@ function sample_p3p(rng::Random.AbstractRNG,
         # Sample 3 random image points in sensor bounds
         u3 = rand(rng, sensor_bounds, 3)
 
-        # Backproject to rays
-        rays = backproject.(Ref(model), u3)
+        # Create correspondences as StructArray directly from field arrays
+        # Use Pt3ToPt2 type alias for type stability (3D world points → 2D image points)
+        csponds = StructArrays.StructArray{Pt3ToPt2{eltype(X3), eltype(u3)}}((X3, u3))
 
-        # Try P3P
+        # Try P3P using the correspondence-based wrapper
         try
-            Rs, ts = p3p(rays, X3)
+            Rs, ts = p3p(model, csponds)
 
             if length(Rs) > 0
-                # Found valid solution
-                return (Rs, ts, u3, X3)
+                # Found valid solution - create EuclideanMaps (camera extrinsics) from rotation matrices and translations
+                extrinsics = [EuclideanMap(Rotations.RotMatrix{3,Float64}(Rs[i]), ts[i]) for i in 1:length(Rs)]
+                return (extrinsics, csponds)
             end
         catch e
             # P3P can fail with DomainError for invalid configurations
@@ -262,4 +268,70 @@ function sample_p3p(rng::Random.AbstractRNG,
     end
 
     error("Failed to find valid P3P configuration after $max_retries attempts")
+end
+
+# =============================================================================
+# P3P Solver with Correspondences
+# =============================================================================
+
+"""
+    p3p(model::CameraModel, csponds)
+
+Solve the Perspective-3-Point (P3P) problem using correspondences.
+
+This is a thin wrapper around the core `p3p(rays, X)` solver that accepts
+correspondences directly. It extracts the 3D world points and 2D image points
+from the correspondences, backprojects the image points to rays, and calls
+the core solver.
+
+# Arguments
+- `model::CameraModel`: Camera model for backprojecting image points to rays
+- `csponds`: Correspondences containing exactly 3 point pairs (3D world → 2D image)
+  Can be a StructArray or any iterable that supports `.source` and `.target` access
+
+# Returns
+- `(Rs, ts)`: Tuple containing:
+  - `Rs::Vector{SMatrix{3,3,Float64}}`: Rotation matrices (world-to-camera)
+  - `ts::Vector{SVector{3,Float64}}`: Translation vectors (world-to-camera)
+
+Returns empty vectors if no valid solution exists.
+
+# Examples
+```julia
+# Setup camera
+sensor = CMOS_SENSORS["Sony"]["IMX174"]
+sensor_bounds = Rect(sensor; image_origin=:julia)
+f = focal_length(40.0°, sensor; dimension=:horizontal)
+pp = center(sensor_bounds)
+model = CameraModel(f, sensor.pitch, pp)
+
+# Create correspondences (3D world points → 2D image points)
+X3 = [Point3(100.0, 100.0, 0.0), Point3(200.0, 150.0, 0.0), Point3(150.0, 200.0, 0.0)]
+u3 = [Point2(640.0, 480.0), Point2(700.0, 500.0), Point2(680.0, 550.0)]
+csponds = StructArray{Pt3ToPt2{eltype(X3), eltype(u3)}}((X3, u3))
+
+# Solve P3P
+Rs, ts = p3p(model, csponds)
+
+# Create camera extrinsics from solutions
+extrinsics = [EuclideanMap(RotMatrix{3}(Rs[i]), ts[i]) for i in 1:length(Rs)]
+cameras = Camera.(Ref(model), extrinsics)
+```
+
+# See Also
+- `p3p(rays, X)`: Core P3P solver that works with rays directly
+- `sample_p3p`: Sample valid camera poses by randomly sampling correspondences
+"""
+function p3p(model::CameraModel, csponds)
+    length(csponds) == 3 || error("P3P requires exactly 3 correspondences, got $(length(csponds))")
+
+    # Extract 3D world points and 2D image points from correspondences
+    X = csponds.source
+    u = csponds.target
+
+    # Backproject 2D points to normalized rays
+    rays = backproject.(Ref(model), u)
+
+    # Call original P3P solver
+    return p3p(rays, X)
 end
