@@ -161,3 +161,105 @@ function lookat(eye::StaticVector{3, <:Real}, target::StaticVector{3, <:Real}, u
 
     return EuclideanMap(Rotations.RotMatrix{3}(rotation'), translation)
 end
+
+# =============================================================================
+# P3P Pose Sampling
+# =============================================================================
+
+"""
+    sample_pose_p3p([rng], model::CameraModel, X::Vector{<:StaticVector{3,Float64}}, sensor_bounds::Rect;
+                    max_retries=1000)
+
+Sample a valid camera pose by randomly sampling image point correspondences and solving P3P.
+
+Randomly samples 3D point indices and their corresponding 2D image projections within
+the sensor bounds, then attempts to solve the P3P problem. Repeats until a valid
+solution is found or max_retries is reached.
+
+Follows Julia conventions: `rng` is an optional first positional argument (like `rand` and `sample`).
+
+# Arguments
+- `rng=Random.default_rng()`: Random number generator (optional first positional argument)
+- `model::CameraModel`: Camera model for backprojection
+- `X::Vector{<:StaticVector{3,Float64}}`: 3D point correspondences (at least 3 points)
+- `sensor_bounds::Rect`: Sensor bounds for sampling image points (in pixels)
+
+# Keyword Arguments
+- `max_retries=1000`: Maximum number of sampling attempts
+
+# Returns
+- `(Rs, ts, u_sampled, X_sampled)`: Tuple containing:
+  - `Rs::Vector{SMatrix{3,3,Float64}}`: Rotation matrices for valid solutions
+  - `ts::Vector{Vec{3,Float64}}`: Translation vectors for valid solutions
+  - `u_sampled::Vector{Point2{Float64}}`: Sampled image points used
+  - `X_sampled::Vector{Point3{Float64}}`: Corresponding 3D points used
+
+Throws an error if no valid configuration is found after max_retries attempts.
+
+# Examples
+```julia
+# Setup camera
+sensor = CMOS_SENSORS["Sony"]["IMX174"]
+sensor_bounds = Rect(sensor; image_origin=:julia)
+f = focal_length(40.0°, sensor; dimension=:horizontal)
+pp = center(sensor_bounds)
+model = CameraModel(f, sensor.pitch, pp)
+
+# 3D points (planar points at z=0)
+X = [Point3(100.0, 100.0, 0.0), Point3(200.0, 150.0, 0.0), ...]
+
+# With default RNG
+Rs, ts, u, X_used = sample_pose_p3p(model, X, ustrip(sensor_bounds))
+
+# With explicit RNG for reproducibility
+rng = Random.MersenneTwister(12345)
+Rs, ts, u, X_used = sample_pose_p3p(rng, model, X, ustrip(sensor_bounds))
+
+# Use best solution
+cameras = Camera.(Ref(model), EuclideanMap.(RotMatrix{3,Float64}.(Rs), ts))
+```
+"""
+# Method with default RNG
+function sample_pose_p3p(model::CameraModel,
+                         X::Vector{<:StaticVector{3,Float64}},
+                         sensor_bounds::Rect;
+                         max_retries::Int=1000)
+    return sample_pose_p3p(Random.default_rng(), model, X, sensor_bounds; max_retries=max_retries)
+end
+
+# Method with explicit RNG (follows Julia convention: rng as first positional argument)
+function sample_pose_p3p(rng::Random.AbstractRNG,
+                         model::CameraModel,
+                         X::Vector{<:StaticVector{3,Float64}},
+                         sensor_bounds::Rect;
+                         max_retries::Int=1000)
+
+    length(X) >= 3 || error("Need at least 3 point correspondences for P3P")
+
+    for attempt in 1:max_retries
+        # Sample 3 random 3D points
+        sampled_idx = randperm(rng, length(X))[1:3]
+        X3 = X[sampled_idx]
+
+        # Sample 3 random image points in sensor bounds
+        u3 = rand(rng, sensor_bounds, 3)
+
+        # Backproject to rays
+        rays = backproject.(Ref(model), u3)
+
+        # Try P3P
+        try
+            Rs, ts = p3p(rays, X3)
+
+            if length(Rs) > 0
+                # Found valid solution
+                return (Rs, ts, u3, X3)
+            end
+        catch e
+            # P3P can fail with DomainError for invalid configurations
+            continue
+        end
+    end
+
+    error("Failed to find valid P3P configuration after $max_retries attempts")
+end
