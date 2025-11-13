@@ -167,8 +167,8 @@ end
 # =============================================================================
 
 """
-    sample_pose_p3p([rng], model::CameraModel, X::Vector{<:StaticVector{3,Float64}}, sensor_bounds::Rect;
-                    max_retries=1000)
+    sample_p3p([rng], model::CameraModel, X::Vector{<:StaticVector{3,Float64}}, sensor_bounds::Rect;
+               max_retries=1000)
 
 Sample a valid camera pose by randomly sampling image point correspondences and solving P3P.
 
@@ -209,30 +209,30 @@ model = CameraModel(f, sensor.pitch, pp)
 X = [Point3(100.0, 100.0, 0.0), Point3(200.0, 150.0, 0.0), ...]
 
 # With default RNG
-Rs, ts, u, X_used = sample_pose_p3p(model, X, ustrip(sensor_bounds))
+Rs, ts, u, X_used = sample_p3p(model, X, ustrip(sensor_bounds))
 
 # With explicit RNG for reproducibility
 rng = Random.MersenneTwister(12345)
-Rs, ts, u, X_used = sample_pose_p3p(rng, model, X, ustrip(sensor_bounds))
+Rs, ts, u, X_used = sample_p3p(rng, model, X, ustrip(sensor_bounds))
 
 # Use best solution
 cameras = Camera.(Ref(model), EuclideanMap.(RotMatrix{3,Float64}.(Rs), ts))
 ```
 """
 # Method with default RNG
-function sample_pose_p3p(model::CameraModel,
-                         X::Vector{<:StaticVector{3,Float64}},
-                         sensor_bounds::Rect;
-                         max_retries::Int=1000)
-    return sample_pose_p3p(Random.default_rng(), model, X, sensor_bounds; max_retries=max_retries)
+function sample_p3p(model::CameraModel,
+                    X::Vector{<:StaticVector{3,Float64}},
+                    sensor_bounds::Rect;
+                    max_retries::Int=1000)
+    return sample_p3p(Random.default_rng(), model, X, sensor_bounds; max_retries=max_retries)
 end
 
 # Method with explicit RNG (follows Julia convention: rng as first positional argument)
-function sample_pose_p3p(rng::Random.AbstractRNG,
-                         model::CameraModel,
-                         X::Vector{<:StaticVector{3,Float64}},
-                         sensor_bounds::Rect;
-                         max_retries::Int=1000)
+function sample_p3p(rng::Random.AbstractRNG,
+                    model::CameraModel,
+                    X::Vector{<:StaticVector{3,Float64}},
+                    sensor_bounds::Rect;
+                    max_retries::Int=1000)
 
     length(X) >= 3 || error("Need at least 3 point correspondences for P3P")
 
