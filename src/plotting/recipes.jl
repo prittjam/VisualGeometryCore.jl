@@ -8,7 +8,7 @@ import Makie.SpecApi as MakieSpec
 #   import Makie.SpecApi as S
 #   lscene = S.Imshow(image)
 #   circles = Circle.(blobs, Ref(3.0))  # Convert blobs to circles
-#   blob_spec = S.Poly(circles, color=(:black, 0.0), strokecolor=:red, strokewidth=2.0)
+#   blob_spec = S.Poly(circles, color=:transparent, strokecolor=:red, strokewidth=2.0)
 #   push!(lscene.plots, blob_spec)
 #   fig, _, _ = plot(S.GridLayout([lscene]))
 
@@ -46,7 +46,7 @@ function Makie.convert_arguments(::Type{<:AbstractPlot}, img::AbstractMatrix{<:C
     lscene = Spec.Imshow(img; imagekw=(interpolate=interpolate,))
     # Convert blobs to circles for visualization
     circles = Circle.(blobs, Ref(sigma_cutoff))
-    blob_spec = MakieSpec.Poly(circles, color=(:black, 0.0), strokecolor=color, strokewidth=linewidth)
+    blob_spec = MakieSpec.Poly(circles, color=:transparent, strokecolor=color, strokewidth=linewidth)
     push!(lscene.plots, blob_spec)
     return MakieSpec.GridLayout([lscene]; rowgaps=Makie.Fixed(0), colgaps=Makie.Fixed(0))
 end
@@ -83,14 +83,14 @@ function Makie.convert_arguments(::Type{<:AbstractPlot}, img::AbstractMatrix{<:C
 
     # Add ground truth blobs (green, solid) - convert to circles first
     gt_circles = Circle.(ground_truth, Ref(sigma_cutoff))
-    gt_spec = MakieSpec.Poly(gt_circles, color=(:black, 0.0),
+    gt_spec = MakieSpec.Poly(gt_circles, color=:transparent,
                              strokecolor=ground_truth_color,
                              strokewidth=linewidth)
     push!(lscene.plots, gt_spec)
 
     # Add detection blobs (blue, dashed) - convert to circles first
     det_circles = Circle.(detections, Ref(sigma_cutoff))
-    det_spec = MakieSpec.Poly(det_circles, color=(:black, 0.0),
+    det_spec = MakieSpec.Poly(det_circles, color=:transparent,
                               strokecolor=detection_color,
                               strokewidth=linewidth)
     push!(lscene.plots, det_spec)
@@ -114,7 +114,7 @@ function Makie.convert_arguments(::Type{<:AbstractPlot}, blobs::Vector{<:Abstrac
                                 linewidth::Float64=1.0, linestyle=:solid)
     # Convert blobs to circles and return PlotSpec
     circles = Circle.(blobs, Ref(sigma_cutoff))
-    return MakieSpec.Poly(circles, color=(:black, 0.0),
+    return MakieSpec.Poly(circles, color=:transparent,
                          strokecolor=color, strokewidth=linewidth)
 end
 
@@ -133,7 +133,7 @@ function Makie.convert_arguments(::Type{<:AbstractPlot}, detections::Vector{IsoB
                                 linestyle=:dash)
     # IsoBlobDetection is already an AbstractBlob, convert to circles
     circles = Circle.(detections, Ref(sigma_cutoff))
-    return MakieSpec.Poly(circles, color=(:black, 0.0),
+    return MakieSpec.Poly(circles, color=:transparent,
                          strokecolor=color, strokewidth=linewidth)
 end
 
@@ -164,7 +164,7 @@ Convert vector of Ellipses to polygon representations for Makie's poly plotting.
 This enables direct use of `poly` with colormap support:
 ```julia
 ellipses = [Ellipse(Point2(i*3.0, 0.0), 2.0, 1.0, π/6*i) for i in 1:5]
-poly!(ax, ellipses, color=(:black, 0.0), strokecolor=1:5, strokewidth=2, colormap=:viridis)
+poly!(ax, ellipses, color=:transparent, strokecolor=1:5, strokewidth=2, strokecolormap=:viridis)
 ```
 """
 function Makie.convert_arguments(P::Type{<:Poly}, ellipses::Vector{<:Ellipse})
