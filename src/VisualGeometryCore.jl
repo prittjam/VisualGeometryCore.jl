@@ -105,6 +105,7 @@ export apply!  # Apply transform to ScaleSpaceResponse
 export AbstractCspond, Cspond, AttributedCspond, ScoredCspond, Pt2ToPt2, Pt3ToPt2
 export BlobToBlob, BlobToPt2, Pt2ToBlob
 export CspondSet, AttributedCspondSet
+export csponds  # Convenience function to create type-stable StructArray of Cspond
 
 # Export image processing utilities
 export vlfeat_upsample

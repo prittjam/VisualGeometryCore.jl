@@ -274,12 +274,44 @@ layout = S.GridLayout([(1,1) => lscene1, (1,2) => lscene2])
 fig, ax, pl = plot(layout)
 ```
 """
+# Tuple of two primitives - create Cspond and delegate
+function cspond!(src_lscene, tgt_lscene,
+                 primitives::Tuple{S, T};
+                 kwargs...) where {S, T}
+    # Use tuple constructor for Cspond
+    return cspond!(src_lscene, tgt_lscene, Cspond(primitives); kwargs...)
+end
+
+# Single correspondence - wrap in vector and delegate
+function cspond!(src_lscene, tgt_lscene,
+                 cspond::Cspond;
+                 kwargs...)
+    # Wrap single cspond in vectors and create StructArray
+    csponds = StructArrays.StructArray{typeof(cspond)}(([cspond.source], [cspond.target]))
+    return cspond!(src_lscene, tgt_lscene, csponds; kwargs...)
+end
+
+# Tuple of correspondences - convert to StructArray and delegate
+function cspond!(src_lscene, tgt_lscene,
+                 csponds_tuple::Tuple{Vararg{Cspond}};
+                 kwargs...)
+    # Extract sources and targets
+    sources = [cs.source for cs in csponds_tuple]
+    targets = [cs.target for cs in csponds_tuple]
+
+    # Create StructArray with concrete eltype from first element
+    T = typeof(first(csponds_tuple))
+    csponds = StructArrays.StructArray{T}((sources, targets))
+    return cspond!(src_lscene, tgt_lscene, csponds; kwargs...)
+end
+
 # Point correspondences - draw marker circles
 function cspond!(src_lscene, tgt_lscene,
                  csponds::StructArrays.StructArray{<:Cspond{<:StaticVector, <:StaticVector}};
                  marker_size=10.0,
                  strokewidth=2.0,
-                 colormap=:plasma)
+                 colormap=:plasma,
+                 kwargs...)
 
     # Extract source and target points
     src_points = csponds.source
@@ -294,27 +326,29 @@ function cspond!(src_lscene, tgt_lscene,
     tgt_circles = [Circle(pt, marker_size) for pt in tgt_pts]
 
     # Add color-coded circles to LScenes
+    # Set defaults, but kwargs will override if provided
     push!(src_lscene.plots, MakieSpec.Poly(src_circles,
                                            color=:transparent,
                                            strokecolor=1:length(src_circles),
                                            strokecolormap=colormap,
-                                           strokewidth=strokewidth))
+                                           strokewidth=strokewidth;
+                                           kwargs...))
 
     push!(tgt_lscene.plots, MakieSpec.Poly(tgt_circles,
                                            color=:transparent,
                                            strokecolor=1:length(tgt_circles),
                                            strokecolormap=colormap,
-                                           strokewidth=strokewidth))
+                                           strokewidth=strokewidth;
+                                           kwargs...))
 
     return nothing
 end
 
-# Blob correspondences - draw the blobs themselves as circles
+# Blob correspondences - convert to circles and delegate to generic method
 function cspond!(src_lscene, tgt_lscene,
-                 csponds::StructArrays.StructArray{<:Cspond{<:AbstractBlob, <:AbstractBlob}};
-                 sigma_cutoff=3.0,
-                 strokewidth=2.0,
-                 colormap=:plasma)
+                 csponds::StructArrays.StructArray{<:Cspond{<:AbstractBlob, <:AbstractBlob}},
+                 sigma_cutoff;
+                 kwargs...)
 
     # Extract source and target blobs
     src_blobs = csponds.source
@@ -324,19 +358,85 @@ function cspond!(src_lscene, tgt_lscene,
     src_circles = [Circle(origin(b), sigma_cutoff * b.σ) for b in src_blobs]
     tgt_circles = [Circle(origin(b), sigma_cutoff * b.σ) for b in tgt_blobs]
 
-    # Add color-coded circles to LScenes
-    push!(src_lscene.plots, MakieSpec.Poly(src_circles,
-                                           color=:transparent,
-                                           strokecolor=1:length(src_circles),
-                                           strokecolormap=colormap,
-                                           strokewidth=strokewidth))
+    # Create circle correspondences and call through to generic method
+    circle_csponds = StructArrays.StructArray{Cspond{eltype(src_circles), eltype(tgt_circles)}}((src_circles, tgt_circles))
+    return cspond!(src_lscene, tgt_lscene, circle_csponds; kwargs...)
+end
 
-    push!(tgt_lscene.plots, MakieSpec.Poly(tgt_circles,
-                                           color=:transparent,
-                                           strokecolor=1:length(tgt_circles),
-                                           strokecolormap=colormap,
-                                           strokewidth=strokewidth))
+# Generic geometric primitive correspondences - works with Circle, Ellipse, etc.
+# Fallback for any types that aren't StaticVectors or AbstractBlobs
+function cspond!(src_lscene, tgt_lscene,
+                 csponds::StructArrays.StructArray{<:Cspond{S, T}};
+                 strokewidth=2.0,
+                 colormap=:plasma,
+                 kwargs...) where {S, T}
 
+    # Extract source and target shapes
+    src_shapes = csponds.source
+    tgt_shapes = csponds.target
+
+    # Add color-coded shapes directly to LScenes using Poly
+    # Poly can handle Circle, Ellipse, Rect, etc.
+    # Set defaults, but kwargs will override if provided
+    push!(src_lscene.plots, MakieSpec.Poly(src_shapes,
+                                           color=:transparent,
+                                           strokecolor=1:length(src_shapes),
+                                           strokecolormap=colormap,
+                                           strokewidth=strokewidth;
+                                           kwargs...))
+
+    push!(tgt_lscene.plots, MakieSpec.Poly(tgt_shapes,
+                                           color=:transparent,
+                                           strokecolor=1:length(tgt_shapes),
+                                           strokecolormap=colormap,
+                                           strokewidth=strokewidth;
+                                           kwargs...))
+
+    return nothing
+end
+
+"""
+    poly!(lscene, shape; kwargs...)
+    poly!(lscene, shapes::AbstractVector; kwargs...)
+
+Add geometric primitive(s) to an LScene as a Poly plot.
+
+# Arguments
+- `lscene`: The LScene to add the plot to
+- `shape` or `shapes`: Geometric primitive(s) (Circle, Ellipse, Rect, etc.)
+- `kwargs...`: Additional keyword arguments passed to MakieSpec.Poly
+
+# Common Keyword Arguments
+- `color=:transparent`: Fill color
+- `strokecolor`: Stroke color
+- `strokewidth=2.0`: Stroke width
+
+# Examples
+```julia
+lscene = Spec.Imshow(img)
+Spec.poly!(lscene, circle; strokecolor=:red, strokewidth=3.0)
+Spec.poly!(lscene, [circle1, circle2]; strokecolor=:blue)
+```
+"""
+function poly!(lscene, shape;
+               color=:transparent,
+               strokewidth=2.0,
+               kwargs...)
+    push!(lscene.plots, MakieSpec.Poly(shape,
+                                       color=color,
+                                       strokewidth=strokewidth;
+                                       kwargs...))
+    return nothing
+end
+
+function poly!(lscene, shapes::AbstractVector;
+               color=:transparent,
+               strokewidth=2.0,
+               kwargs...)
+    push!(lscene.plots, MakieSpec.Poly(shapes,
+                                       color=color,
+                                       strokewidth=strokewidth;
+                                       kwargs...))
     return nothing
 end
 

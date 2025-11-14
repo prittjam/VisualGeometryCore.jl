@@ -33,7 +33,43 @@ struct Cspond{S,T} <: AbstractCspond{S,T}
     target::T
 end
 
+# Convenience constructor from tuple
+Cspond(t::Tuple{S,T}) where {S,T} = Cspond{S,T}(t[1], t[2])
+
 Base.iterate(cs::Cspond, state=1) = state == 1 ? (cs.source, 2) : state == 2 ? (cs.target, 3) : nothing
+
+"""
+    csponds(sources::AbstractVector{S}, targets::AbstractVector{T}) -> StructArray{Cspond{S,T}}
+
+Create a type-stable StructArray of correspondences from two vectors.
+
+This is a convenience function that replaces the verbose:
+```julia
+StructArray{Cspond{eltype(sources), eltype(targets)}}((sources, targets))
+```
+
+with the much simpler:
+```julia
+csponds(sources, targets)
+```
+
+# Examples
+```julia
+circles = [Circle(Point2(1.0, 2.0), 3.0), Circle(Point2(4.0, 5.0), 6.0)]
+ellipses = [Ellipse(Point2(7.0, 8.0), 9.0, 10.0, 0.5), Ellipse(Point2(11.0, 12.0), 13.0, 14.0, 0.5)]
+
+# Create correspondences
+cs = csponds(circles, ellipses)
+
+# Type-stable access
+cs.source  # Vector{Circle{Float64}}
+cs.target  # Vector{Ellipse{Float64}}
+```
+"""
+function csponds(sources::AbstractVector{S}, targets::AbstractVector{T}) where {S,T}
+    length(sources) == length(targets) || error("Source and target vectors must have the same length")
+    return StructArrays.StructArray{Cspond{S,T}}((sources, targets))
+end
 
 """
     AttributedCspond{S,T,M} <: AbstractCspond{S,T}
