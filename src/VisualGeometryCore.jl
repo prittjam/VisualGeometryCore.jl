@@ -127,7 +127,7 @@ include("geometry/blobs.jl")               # Load blobs before primitives (Abstr
 include("geometry/primitives/primitives.jl")  # Geometric primitives (uses AbstractBlob and HomEllipseMat)
 include("geometry/transforms/conversions.jl")  # Coordinate system conversions (uses primitives)
 include("geometry/transforms/coord_maps.jl")  # Coordinate mappings (uses primitives)
-include("geometry/transforms/logpolar.jl")  # Log-polar transforms (uses primitives)
+include("geometry/transforms/region_maps.jl")  # Region mappings (canonical and log-polar)
 include("geometry/solvers.jl")             # P3P and other geometric solvers
 include("geometry/cameras/cameras.jl")     # Camera system (includes all camera submodules)
 include("geometry/homography.jl")          # Homography for planar scenes
