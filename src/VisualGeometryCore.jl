@@ -34,6 +34,7 @@ using FixedPointNumbers: FixedPointNumbers, N0f8, N0f16, FixedPoint
 using ImageFiltering: ImageFiltering, Kernel, imfilter, centered, Fill, imfilter!, kernelfactors
 using ImageTransformations: imresize, warp
 using ImageCore: channelview
+using Infiltrator
 using Interpolations
 using IntervalSets
 using IntervalSets: ClosedInterval, leftendpoint, rightendpoint
@@ -46,7 +47,7 @@ export Point2, Rect, Rect2, Vec2, HyperRectangle, Circle, Point2f
 export cartesian_ranges, center, ranges
 export coord_map, CANONICAL_SQUARE, UNIT_CIRCLE  # Generic coordinate mapping API
 export imgmap  # Image coordinate adaptation for warping
-export logpolar_to_cartesian, logpolar_map, logpolar_patch
+export logpolar_to_cartesian, logpolar_map, logpolar_patch_map, canonical_patch_map
 export ClosedInterval  # Re-export from IntervalSets for convenience
 
 # Export transforms and conics functionality

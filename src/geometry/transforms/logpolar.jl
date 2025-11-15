@@ -39,7 +39,7 @@ function logpolar_to_cartesian(r_min::Real=0.01)
         log_r = log_r_min + (log_r_max - log_r_min) * normalized_log_r
         r = exp(log_r)
 
-        p2 = r * Point2(cos(θ),sin(θ))
+        p2 = r * Point2(cos(θ), sin(θ))
 
         return p2
     end
@@ -106,86 +106,93 @@ function logpolar_map(geometry::Union{Circle, Ellipse}, logpolar_rect::HyperRect
            coord_map(logpolar_rect, CANONICAL_SQUARE)
 end
 
+
+function canonical_map(geometry::Union{Circle, Ellipse}, canonical_rect::HyperRectangle{2})
+    return coord_map(UNIT_CIRCLE, geometry) ∘
+        coord_map(canonical_rect, CANONICAL_SQUARE)
+end
+
 """
-    logpolar_patch(image::Matrix{Gray{T}}, geometry; patch_size=256, r_min=0.01, image_origin=:julia, interpolation=BSpline(Cubic(Line(OnGrid()))), extrapolation=Flat()) where T<:AbstractFloat
+    logpolar_patch_map(geometry; patch_size=256, r_min=0.01, image_origin=:julia) -> (transform, axes)
 
-Extract a log-polar patch from an image around a circular or elliptical region.
+Construct a log-polar transformation and axes for patch extraction.
 
-This is a convenience function that combines interpolation, extrapolation, and warping
-to extract a log-polar representation of an image region. It handles all the details
-of setting up the transformation and applying it with proper coordinate conventions.
-
-# Arguments
-- `image::Matrix{Gray{T}} where T<:AbstractFloat`: Input image with floating-point gray values (e.g., Matrix{Gray{Float32}})
-- `geometry::Union{Circle, Ellipse}`: Region to extract in image coordinates
-- `patch_size::Integer=256`: Size of output square patch (patch_size × patch_size)
-- `r_min::Real=0.01`: Minimum radius for log-polar transform (avoids singularity at origin)
-- `image_origin::Symbol=:julia`: Coordinate convention for patch (:julia, :opencv, :makie, etc.)
-- `interpolation`: Interpolation method (default: BSpline(Cubic(Line(OnGrid()))))
-- `extrapolation`: Extrapolation method (default: Flat())
+This function sets up the coordinate system and transformation, but does NOT perform
+the actual warping. This allows efficient reuse of interpolators when extracting
+multiple patches from the same image.
 
 # Returns
-- Patch matrix of size (patch_size, patch_size) with log-polar representation
-
-# Broadcasting
-This function is designed to be broadcastable across multiple geometries:
-```julia
-# Extract patches from multiple circles
-patches = logpolar_patch.(Ref(image), circles; patch_size=256, r_min=0.01)
-```
+- `transform`: Transformation function from logpolar_rect → geometry
+- `axes`: Tuple of axes (1:patch_size, 1:patch_size) for warping
 
 # Example
 ```julia
-using VisualGeometryCore
-using GeometryBasics: Circle, Point2
-using FileIO: load
-using Colors: Gray
+# Setup interpolator once
+itp = interpolate(image, BSpline(Cubic(Line(OnGrid()))))
+etp = extrapolate(itp, Gray(1.0))
 
-# Load image and convert to floating point
-image = Gray{Float32}.(load("image.png"))
-circle = Circle(Point2(320.0, 240.0), 100.0)
-
-# Extract 512×512 log-polar patch
-patch = logpolar_patch(image, circle; patch_size=512, r_min=0.01)
-
-# Extract patches from multiple regions
-circles = [Circle(Point2(100, 100), 50), Circle(Point2(200, 200), 75)]
-patches = logpolar_patch.(Ref(image), circles; patch_size=256)
+# Extract patches from multiple geometries
+for geom in geometries
+    transform, axes = logpolar_patch_map(geom; patch_size=256, r_min=0.01)
+    patch = warp(etp, imgmap(transform), axes)
+end
 ```
-
-# See Also
-- [`logpolar_map`](@ref): Lower-level transformation creation
-- [`imgmap`](@ref): Image coordinate adaptation for warping
 """
-function logpolar_patch(image::Matrix{Gray{T}},
-                        geometry::Union{Circle, Ellipse};
-                        patch_size::Integer=256,
-                        r_min::Real=0.01,
-                        image_origin::Symbol=:julia,
-                        interpolation=BSpline(Cubic(Line(OnGrid()))),
-                        extrapolation=Flat()) where T<:AbstractFloat
-    # Define patch coordinate system matching the specified convention
-    # Start with 1-based range and apply offset for target convention
+function logpolar_patch_map(geometry::Union{Circle, Ellipse};
+                             patch_size::Integer=256,
+                             r_min::Real=0.01,
+                             image_origin::Symbol=:julia)
+    # Define patch coordinate system
     offset = image_origin_offset(from=:julia, to=image_origin)
-
     logpolar_axes = (1:patch_size, 1:patch_size)
-    
-    # Create intervals in the target coordinate system
     ix = ClosedInterval(logpolar_axes[1] .+ ustrip(offset[1]); align_corners=false)
     iy = ClosedInterval(logpolar_axes[2] .+ ustrip(offset[2]); align_corners=false)
-
     logpolar_rect = Rect((ix, iy))
 
-    # Create log-polar transformation
+    # Create transformation
     transform = logpolar_map(geometry, logpolar_rect, r_min)
 
-    # Set up interpolation and extrapolation
-    itp = interpolate(image, interpolation)
-    etp = extrapolate(itp, extrapolation)
+    return (transform, logpolar_axes)
+end
 
-    # Warp to extract patch (imgmap handles coordinate convention)
-    patch = warp(etp, imgmap(transform), logpolar_axes)
+"""
+    canonical_patch_map(geometry; patch_size=256, image_origin=:julia) -> (transform, axes)
 
-    # Clamp values to [0, 1] range
-    return clamp.(patch, 0, 1)
+Construct a canonical transformation and axes for patch extraction.
+
+This function sets up the coordinate system and transformation, but does NOT perform
+the actual warping. This allows efficient reuse of interpolators when extracting
+multiple patches from the same image.
+
+# Returns
+- `transform`: Transformation function from canonical_rect → geometry
+- `axes`: Tuple of axes (1:patch_size, 1:patch_size) for warping
+
+# Example
+```julia
+# Setup interpolator once
+itp = interpolate(image, BSpline(Cubic(Line(OnGrid()))))
+etp = extrapolate(itp, Gray(1.0))
+
+# Extract patches from multiple geometries
+for geom in geometries
+    transform, axes = canonical_patch_map(geom; patch_size=256)
+    patch = warp(etp, imgmap(transform), axes)
+end
+```
+"""
+function canonical_patch_map(geometry::Union{Circle, Ellipse};
+                             patch_size::Integer=256,
+                             image_origin::Symbol=:julia)
+    # Define patch coordinate system
+    offset = ustrip.(image_origin_offset(from=:julia, to=image_origin))
+    canonical_axes = (1:patch_size, 1:patch_size)
+    ix = ClosedInterval(canonical_axes[1] .+ offset[1]; align_corners=false)
+    iy = ClosedInterval(canonical_axes[2] .+ offset[2]; align_corners=false)
+    canonical_rect = Rect((ix, iy))
+
+    # Create transformation
+    transform = canonical_map(geometry, canonical_rect)
+
+    return (transform, canonical_axes)
 end

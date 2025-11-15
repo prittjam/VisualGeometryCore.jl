@@ -2,7 +2,7 @@
 
 julia_version = "1.12.1"
 manifest_format = "2.0"
-project_hash = "51f7cf12d1b2b5dd7b4881464ba7359e50e245ca"
+project_hash = "3f221d646d596343049482fe2a380a46e7e410eb"
 
 [[deps.AbstractFFTs]]
 deps = ["LinearAlgebra"]
@@ -701,6 +701,12 @@ version = "3.1.11+0"
 git-tree-sha1 = "012e604e1c7458645cb8b436f8fba789a51b257f"
 uuid = "9b13fd28-a010-5f03-acff-a1bbcff69959"
 version = "1.0.0"
+
+[[deps.Infiltrator]]
+deps = ["InteractiveUtils", "Markdown", "REPL", "UUIDs"]
+git-tree-sha1 = "479e360b411c64358004179e9fd057d59cf8dda6"
+uuid = "5903a43b-9cc3-4c30-8d17-598619ec4e9b"
+version = "1.9.4"
 
 [[deps.Inflate]]
 git-tree-sha1 = "d1b1b796e47d94588b3757fe84fbf65a5ec4a80d"
@@ -1719,7 +1725,7 @@ version = "1.25.1"
     Printf = "de0858da-6303-5e67-8744-51eddeeeb8d7"
 
 [[deps.VisualGeometryCore]]
-deps = ["Accessors", "Colors", "ConstructionBase", "CoordinateTransformations", "FileIO", "FixedPointNumbers", "GLMakie", "GeometryBasics", "ImageCore", "ImageFiltering", "ImageTransformations", "Interpolations", "IntervalSets", "JSON3", "LinearAlgebra", "Makie", "NearestNeighbors", "Random", "Revise", "Rotations", "StaticArrays", "StructArrays", "StructTypes", "Test", "Transducers", "Unitful"]
+deps = ["Accessors", "Colors", "ConstructionBase", "CoordinateTransformations", "FileIO", "FixedPointNumbers", "GLMakie", "GeometryBasics", "ImageCore", "ImageFiltering", "ImageTransformations", "Infiltrator", "Interpolations", "IntervalSets", "JSON3", "LinearAlgebra", "Makie", "NearestNeighbors", "Random", "Revise", "Rotations", "StaticArrays", "StructArrays", "StructTypes", "Test", "Transducers", "Unitful"]
 path = "."
 uuid = "297d53b8-c8d7-4cd7-a9af-68e656508a81"
 version = "0.1.0"
