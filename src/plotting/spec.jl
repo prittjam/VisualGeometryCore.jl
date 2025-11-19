@@ -620,6 +620,8 @@ Add camera frustum visualization to a 3D LScene with explicit depth.
 - `linewidth=2.0`: Width of frustum edge lines
 - `show_near_plane=false`: Show near plane rectangle
 - `near_depth=10.0`: Near plane depth (if show_near_plane=true)
+- `show_up_indicator=true`: Show triangle indicator at top edge pointing in camera's up direction
+- `indicator_size=20.0`: Size of the up indicator triangle (mm)
 
 # Examples
 ```julia
@@ -630,7 +632,9 @@ function frustum!(lscene, camera, sensor_bounds, depth;
                   color=:orange,
                   linewidth=2.0,
                   show_near_plane=false,
-                  near_depth=10.0)
+                  near_depth=10.0,
+                  show_up_indicator=true,
+                  indicator_size=20.0)
 
     # Get camera pose and center
     cam_pose = pose(camera)
@@ -669,6 +673,35 @@ function frustum!(lscene, camera, sensor_bounds, depth;
 
         push!(lscene.plots, MakieSpec.Wireframe(near_mesh;
             color=color, linewidth=linewidth))
+    end
+
+    # Add up indicator: small triangle at midpoint of top edge pointing in -y direction (camera up)
+    if show_up_indicator
+        # Top edge is between corners 1 and 2 (minimum y-coordinate in image space)
+        top_edge_mid = (corners_world[1] + corners_world[2]) / 2
+
+        # Create triangle in camera space pointing in -y direction (up)
+        # Base points offset left and right from center along top edge direction
+        edge_direction = (corners_world[2] - corners_world[1])
+        edge_direction_normalized = edge_direction / norm(edge_direction)
+        base_half_width = indicator_size / 2
+
+        # Tip points in -y direction (up) in camera space
+        basis = canonical_basis(SVector{3,Float64})
+        up_camera = -basis[2] * indicator_size  # -y direction in camera space
+        up_world = cam_pose(up_camera) - cam_pose(zero(SVector{3,Float64}))  # Transform direction to world
+
+        # Triangle vertices: tip at top, base on the edge
+        tip = Point3f(top_edge_mid + up_world)
+        base_left = Point3f(top_edge_mid - edge_direction_normalized * base_half_width)
+        base_right = Point3f(top_edge_mid + edge_direction_normalized * base_half_width)
+
+        # Create filled triangle indicator
+        indicator_vertices = [tip, base_left, base_right]
+        indicator_face = [TriangleFace(1, 2, 3)]
+        indicator_mesh = GeometryBasics.Mesh(indicator_vertices, indicator_face)
+
+        push!(lscene.plots, MakieSpec.Mesh(indicator_mesh; color=color))
     end
 
     return nothing
