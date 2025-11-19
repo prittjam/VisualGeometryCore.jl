@@ -1,7 +1,7 @@
 module Spec
 
 using Makie
-using ..VisualGeometryCore: AbstractBlob, INTRINSICS_COORDINATE_OFFSET, Ellipse, Cspond, pose, canonical_basis
+using ..VisualGeometryCore: AbstractBlob, INTRINSICS_COORDINATE_OFFSET, Ellipse, Cspond, pose, canonical_basis, center
 using ..VisualGeometryCore: Camera, CameraModel, PhysicalIntrinsics, unproject
 using GeometryBasics
 using GeometryBasics: Circle, Rect, Point2, Point3, Point3f, Vec2, Vec3f, TriangleFace, origin, coordinates
@@ -677,16 +677,16 @@ function frustum!(lscene, camera, sensor_bounds, depth;
 
     # Add up indicator: small triangle at midpoint of top edge pointing in -y direction (camera up)
     if show_up_indicator
-        # Define triangle in image coordinates (much simpler!)
+        # Use center function and adjust y to top edge
+        sensor_center = center(sensor_bounds)
         top_y = sensor_bounds.origin[2]  # Top edge (minimum y, since y points down)
-        center_x = sensor_bounds.origin[1] + sensor_bounds.widths[1] / 2
         base_half_width = sensor_bounds.widths[1] * 0.02  # 2% of sensor width
 
         # Triangle vertices in 2D image coordinates
         # Tip points up (smaller y), base on the top edge
-        tip_2d = SVector{2}(center_x, top_y - indicator_size)
-        base_left_2d = SVector{2}(center_x - base_half_width, top_y)
-        base_right_2d = SVector{2}(center_x + base_half_width, top_y)
+        tip_2d = SVector{2}(sensor_center[1], top_y - indicator_size)
+        base_left_2d = SVector{2}(sensor_center[1] - base_half_width, top_y)
+        base_right_2d = SVector{2}(sensor_center[1] + base_half_width, top_y)
 
         # Unproject to 3D at frustum depth and transform to world coordinates
         tip_world = Point3f(cam_pose(unproject(camera.model, tip_2d, depth)))
