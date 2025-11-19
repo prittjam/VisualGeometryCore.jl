@@ -696,12 +696,10 @@ function frustum!(lscene, camera, sensor_bounds, depth;
         base_left = Point3f(top_edge_mid - edge_direction_normalized * base_half_width)
         base_right = Point3f(top_edge_mid + edge_direction_normalized * base_half_width)
 
-        # Create filled triangle indicator
-        indicator_vertices = [tip, base_left, base_right]
-        indicator_face = [TriangleFace(1, 2, 3)]
-        indicator_mesh = GeometryBasics.Mesh(indicator_vertices, indicator_face)
+        # Create filled triangle indicator using GeometryBasics Triangle primitive
+        indicator_triangle = GeometryBasics.Triangle(tip, base_left, base_right)
 
-        push!(lscene.plots, MakieSpec.Mesh(indicator_mesh; color=color))
+        push!(lscene.plots, MakieSpec.Mesh(indicator_triangle; color=color))
     end
 
     return nothing
