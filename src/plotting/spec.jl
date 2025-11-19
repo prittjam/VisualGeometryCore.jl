@@ -682,19 +682,17 @@ function frustum!(lscene, camera, sensor_bounds, depth;
         top_y = sensor_bounds.origin[2]  # Top edge (minimum y, since y points down)
         base_half_width = sensor_bounds.widths[1] * 0.02  # 2% of sensor width
 
-        # Triangle vertices in 2D image coordinates
-        # Tip points up (smaller y), base on the top edge
-        tip_2d = SVector{2}(sensor_center[1], top_y - indicator_size)
-        base_left_2d = SVector{2}(sensor_center[1] - base_half_width, top_y)
-        base_right_2d = SVector{2}(sensor_center[1] + base_half_width, top_y)
+        # Construct triangle in 2D image space
+        tip_2d = Point2(sensor_center[1], top_y - indicator_size)
+        base_left_2d = Point2(sensor_center[1] - base_half_width, top_y)
+        base_right_2d = Point2(sensor_center[1] + base_half_width, top_y)
+        triangle_2d = GeometryBasics.Triangle(tip_2d, base_left_2d, base_right_2d)
 
-        # Unproject to 3D at frustum depth and transform to world coordinates
-        tip_world = Point3f(cam_pose(unproject(camera.model, tip_2d, depth)))
-        base_left_world = Point3f(cam_pose(unproject(camera.model, base_left_2d, depth)))
-        base_right_world = Point3f(cam_pose(unproject(camera.model, base_right_2d, depth)))
+        # Broadcast unproject over triangle vertices (convert to SVector for unproject) and transform to world
+        vertices_world = Point3f.(cam_pose.(unproject.(Ref(camera.model), SVector{2}.(triangle_2d), Ref(depth))))
 
-        # Create filled triangle indicator using GeometryBasics Triangle primitive
-        indicator_triangle = GeometryBasics.Triangle(tip_world, base_left_world, base_right_world)
+        # Create 3D triangle from unprojected vertices
+        indicator_triangle = GeometryBasics.Triangle(vertices_world...)
 
         push!(lscene.plots, MakieSpec.Mesh(indicator_triangle; color=color))
     end
