@@ -45,6 +45,7 @@ using Transducers
 # Export geometry basics
 export Point2, Rect, Rect2, Vec2, HyperRectangle, Circle, Point2f
 export cartesian_ranges, center, ranges
+export basis_vector, canonical_basis  # Canonical basis vectors
 export coord_map, CANONICAL_SQUARE, UNIT_CIRCLE  # Generic coordinate mapping API
 export imgmap  # Image coordinate adaptation for warping
 export logpolar_to_cartesian, logpolar_map, logpolar_patch_map, canonical_patch_map

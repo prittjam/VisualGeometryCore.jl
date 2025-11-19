@@ -18,7 +18,7 @@ The constructor automatically ensures `a ≥ b` by swapping axes and adjusting t
 # Fields
 - `center::Point2{T}`: Center coordinates (cx, cy)
 - `a::T`: Semi-major axis length (always ≥ b)
-- `b::T`: Semi-minor axis length (always ≤ a)  
+- `b::T`: Semi-minor axis length (always ≤ a)
 - `θ::T`: Orientation angle in radians [0, π)
 
 # Constructors

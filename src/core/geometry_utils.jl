@@ -162,3 +162,83 @@ Point2(index::CartesianIndex{2}) = Point2i(index)
 # Generic StaticVector constructors that work with both Point2 and Vec2
 StaticVector{2,Int}(index::CartesianIndex{2}) = Point2{Int}(index[2], index[1])
 StaticVector{2,T}(index::CartesianIndex{2}) where T = StaticVector{2,T}(T(index[2]), T(index[1]))
+
+# =============================================================================
+# Canonical Basis Vectors
+# =============================================================================
+
+"""
+    basis_vector(::Type{SVector{N,T}}, i::Int) where {N,T}
+
+Generate the i-th canonical basis vector in N dimensions.
+
+The canonical basis for ℝⁿ consists of vectors with 1 in the i-th position and 0 elsewhere.
+This function is type-stable and returns a StaticVector for compile-time size optimization.
+
+# Arguments
+- `SVector{N,T}`: Type of vector to generate (N dimensions, element type T)
+- `i::Int`: Index of the basis vector (1 ≤ i ≤ N)
+
+# Returns
+The i-th canonical basis vector as an `SVector{N,T}`
+
+# Examples
+```julia
+# 3D basis vectors
+e1 = basis_vector(SVector{3,Float64}, 1)  # [1.0, 0.0, 0.0]
+e2 = basis_vector(SVector{3,Float64}, 2)  # [0.0, 1.0, 0.0]
+e3 = basis_vector(SVector{3,Float64}, 3)  # [0.0, 0.0, 1.0]
+
+# 2D integer basis
+ex = basis_vector(SVector{2,Int}, 1)      # [1, 0]
+
+# 4D with Float32
+e4 = basis_vector(SVector{4,Float32}, 4)  # [0.0f0, 0.0f0, 0.0f0, 1.0f0]
+```
+
+See also: [`canonical_basis`](@ref)
+"""
+@inline function basis_vector(::Type{SVector{N,T}}, i::Int) where {N,T}
+    @boundscheck 1 ≤ i ≤ N || throw(BoundsError("basis_vector index $i out of range 1:$N"))
+    return SVector{N,T}(ntuple(j -> j == i ? one(T) : zero(T), N))
+end
+
+"""
+    canonical_basis(::Type{SVector{N,T}}) where {N,T}
+
+Generate all N canonical basis vectors for ℝⁿ as a tuple.
+
+Returns a tuple containing all canonical basis vectors e₁, e₂, ..., eₙ where eᵢ
+has 1 in the i-th position and 0 elsewhere. This is type-stable and compile-time
+optimized using StaticArrays.
+
+# Arguments
+- `SVector{N,T}`: Type of vectors to generate (N dimensions, element type T)
+
+# Returns
+An N-tuple of `SVector{N,T}` containing all canonical basis vectors
+
+# Examples
+```julia
+# 3D basis
+e1, e2, e3 = canonical_basis(SVector{3,Float64})
+# e1 = [1.0, 0.0, 0.0]
+# e2 = [0.0, 1.0, 0.0]
+# e3 = [0.0, 0.0, 1.0]
+
+# 2D basis with Float32
+ex, ey = canonical_basis(SVector{2,Float32})
+
+# Use in transformation
+R = RotMatrix(...)  # 3×3 rotation matrix
+e1, e2, e3 = canonical_basis(SVector{3,Float64})
+x_axis = R * e1  # Transform basis vectors
+y_axis = R * e2
+z_axis = R * e3
+```
+
+See also: [`basis_vector`](@ref)
+"""
+@inline function canonical_basis(::Type{SVector{N,T}}) where {N,T}
+    return ntuple(i -> basis_vector(SVector{N,T}, i), N)
+end

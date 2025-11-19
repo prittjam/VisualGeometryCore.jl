@@ -151,9 +151,13 @@ function coord_map(::CanonicalSquare, target::Ellipse)
     a = target.a
     b = target.b
     θ = target.θ
-    S = SMatrix{2,2}(a, 0, 0, b)
+
+    # RotMatrix{2} assumes y-up convention, but images use y-down
+    # Apply y-reflection by negating the b (minor axis) component
+    S = SMatrix{2,2}(a, 0, 0, -b)
     R = RotMatrix{2}(θ)
     A = R * S
+
     return AffineMap(A, c)
 end
 

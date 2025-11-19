@@ -1,12 +1,14 @@
 module Spec
 
 using Makie
-using ..VisualGeometryCore: AbstractBlob, INTRINSICS_COORDINATE_OFFSET, Ellipse, Cspond
+using ..VisualGeometryCore: AbstractBlob, INTRINSICS_COORDINATE_OFFSET, Ellipse, Cspond, pose, canonical_basis
+using ..VisualGeometryCore: Camera, CameraModel, PhysicalIntrinsics, unproject
 using GeometryBasics
-using GeometryBasics: Circle, Rect, Point2, origin
+using GeometryBasics: Circle, Rect, Point2, Point3, Point3f, Vec2, Vec3f, TriangleFace, origin, coordinates
 using StaticArrays
 using StructArrays
 using Unitful: ustrip
+using LinearAlgebra: norm, inv
 import Makie.SpecApi as MakieSpec
 
 """
@@ -421,10 +423,14 @@ Spec.poly!(lscene, [circle1, circle2]; strokecolor=:blue)
 function poly!(lscene, shape;
                color=:transparent,
                strokewidth=2.0,
+               linestyle=nothing,
                kwargs...)
+    # Convert linestyle symbol to Linestyle if provided
+    linestyle_arg = isnothing(linestyle) ? NamedTuple() : (linestyle=Makie.Linestyle(linestyle),)
     push!(lscene.plots, MakieSpec.Poly(shape,
                                        color=color,
                                        strokewidth=strokewidth;
+                                       linestyle_arg...,
                                        kwargs...))
     return nothing
 end
@@ -432,10 +438,14 @@ end
 function poly!(lscene, shapes::AbstractVector;
                color=:transparent,
                strokewidth=2.0,
+               linestyle=nothing,
                kwargs...)
+    # Convert linestyle symbol to Linestyle if provided
+    linestyle_arg = isnothing(linestyle) ? NamedTuple() : (linestyle=Makie.Linestyle(linestyle),)
     push!(lscene.plots, MakieSpec.Poly(shapes,
                                        color=color,
                                        strokewidth=strokewidth;
+                                       linestyle_arg...,
                                        kwargs...))
     return nothing
 end
@@ -561,6 +571,254 @@ function cspond_plot(src_image, src_shapes::AbstractVector, tgt_image, tgt_shape
         (1, 1) => scene1,
         (1, 2) => scene2
     ])
+end
+
+"""
+    frustum!(lscene, camera::Camera{CameraModel{PhysicalIntrinsics,...}}, sensor_bounds; kwargs...)
+
+Add camera frustum visualization for camera with physical intrinsics.
+Uses focal length as default depth for natural frustum visualization.
+
+# Arguments
+- `lscene`: LScene with 3D camera
+- `camera`: Camera object with PhysicalIntrinsics
+- `sensor_bounds`: Rect2 representing sensor bounds in image coordinates
+
+# Keyword Arguments
+- `depth=nothing`: Frustum depth (mm). If nothing, uses focal length
+- `color=:orange`: Frustum color
+- `linewidth=2.0`: Width of frustum edge lines
+
+# Examples
+```julia
+S.frustum!(scene3d, camera, sensor_bounds)  # Uses focal length as depth
+S.frustum!(scene3d, camera, sensor_bounds; depth=300.0)  # Custom depth
+```
+"""
+function frustum!(lscene, camera::Camera{<:CameraModel{PhysicalIntrinsics}}, sensor_bounds;
+                  depth=nothing,
+                  kwargs...)
+    # Use focal length as default depth for physical cameras
+    focal_depth = camera.model.intrinsics.f
+    frustum_depth = something(depth, focal_depth)
+    return frustum!(lscene, camera, sensor_bounds, frustum_depth; kwargs...)
+end
+
+"""
+    frustum!(lscene, camera, sensor_bounds, depth; kwargs...)
+
+Add camera frustum visualization to a 3D LScene with explicit depth.
+
+# Arguments
+- `lscene`: LScene with 3D camera
+- `camera`: Camera object
+- `sensor_bounds`: Rect2 representing sensor bounds in image coordinates
+- `depth`: Depth of frustum from camera center (mm)
+
+# Keyword Arguments
+- `color=:orange`: Frustum color
+- `linewidth=2.0`: Width of frustum edge lines
+- `show_near_plane=false`: Show near plane rectangle
+- `near_depth=10.0`: Near plane depth (if show_near_plane=true)
+
+# Examples
+```julia
+S.frustum!(scene3d, camera, sensor_bounds, 250.0; color=:cyan)
+```
+"""
+function frustum!(lscene, camera, sensor_bounds, depth;
+                  color=:orange,
+                  linewidth=2.0,
+                  show_near_plane=false,
+                  near_depth=10.0)
+
+    # Get camera pose and center
+    cam_pose = pose(camera)
+    cam_center = Point3f(cam_pose.t)
+
+    # Unproject sensor corners to 3D in camera space, then transform to world
+    corners_2d = coordinates(sensor_bounds)
+    corners_cam = unproject.(Ref(camera.model), corners_2d, depth)
+    corners_world = Point3f.(cam_pose.(corners_cam))
+
+    # Create frustum mesh: pyramid from camera center to far plane
+    vertices = [cam_center, corners_world...]
+    faces = [
+        TriangleFace(1, 2, 3),  # side 1
+        TriangleFace(1, 3, 4),  # side 2
+        TriangleFace(1, 4, 5),  # side 3
+        TriangleFace(1, 5, 2),  # side 4
+    ]
+    frustum_mesh = GeometryBasics.Mesh(vertices, faces)
+
+    # Draw frustum as wireframe mesh
+    push!(lscene.plots, MakieSpec.Wireframe(frustum_mesh;
+        color=color, linewidth=linewidth))
+
+    # Optional: near plane as rectangular mesh
+    if show_near_plane
+        near_cam = unproject.(Ref(camera.model), corners_2d, near_depth)
+        near_world = Point3f.(cam_pose.(near_cam))
+
+        # Create near plane rectangle as two triangles
+        near_faces = [
+            TriangleFace(1, 2, 3),
+            TriangleFace(1, 3, 4)
+        ]
+        near_mesh = GeometryBasics.Mesh(near_world, near_faces)
+
+        push!(lscene.plots, MakieSpec.Wireframe(near_mesh;
+            color=color, linewidth=linewidth))
+    end
+
+    return nothing
+end
+
+"""
+    camera!(lscene, camera, sensor_bounds; axis_length=50.0, frustum_depth=200.0, kwargs...)
+
+Add camera visualization to a 3D LScene, including camera center, coordinate axes, and frustum.
+
+# Arguments
+- `lscene`: LScene with 3D camera (cam3d!)
+- `camera`: Camera object with model and extrinsics
+- `sensor_bounds`: Rect2 representing sensor bounds in image coordinates
+
+# Keyword Arguments
+- `axis_length=50.0`: Length of camera coordinate axes (mm)
+- `frustum_depth=200.0`: Depth of frustum visualization (mm)
+- `show_center=true`: Show camera center marker
+- `show_axes=true`: Show camera coordinate frame axes
+- `show_frustum=true`: Show camera frustum
+- `center_color=:red`: Color for camera center marker
+- `center_size=20.0`: Size of camera center marker
+- `frustum_color=:orange`: Color for frustum
+- `frustum_linewidth=2.0`: Width of frustum edges
+
+# Examples
+```julia
+import VisualGeometryCore.Spec as S
+
+# Create 3D scene
+scene3d = S.LScene3D()
+
+# Add camera visualization
+S.camera!(scene3d, camera, sensor_bounds)
+
+# Customize appearance
+S.camera!(scene3d, camera, sensor_bounds;
+    axis_length=100.0,
+    frustum_depth=300.0,
+    frustum_color=:blue)
+```
+"""
+function camera!(lscene, camera, sensor_bounds;
+                 axis_length=50.0,
+                 frustum_depth=200.0,
+                 show_center=true,
+                 show_axes=true,
+                 show_frustum=true,
+                 center_color=:red,
+                 center_size=20.0,
+                 frustum_color=:orange,
+                 frustum_linewidth=2.0)
+
+    # Get camera pose (camera-to-world)
+    cam_pose = pose(camera)
+    cam_center = Point3f(cam_pose.t)
+    R_c2w = cam_pose.R  # Camera-to-world rotation (columns are camera axes in world coords)
+
+    # 1. Camera center
+    if show_center
+        push!(lscene.plots, MakieSpec.Scatter([cam_center];
+            color=center_color,
+            markersize=center_size))
+    end
+
+    # 2. Camera coordinate axes
+    if show_axes
+        # Transform scaled canonical basis vectors to world coordinates via pose
+        basis = canonical_basis(SVector{3,Float64})
+        axis_ends = Point3f.(cam_pose.(basis .* axis_length))
+
+        # X-axis (red), Y-axis (green), Z-axis/optical axis (blue)
+        push!(lscene.plots, MakieSpec.Lines(
+            [cam_center, axis_ends[1]];
+            color=:red, linewidth=3))
+        push!(lscene.plots, MakieSpec.Lines(
+            [cam_center, axis_ends[2]];
+            color=:green, linewidth=3))
+        push!(lscene.plots, MakieSpec.Lines(
+            [cam_center, axis_ends[3]];
+            color=:blue, linewidth=3))
+
+        # Add markers at endpoints to indicate direction
+        push!(lscene.plots, MakieSpec.Scatter(
+            collect(axis_ends);
+            color=[:red, :green, :blue],
+            markersize=8))
+    end
+
+    # 3. Camera frustum
+    if show_frustum
+        frustum!(lscene, camera, sensor_bounds, frustum_depth;
+            color=frustum_color,
+            linewidth=frustum_linewidth)
+    end
+
+    return nothing
+end
+
+"""
+    LScene3D(; show_axis=true, width=600, height=600, kwargs...)
+
+Create a 3D LScene with interactive Camera3D controls.
+
+# Keyword Arguments
+- `show_axis=true`: Show 3D axis
+- `width=600`: Scene width
+- `height=600`: Scene height
+- `scenekw`: Additional scene keyword arguments
+
+# Returns
+- LScene configured for 3D visualization
+
+# Examples
+```julia
+scene3d = S.LScene3D()
+
+# Add visualizations
+S.board!(scene3d, X)
+S.camera!(scene3d, camera)
+
+# Include in layout
+layout = S.GridLayout([(1,1) => scene3d])
+```
+"""
+function LScene3D(;
+                  show_axis=true,
+                  width=600,
+                  height=600,
+                  plots=PlotSpec[],
+                  scenekw=(;))
+
+    lscene = MakieSpec.LScene(
+        plots=plots,
+        show_axis=show_axis,
+        width=Makie.Fixed(width),
+        height=Makie.Fixed(height),
+        scenekw=scenekw
+    )
+
+    # Add callback to enable Camera3D controls
+    function setup_camera3d(lscene_block)
+        cam3d!(lscene_block.scene)
+        return
+    end
+
+    push!(lscene.then_funcs, setup_camera3d)
+
+    return lscene
 end
 
 end # module Spec
