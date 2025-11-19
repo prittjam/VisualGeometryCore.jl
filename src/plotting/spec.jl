@@ -622,10 +622,12 @@ Add camera frustum visualization to a 3D LScene with explicit depth.
 - `near_depth=10.0`: Near plane depth (if show_near_plane=true)
 - `show_up_indicator=true`: Show triangle indicator at top edge pointing in camera's up direction
 - `indicator_size=20.0`: Height of the up indicator triangle in pixels (image coordinates)
+- `image=nothing`: Optional image to display on the far plane (texture mapped to frustum rectangle)
 
 # Examples
 ```julia
 S.frustum!(scene3d, camera, sensor_bounds, 250.0; color=:cyan)
+S.frustum!(scene3d, camera, sensor_bounds, 250.0; image=camera_view)  # Show image on far plane
 ```
 """
 function frustum!(lscene, camera, sensor_bounds, depth;
@@ -634,7 +636,8 @@ function frustum!(lscene, camera, sensor_bounds, depth;
                   show_near_plane=false,
                   near_depth=10.0,
                   show_up_indicator=true,
-                  indicator_size=20.0)
+                  indicator_size=20.0,
+                  image=nothing)
 
     # Get camera pose and center
     cam_pose = pose(camera)
@@ -644,6 +647,21 @@ function frustum!(lscene, camera, sensor_bounds, depth;
     corners_2d = coordinates(sensor_bounds)
     corners_cam = unproject.(Ref(camera.model), corners_2d, depth)
     corners_world = Point3f.(cam_pose.(corners_cam))
+
+    # Optional: show image on far plane (before drawing wireframe)
+    if !isnothing(image)
+        # Create rectangular mesh for far plane
+        # Corners order from coordinates(): likely bottom-left, bottom-right, top-right, top-left
+        far_faces = [
+            TriangleFace(1, 2, 3),
+            TriangleFace(1, 3, 4)
+        ]
+        far_mesh = GeometryBasics.Mesh(corners_world, far_faces)
+
+        # Display image as texture on mesh
+        # Makie will map the image to the mesh surface
+        push!(lscene.plots, MakieSpec.Mesh(far_mesh; color=image, shading=Makie.NoShading))
+    end
 
     # Create frustum mesh: pyramid from camera center to far plane
     vertices = [cam_center, corners_world...]
@@ -720,6 +738,7 @@ Add camera visualization to a 3D LScene, including camera center, coordinate axe
 - `center_size=20.0`: Size of camera center marker
 - `frustum_color=:orange`: Color for frustum
 - `frustum_linewidth=2.0`: Width of frustum edges
+- `frustum_image=nothing`: Optional image to display on frustum far plane
 
 # Examples
 ```julia
@@ -747,7 +766,8 @@ function camera!(lscene, camera, sensor_bounds;
                  center_color=:red,
                  center_size=20.0,
                  frustum_color=:orange,
-                 frustum_linewidth=2.0)
+                 frustum_linewidth=2.0,
+                 frustum_image=nothing)
 
     # Get camera pose (camera-to-world)
     cam_pose = pose(camera)
@@ -789,7 +809,8 @@ function camera!(lscene, camera, sensor_bounds;
     if show_frustum
         frustum!(lscene, camera, sensor_bounds, frustum_depth;
             color=frustum_color,
-            linewidth=frustum_linewidth)
+            linewidth=frustum_linewidth,
+            image=frustum_image)
     end
 
     return nothing
