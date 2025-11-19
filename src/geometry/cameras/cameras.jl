@@ -75,6 +75,29 @@ Camera(model, extrinsics) = Camera(model, EuclideanMap(extrinsics))
 # Method-based accessors
 pose(c::Camera) = inv(c.extrinsics)
 
+"""
+    focal_length(camera::Camera)
+
+Get focal length from camera's intrinsics.
+
+Returns Float64 (in mm) for PhysicalIntrinsics, or (fx, fy) tuple (in pixels) for LogicalIntrinsics.
+
+# Examples
+```julia
+# Physical camera
+model = CameraModel(16.0mm, Size2(width=5.86μm/px, height=5.86μm/px), [320.0px, 240.0px])
+camera = Camera(model, extrinsics)
+f = focal_length(camera)  # Returns 16.0 (Float64)
+
+# Logical camera
+K = CameraCalibrationMatrix(800.0px, [320.0px, 240.0px])
+model = CameraModel(LogicalIntrinsics(K), PinholeProjection())
+camera = Camera(model, extrinsics)
+fx, fy = focal_length(camera)  # Returns (800.0, 800.0)
+```
+"""
+focal_length(camera::Camera) = focal_length(camera.model.intrinsics)
+
 # ============================================================================
 # Camera Projection (World → Pixel)
 # ============================================================================

@@ -254,6 +254,37 @@ Get focal length with mm units attached.
 """
 focal_length_mm(intrinsics::PhysicalIntrinsics) = intrinsics.f * mm
 
+"""
+    focal_length(intrinsics::PhysicalIntrinsics) -> Float64
+
+Get focal length from PhysicalIntrinsics (unitless, in mm).
+
+Returns the physical focal length as a unitless Float64 value in millimeters.
+
+# Example
+```julia
+intrinsics = PhysicalIntrinsics(...)
+f = focal_length(intrinsics)  # Returns Float64 (mm)
+```
+"""
+focal_length(intrinsics::PhysicalIntrinsics) = intrinsics.f
+
+"""
+    focal_length(intrinsics::LogicalIntrinsics) -> Tuple{Float64, Float64}
+
+Get focal lengths (fx, fy) from LogicalIntrinsics K matrix (unitless, in pixels).
+
+Returns a tuple (fx, fy) extracted from the calibration matrix K.
+For square pixels, fx ≈ fy.
+
+# Example
+```julia
+intrinsics = LogicalIntrinsics(K)
+fx, fy = focal_length(intrinsics)  # Returns (Float64, Float64) in pixels
+```
+"""
+focal_length(intrinsics::LogicalIntrinsics) = (intrinsics.K[1,1], intrinsics.K[2,2])
+
 # ============================================================================
 # Convenience Constructors for Intrinsics
 # ============================================================================
