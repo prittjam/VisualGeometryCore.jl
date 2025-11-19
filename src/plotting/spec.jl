@@ -650,23 +650,36 @@ function frustum!(lscene, camera, sensor_bounds, depth;
 
     # Optional: show image on far plane (before drawing wireframe)
     if !isnothing(image)
-        # Use Surface plot for proper image texture mapping on the far plane
-        # corners_world order: [p1, p2, p3, p4] from coordinates(rect)
-        # Create grid for surface plot from the 4 corners
+        # Create a unit rectangle mesh with UV coordinates using GeometryBasics
+        unit_rect_mesh = GeometryBasics.uv_normal_mesh(Rect(0, 0, 1, 1))
 
-        # Extract corner coordinates
-        x_coords = [corners_world[1][1] corners_world[2][1];
-                    corners_world[4][1] corners_world[3][1]]
-        y_coords = [corners_world[1][2] corners_world[2][2];
-                    corners_world[4][2] corners_world[3][2]]
-        z_coords = [corners_world[1][3] corners_world[2][3];
-                    corners_world[4][3] corners_world[3][3]]
+        # Transform the unit rectangle to the frustum far plane
+        # Extract positions and transform them to world space
+        rect_positions = GeometryBasics.coordinates(unit_rect_mesh)
 
-        # Surface needs a 2x2 grid at minimum, but image can be any size
-        # We'll use the image directly as the color
-        push!(lscene.plots, MakieSpec.Surface(x_coords, y_coords, z_coords;
-            color=image,
-            shading=Makie.NoShading))
+        # Map [0,1]x[0,1] rectangle to frustum far plane corners
+        # corners_world: [p1, p2, p3, p4] from coordinates(sensor_bounds)
+        transformed_positions = map(rect_positions) do p
+            u, v = p[1], p[2]
+            # Bilinear interpolation: p = (1-u)(1-v)p1 + u(1-v)p2 + uv*p3 + (1-u)v*p4
+            p1, p2, p3, p4 = corners_world[1], corners_world[2], corners_world[3], corners_world[4]
+            Point3f((1-u)*(1-v)*p1 + u*(1-v)*p2 + u*v*p3 + (1-u)*v*p4)
+        end
+
+        # Create new mesh with transformed positions but keep UV coordinates and faces
+        far_mesh = GeometryBasics.Mesh(
+            transformed_positions,
+            GeometryBasics.faces(unit_rect_mesh);
+            uv=GeometryBasics.texturecoordinates(unit_rect_mesh)
+        )
+
+        # Display textured mesh
+        # Use parent() to unwrap OffsetArrays (safe for regular arrays too)
+        # Makie will use the UV coordinates from the mesh to map the image
+        push!(lscene.plots, MakieSpec.Mesh(far_mesh;
+            color=parent(image),
+            shading=Makie.NoShading,
+            interpolate=true))
     end
 
     # Create frustum mesh: pyramid from camera center to far plane
