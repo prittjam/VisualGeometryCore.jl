@@ -621,7 +621,7 @@ Add camera frustum visualization to a 3D LScene with explicit depth.
 - `show_near_plane=false`: Show near plane rectangle
 - `near_depth=10.0`: Near plane depth (if show_near_plane=true)
 - `show_up_indicator=true`: Show triangle indicator at top edge pointing in camera's up direction
-- `indicator_size=20.0`: Size of the up indicator triangle (mm)
+- `indicator_size=20.0`: Height of the up indicator triangle in pixels (image coordinates)
 
 # Examples
 ```julia
@@ -677,27 +677,24 @@ function frustum!(lscene, camera, sensor_bounds, depth;
 
     # Add up indicator: small triangle at midpoint of top edge pointing in -y direction (camera up)
     if show_up_indicator
-        # Top edge is between corners 1 and 2 (minimum y-coordinate in image space)
-        top_edge_mid = (corners_world[1] + corners_world[2]) / 2
+        # Define triangle in image coordinates (much simpler!)
+        top_y = sensor_bounds.origin[2]  # Top edge (minimum y, since y points down)
+        center_x = sensor_bounds.origin[1] + sensor_bounds.widths[1] / 2
+        base_half_width = sensor_bounds.widths[1] * 0.02  # 2% of sensor width
 
-        # Create triangle in camera space pointing in -y direction (up)
-        # Base points offset left and right from center along top edge direction
-        edge_direction = (corners_world[2] - corners_world[1])
-        edge_direction_normalized = edge_direction / norm(edge_direction)
-        base_half_width = indicator_size / 2
+        # Triangle vertices in 2D image coordinates
+        # Tip points up (smaller y), base on the top edge
+        tip_2d = SVector{2}(center_x, top_y - indicator_size)
+        base_left_2d = SVector{2}(center_x - base_half_width, top_y)
+        base_right_2d = SVector{2}(center_x + base_half_width, top_y)
 
-        # Tip points in -y direction (up) in camera space
-        basis = canonical_basis(SVector{3,Float64})
-        up_camera = -basis[2] * indicator_size  # -y direction in camera space
-        up_world = cam_pose(up_camera) - cam_pose(zero(SVector{3,Float64}))  # Transform direction to world
-
-        # Triangle vertices: tip at top, base on the edge
-        tip = Point3f(top_edge_mid + up_world)
-        base_left = Point3f(top_edge_mid - edge_direction_normalized * base_half_width)
-        base_right = Point3f(top_edge_mid + edge_direction_normalized * base_half_width)
+        # Unproject to 3D at frustum depth and transform to world coordinates
+        tip_world = Point3f(cam_pose(unproject(camera.model, tip_2d, depth)))
+        base_left_world = Point3f(cam_pose(unproject(camera.model, base_left_2d, depth)))
+        base_right_world = Point3f(cam_pose(unproject(camera.model, base_right_2d, depth)))
 
         # Create filled triangle indicator using GeometryBasics Triangle primitive
-        indicator_triangle = GeometryBasics.Triangle(tip, base_left, base_right)
+        indicator_triangle = GeometryBasics.Triangle(tip_world, base_left_world, base_right_world)
 
         push!(lscene.plots, MakieSpec.Mesh(indicator_triangle; color=color))
     end
