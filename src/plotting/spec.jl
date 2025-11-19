@@ -621,7 +621,7 @@ Add camera frustum visualization to a 3D LScene with explicit depth.
 - `show_near_plane=false`: Show near plane rectangle
 - `near_depth=10.0`: Near plane depth (if show_near_plane=true)
 - `show_up_indicator=true`: Show triangle indicator at top edge pointing in camera's up direction
-- `indicator_size=20.0`: Height of the up indicator triangle in pixels (image coordinates)
+- `indicator_size=40.0`: Height of the up indicator triangle in pixels (image coordinates)
 - `image=nothing`: Optional image to display on the far plane (texture mapped to frustum rectangle)
 
 # Examples
@@ -636,7 +636,7 @@ function frustum!(lscene, camera, sensor_bounds, depth;
                   show_near_plane=false,
                   near_depth=10.0,
                   show_up_indicator=true,
-                  indicator_size=20.0,
+                  indicator_size=40.0,
                   image=nothing)
 
     # Get camera pose and center
@@ -650,17 +650,23 @@ function frustum!(lscene, camera, sensor_bounds, depth;
 
     # Optional: show image on far plane (before drawing wireframe)
     if !isnothing(image)
-        # Create rectangular mesh for far plane
-        # Corners order from coordinates(): likely bottom-left, bottom-right, top-right, top-left
-        far_faces = [
-            TriangleFace(1, 2, 3),
-            TriangleFace(1, 3, 4)
-        ]
-        far_mesh = GeometryBasics.Mesh(corners_world, far_faces)
+        # Use Surface plot for proper image texture mapping on the far plane
+        # corners_world order: [p1, p2, p3, p4] from coordinates(rect)
+        # Create grid for surface plot from the 4 corners
 
-        # Display image as texture on mesh
-        # Makie will map the image to the mesh surface
-        push!(lscene.plots, MakieSpec.Mesh(far_mesh; color=image, shading=Makie.NoShading))
+        # Extract corner coordinates
+        x_coords = [corners_world[1][1] corners_world[2][1];
+                    corners_world[4][1] corners_world[3][1]]
+        y_coords = [corners_world[1][2] corners_world[2][2];
+                    corners_world[4][2] corners_world[3][2]]
+        z_coords = [corners_world[1][3] corners_world[2][3];
+                    corners_world[4][3] corners_world[3][3]]
+
+        # Surface needs a 2x2 grid at minimum, but image can be any size
+        # We'll use the image directly as the color
+        push!(lscene.plots, MakieSpec.Surface(x_coords, y_coords, z_coords;
+            color=image,
+            shading=Makie.NoShading))
     end
 
     # Create frustum mesh: pyramid from camera center to far plane
