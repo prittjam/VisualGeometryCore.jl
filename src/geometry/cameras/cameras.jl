@@ -153,3 +153,4 @@ end
 # Include remaining camera system components
 include("stereo.jl")
 include("utilities.jl")
+include("random.jl")
