@@ -5,8 +5,7 @@ export IsoBlob                  # Blob objects returned by pattern functions
 # Essential units for measurements
 export pd, mm, cm, m, inch, ft, dpi, px, pt, μm # Core units: pixels/dots, length units (mm, cm, m, inch, ft), density (dpi), pixels, points, micrometers
 
-# Unit conversion functions
-export logical_units, physical_units  # Convert IsoBlob between logical and physical units
+# Unit conversion now handled by generic uconvert from Unitful (extended in core/units.jl)
 
 # Coordinate convention conversion
 export image_origin_offset  # Get offset vector for image origin convention conversion

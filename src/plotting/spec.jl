@@ -5,6 +5,7 @@ using ..VisualGeometryCore: AbstractBlob, INTRINSICS_COORDINATE_OFFSET, Ellipse,
 using ..VisualGeometryCore: Camera, CameraModel, PhysicalIntrinsics, unproject
 using GeometryBasics
 using GeometryBasics: Circle, Rect, Point2, Point3, Point3f, Vec2, Vec3f, TriangleFace, origin, coordinates
+using Infiltrator
 using StaticArrays
 using StructArrays
 using Unitful: ustrip

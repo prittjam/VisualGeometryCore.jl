@@ -72,6 +72,30 @@ end
 # For non-EuclideanMap extrinsics, convert first
 Camera(model, extrinsics) = Camera(model, EuclideanMap(extrinsics))
 
+# ============================================================================
+# Camera Type Aliases
+# ============================================================================
+
+"""
+    PhysicalCamera
+
+Type alias for cameras with physical intrinsics (focal length in mm, sensor in μm/px).
+
+These cameras have a natural physical scale, so operations like frustum visualization
+can use the focal length directly as a depth scale.
+"""
+const PhysicalCamera = Camera{<:CameraModel{<:PhysicalIntrinsics}}
+
+"""
+    LogicalCamera
+
+Type alias for cameras with logical intrinsics (focal length in pixels).
+
+These cameras operate in dimensionless pixel space, so depth-related operations
+require explicit scale parameters or sensible defaults based on image dimensions.
+"""
+const LogicalCamera = Camera{<:CameraModel{<:LogicalIntrinsics}}
+
 # Method-based accessors
 pose(c::Camera) = inv(c.extrinsics)
 
@@ -97,6 +121,28 @@ fx, fy = focal_length(camera)  # Returns (800.0, 800.0)
 ```
 """
 focal_length(camera::Camera) = focal_length(camera.model.intrinsics)
+
+"""
+    default_frustum_depth(camera::PhysicalCamera) -> Float64
+
+Get default frustum depth for visualization of physical cameras.
+
+For PhysicalCamera, returns the focal length (in mm) as a natural depth scale
+since the camera operates in physical coordinates.
+
+# Returns
+- `Float64`: Focal length in mm (unitless)
+
+# Example
+```julia
+sensor = CMOS_SENSORS["Sony"]["IMX174"]
+f = focal_length(40.0°, sensor; dimension=:horizontal)
+model = CameraModel(f, sensor.pitch, center(Rect(sensor)))
+camera = Camera(model, extrinsics)
+depth = default_frustum_depth(camera)  # Returns f in mm
+```
+"""
+default_frustum_depth(camera::PhysicalCamera) = ustrip(focal_length(camera))
 
 # ============================================================================
 # Camera Projection (World → Pixel)
@@ -125,12 +171,7 @@ X_world = SVector(1.0mm, 2.0mm, 3.0mm)
 u = project(camera, X_world)
 ```
 """
-function project(camera::Camera, X_world::AbstractVector)
-    # Apply cached composed transform
-    # Note: EuclideanMap operates on unitless values, so we strip/restore units at the boundary
-    X_world_unitless = ustrip.(X_world)
-    return camera.transform(X_world_unitless)
-end
+project(camera::Camera, X::AbstractVector) = camera.transform(X)
 
 # ============================================================================
 # Camera Property Accessors
@@ -140,11 +181,13 @@ function Base.getproperty(c::Camera, s::Symbol)
     if s === :orientation
         return pose(c).R
     elseif s === :eye_position
-        return Meshes.Point(Tuple(pose(c).t))
+        return pose(c).t
     elseif s === :forward
         return RotMatrix(pose(c).R)[:,3]
     elseif s === :up
         return -RotMatrix(pose(c).R)[:,2]
+    elseif s === :right
+        return -RotMatrix(pose(c).R)[:,1]
     else
         return getfield(c, s)
     end

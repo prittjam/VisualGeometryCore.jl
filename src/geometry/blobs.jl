@@ -157,65 +157,8 @@ function Unitful.ustrip(blob::AbstractBlob)
     return ConstructionBase.setproperties(blob, (center=ustrip.(blob.center), σ=ustrip(blob.σ)))
 end
 
-"""
-    logical_units(blob::AbstractBlob, render_density::LogicalDensity)
-
-Convert an AbstractBlob from physical units to logical units using the specified render density.
-
-# Arguments
-- `blob::AbstractBlob`: The blob with physical coordinates and scale
-- `render_density::LogicalDensity`: Render density (e.g., 300dpi for print, 96dpi for screens)
-
-# Returns
-- New blob with logical coordinates (pd or px units matching the density)
-
-# Example
-```julia
-# Physical blob in millimeters
-blob_mm = IsoBlob(Point2(10.0mm, 20.0mm), 2.0mm)
-
-# Convert to logical units at 300 DPI (print) or 96 DPI (screen)
-blob_logical = logical_units(blob_mm, 300dpi)
-```
-"""
-function logical_units(blob::AbstractBlob, render_density::LogicalDensity)
-    # Use atomic quantity conversion for each component
-    center_logical = logical_units.(blob.center, Ref(render_density))
-    σ_logical = logical_units(blob.σ, render_density)
-
-    # Create new blob with converted units
-    return ConstructionBase.setproperties(blob, (center=center_logical, σ=σ_logical))
-end
-
-"""
-    physical_units(blob::AbstractBlob, render_density::LogicalDensity)
-
-Convert an AbstractBlob from logical units to physical units using the specified render density.
-
-# Arguments
-- `blob::AbstractBlob`: The blob with logical coordinates and scale (pd or px units)
-- `render_density::LogicalDensity`: Render density (e.g., 300dpi for print, 96dpi for screens)
-
-# Returns
-- New blob of the same type with physical coordinates (length unit matching density denominator)
-
-# Example
-```julia
-# Logical blob in pixels/dots
-blob_logical = IsoBlob(Point2(300.0pd, 600.0pd), 15.0pd)
-
-# Convert to physical units at 300 DPI (gives inches) or 300pd/mm (gives mm)
-blob_physical = physical_units(blob_logical, 300dpi)
-```
-"""
-function physical_units(blob::AbstractBlob, render_density::LogicalDensity)
-    # Use atomic quantity conversion for each component
-    center_physical = physical_units.(blob.center, Ref(render_density))
-    σ_physical = physical_units(blob.σ, render_density)
-
-    # Create new blob with converted units
-    return ConstructionBase.setproperties(blob, (center=center_physical, σ=σ_physical))
-end
+# Note: Blob unit conversion is now handled by the generic uconvert(target_units, obj, density)
+# defined in core/units.jl. No blob-specific methods needed!
 
 # =============================================================================
 # Coordinate Convention Support

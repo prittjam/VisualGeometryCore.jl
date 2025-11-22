@@ -2,6 +2,9 @@
 # Camera Visualization Functions
 # ==============================================================================
 
+# Import camera type aliases and utilities from parent module
+import ..PhysicalCamera, ..LogicalCamera, ..default_frustum_depth
+
 """
     frustum!(lscene, camera::Camera{CameraModel{PhysicalIntrinsics,...}}, sensor_bounds; kwargs...)
 
@@ -167,18 +170,23 @@ function frustum!(lscene, camera, sensor_bounds, depth;
 end
 
 """
-    camera!(lscene, camera, sensor_bounds; axis_length=50.0, frustum_depth=200.0, kwargs...)
+    camera!(lscene, camera::PhysicalCamera, sensor_bounds, frustum_depth=default_frustum_depth(camera); kwargs...)
+    camera!(lscene, camera::LogicalCamera, sensor_bounds, frustum_depth; kwargs...)
 
 Add camera visualization to a 3D LScene, including camera center, coordinate axes, and frustum.
 
+Dispatches on camera type:
+- **PhysicalCamera**: `frustum_depth` defaults to focal length (mm)
+- **LogicalCamera**: `frustum_depth` is required (no natural default for dimensionless scenes)
+
 # Arguments
 - `lscene`: LScene with 3D camera (cam3d!)
-- `camera`: Camera object with model and extrinsics
+- `camera`: Camera object (PhysicalCamera or LogicalCamera)
 - `sensor_bounds`: Rect2 representing sensor bounds in image coordinates
+- `frustum_depth`: Frustum depth (defaults for PhysicalCamera, required for LogicalCamera)
 
 # Keyword Arguments
-- `axis_length=50.0`: Length of camera coordinate axes (mm)
-- `frustum_depth=200.0`: Depth of frustum visualization (mm)
+- `axis_length=frustum_depth`: Length of camera coordinate axes (defaults to match frustum)
 - `show_center=true`: Show camera center marker
 - `show_axes=true`: Show camera coordinate frame axes
 - `show_frustum=true`: Show camera frustum
@@ -192,22 +200,19 @@ Add camera visualization to a 3D LScene, including camera center, coordinate axe
 ```julia
 import VisualGeometryCore.Spec as S
 
-# Create 3D scene
-scene3d = S.LScene3D()
+# PhysicalCamera - frustum_depth defaults to focal length
+S.camera!(scene3d, physical_cam, sensor_bounds)
 
-# Add camera visualization
-S.camera!(scene3d, camera, sensor_bounds)
+# LogicalCamera - frustum_depth required
+S.camera!(scene3d, logical_cam, sensor_bounds, 500.0)
 
-# Customize appearance
-S.camera!(scene3d, camera, sensor_bounds;
-    axis_length=100.0,
-    frustum_depth=300.0,
-    frustum_color=:blue)
+# Override frustum_depth for either type
+S.camera!(scene3d, camera, sensor_bounds, 300.0; frustum_color=:blue)
 ```
 """
-function camera!(lscene, camera, sensor_bounds;
-                 axis_length=50.0,
-                 frustum_depth=200.0,
+function camera!(lscene, camera::PhysicalCamera, sensor_bounds,
+                 frustum_depth=default_frustum_depth(camera);
+                 axis_length=frustum_depth,
                  show_center=true,
                  show_axes=true,
                  show_frustum=true,
@@ -256,9 +261,67 @@ function camera!(lscene, camera, sensor_bounds;
     # 3. Camera frustum
     if show_frustum
         frustum!(lscene, camera, sensor_bounds, frustum_depth;
-            color=frustum_color,
-            linewidth=frustum_linewidth,
-            image=frustum_image)
+                 color=frustum_color,
+                 linewidth=frustum_linewidth,
+                 image=frustum_image)
+    end
+
+    return nothing
+end
+
+function camera!(lscene, camera::LogicalCamera, sensor_bounds, frustum_depth;
+                 axis_length=frustum_depth,
+                 show_center=true,
+                 show_axes=true,
+                 show_frustum=true,
+                 center_color=:red,
+                 center_size=20.0,
+                 frustum_color=:orange,
+                 frustum_linewidth=2.0,
+                 frustum_image=nothing)
+
+    # Get camera pose (camera-to-world)
+    cam_pose = pose(camera)
+    cam_center = Point3f(cam_pose.t)
+    R_c2w = cam_pose.R  # Camera-to-world rotation (columns are camera axes in world coords)
+
+    # 1. Camera center
+    if show_center
+        push!(lscene.plots, MakieSpec.Scatter([cam_center];
+            color=center_color,
+            markersize=center_size))
+    end
+
+    # 2. Camera coordinate axes
+    if show_axes
+        # Transform scaled canonical basis vectors to world coordinates via pose
+        basis = canonical_basis(SVector{3,Float64})
+        axis_ends = Point3f.(cam_pose.(basis .* axis_length))
+
+        # X-axis (red), Y-axis (green), Z-axis/optical axis (blue)
+        push!(lscene.plots, MakieSpec.Lines(
+            [cam_center, axis_ends[1]];
+            color=:red, linewidth=3))
+        push!(lscene.plots, MakieSpec.Lines(
+            [cam_center, axis_ends[2]];
+            color=:green, linewidth=3))
+        push!(lscene.plots, MakieSpec.Lines(
+            [cam_center, axis_ends[3]];
+            color=:blue, linewidth=3))
+
+        # Add markers at endpoints to indicate direction
+        push!(lscene.plots, MakieSpec.Scatter(
+            collect(axis_ends);
+            color=[:red, :green, :blue],
+            markersize=8))
+    end
+
+    # 3. Camera frustum
+    if show_frustum
+        frustum!(lscene, camera, sensor_bounds, frustum_depth;
+                 color=frustum_color,
+                 linewidth=frustum_linewidth,
+                 image=frustum_image)
     end
 
     return nothing
