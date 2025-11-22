@@ -125,7 +125,8 @@ include("core/utils.jl")
 # Geometry
 include("geometry/transforms/homogeneous.jl")  # Homogeneous transforms (defines HomEllipseMat) - must come first
 include("geometry/blobs.jl")               # Load blobs before primitives (AbstractBlob needed)
-include("geometry/primitives/primitives.jl")  # Geometric primitives (uses AbstractBlob and HomEllipseMat)
+include("geometry/primitives/primitives.jl")  # Geometric primitives submodule
+using .Primitives  # Import all exported symbols from Primitives submodule
 include("geometry/transforms/conversions.jl")  # Coordinate system conversions (uses primitives)
 include("geometry/transforms/coord_maps.jl")  # Coordinate mappings (uses primitives)
 include("geometry/transforms/region_maps.jl")  # Region mappings (canonical and log-polar)
