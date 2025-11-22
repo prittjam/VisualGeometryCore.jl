@@ -1,8 +1,8 @@
 module Spec
 
 using Makie
-using ..VisualGeometryCore: AbstractBlob, INTRINSICS_COORDINATE_OFFSET, Ellipse, Cspond, pose, canonical_basis, center
-using ..VisualGeometryCore: Camera, CameraModel, PhysicalIntrinsics, unproject
+using ..VisualGeometryCore: AbstractBlob, INTRINSICS_COORDINATE_OFFSET, Ellipse, Cspond, canonical_basis, center
+using ..VisualGeometryCore.Cameras: Camera, CameraModel, PhysicalIntrinsics, unproject, pose
 using GeometryBasics
 using GeometryBasics: Circle, Rect, Point2, Point3, Point3f, Vec2, Vec3f, TriangleFace, origin, coordinates
 using Infiltrator

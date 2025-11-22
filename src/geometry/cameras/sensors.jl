@@ -1,28 +1,28 @@
-struct Sensor{TR<:VisualGeometryCore.PixelCount,TP<:VisualGeometryCore.LogicalPitch}
+struct Sensor{TR<:PixelCount,TP<:LogicalPitch}
     resolution::Size2{TR}   # in px (logical width/height)
     pitch::Size2{TP}        # in LogicalPitch (e.g., μm/px)
 
     # Inner constructor to control creation
-    function Sensor{TR,TP}(resolution::Size2{TR}, pitch::Size2{TP}) where {TR<:VisualGeometryCore.PixelCount,TP<:VisualGeometryCore.LogicalPitch}
+    function Sensor{TR,TP}(resolution::Size2{TR}, pitch::Size2{TP}) where {TR<:PixelCount,TP<:LogicalPitch}
         new{TR,TP}(resolution, pitch)
     end
 end
 
 # Constructors
-function Sensor(res::Size2{<:Integer}, pitch::VisualGeometryCore.Len)
+function Sensor(res::Size2{<:Integer}, pitch::Len)
     pixel_res = Size2(width=res.width * px, height=res.height * px)
     # Convert length to LogicalPitch (length per pixel)
     pixel_pitch = Size2(width=pitch / px, height=pitch / px)
     return Sensor{typeof(pixel_res.width),typeof(pixel_pitch.width)}(pixel_res, pixel_pitch)
 end
 
-function Sensor(res::Size2{<:VisualGeometryCore.PixelCount}, pitch::VisualGeometryCore.Len)
+function Sensor(res::Size2{<:PixelCount}, pitch::Len)
     # Convert length to LogicalPitch (length per pixel)
     pixel_pitch = Size2(width=pitch / px, height=pitch / px)
     return Sensor{typeof(res.width),typeof(pixel_pitch.width)}(res, pixel_pitch)
 end
 
-function Sensor(res::Size2{TR}, pitch::Size2{TP}) where {TR<:VisualGeometryCore.PixelCount,TP<:VisualGeometryCore.LogicalPitch}
+function Sensor(res::Size2{TR}, pitch::Size2{TP}) where {TR<:PixelCount,TP<:LogicalPitch}
     return Sensor{TR,TP}(res, pitch)
 end
 

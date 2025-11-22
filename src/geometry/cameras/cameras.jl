@@ -1,16 +1,69 @@
-# ==============================================================================
-# Camera System
-# ==============================================================================
-# Modular camera model system for VisualGeometryCore
-#
-# This file orchestrates the camera system by including specialized submodules:
-# - sensors.jl:         Physical sensor specifications (CMOS_SENSORS database)
-# - intrinsics.jl:      Camera calibration matrices and intrinsics models
-# - projections.jl:     Projection models (pinhole, fisheye, orthographic)
-# - camera_models.jl:   Composable camera model (intrinsics + projection)
-# - stereo.jl:          Stereo camera rigs and epipolar geometry
-# - utilities.jl:       Helper functions (focal_length, lookat, etc.)
-# ==============================================================================
+"""
+    Cameras
+
+Camera system submodule for VisualGeometryCore.
+
+Provides complete camera modeling including:
+- **Sensors**: Physical CMOS sensor specifications
+- **Intrinsics**: Calibration matrices and intrinsic parameters (physical/logical)
+- **Projections**: Projection models (pinhole, fisheye, orthographic)
+- **Camera Models**: Composable camera models (intrinsics + projection)
+- **Cameras**: Complete cameras in 3D space (model + pose)
+- **Stereo**: Stereo camera rigs and epipolar geometry
+- **Utilities**: Helper functions (focal_length, lookat, P3P solvers)
+
+# Main Types
+- `Camera`, `PhysicalCamera`, `LogicalCamera`
+- `CameraModel`
+- `PhysicalIntrinsics`, `LogicalIntrinsics`
+- `PinholeProjection`, `FisheyeProjection`, `OrthographicProjection`
+- `Sensor`, `CMOS_SENSORS`
+- `StereoRig`
+
+# Main Functions
+- `project`, `backproject`, `unproject`
+- `focal_length`, `lookat`, `pose`
+- `p3p`, `sample_p3p`
+- `default_frustum_depth`
+
+# Example
+```julia
+using VisualGeometryCore
+using VisualGeometryCore.Cameras
+
+sensor = CMOS_SENSORS["Sony"]["IMX174"]
+f = focal_length(40.0°, sensor)
+model = CameraModel(f, sensor.pitch, center(Rect(sensor)))
+camera = Camera(model, lookat(...))
+```
+"""
+module Cameras
+
+# Import from parent module
+using ..VisualGeometryCore: GeometryBasics, Point2, Point2i, Point3, Circle, Vec2, center
+import ..VisualGeometryCore: Rect  # Import (not using) to extend the constructor
+using ..VisualGeometryCore: StaticArrays, SVector, SMatrix, StaticVector
+using ..VisualGeometryCore: LinearAlgebra, CoordinateTransformations, Rotations, RotMatrix
+using ..VisualGeometryCore: normalize, cross  # From LinearAlgebra
+using ..VisualGeometryCore: AffineMap  # From CoordinateTransformations
+using ..VisualGeometryCore: Unitful, uconvert, ustrip, mm, μm, inch, rad, °, 𝐋, Quantity
+using ..VisualGeometryCore: Random, randperm
+using ..VisualGeometryCore: StructArrays
+using ..VisualGeometryCore: ConstructionBase
+using ..VisualGeometryCore: ImmutableDict
+using ..VisualGeometryCore: IntervalSets, ClosedInterval, leftendpoint, rightendpoint
+
+# Import types and macros defined in core and geometry
+using ..VisualGeometryCore: Size2, Len, Met, LogicalPitch, PixelWidth, PixelCount, LogicalDensity, dpi, px, pd
+using ..VisualGeometryCore: Rad, Deg  # Rad/Deg type aliases for angles
+using ..VisualGeometryCore: EuclideanMap
+using ..VisualGeometryCore: @smatrix_wrapper
+using ..VisualGeometryCore: PlanarHomographyMat  # Homography matrix type (for constructors)
+using ..VisualGeometryCore: image_origin_offset  # Coordinate convention conversion utility
+import ..VisualGeometryCore: PerspectiveMap  # From CoordinateTransformations (imported to extend)
+
+# Import correspondences
+using ..VisualGeometryCore: Cspond, Pt3ToPt2
 
 # Include sensor specifications
 include("sensors.jl")
@@ -197,3 +250,43 @@ end
 include("stereo.jl")
 include("utilities.jl")
 include("random.jl")
+
+# Include planar homography (depends on Camera)
+include("../homography.jl")
+
+# ==============================================================================
+# Exports
+# ==============================================================================
+
+# Sensor types and constants
+export Sensor, CMOS_SENSORS, INTRINSICS_COORDINATE_OFFSET
+
+# Intrinsics types and constructors
+export AbstractIntrinsics, LogicalIntrinsics, PhysicalIntrinsics
+export CameraCalibrationMatrix
+
+# Projection model types
+export AbstractProjectionModel, PinholeProjection, FisheyeProjection, OrthographicProjection
+
+# Camera model and camera types
+export CameraModel
+export Camera, PhysicalCamera, LogicalCamera
+
+# Stereo types
+export StereoRig
+
+# Camera construction and utilities
+export focal_length, lookat, pose, default_frustum_depth
+export pixel_centers
+
+# Projection functions
+export project, backproject, unproject
+
+# Pose estimation
+export p3p, sample_p3p
+
+# Homography and image warping
+export ProjectiveMap, ImageWarp
+export PlanarHomographyMat  # Constructor for PlanarHomographyMat (type defined in transforms/homogeneous.jl)
+
+end # module Cameras

@@ -130,8 +130,13 @@ include("geometry/transforms/conversions.jl")  # Coordinate system conversions (
 include("geometry/transforms/coord_maps.jl")  # Coordinate mappings (uses primitives)
 include("geometry/transforms/region_maps.jl")  # Region mappings (canonical and log-polar)
 include("geometry/solvers.jl")             # P3P and other geometric solvers
-include("geometry/cameras/cameras.jl")     # Camera system (includes all camera submodules)
-include("geometry/homography.jl")          # Homography for planar scenes
+
+# Correspondences (needed by Cameras submodule)
+include("feature/correspondences.jl")  # Correspondence types for feature matching
+
+# Camera system (uses correspondence types, includes homography)
+include("geometry/cameras/cameras.jl")     # Camera system (includes all camera submodules + homography)
+using .Cameras  # Import all exported symbols from Cameras submodule into parent namespace
 
 # Feature Detection
 include("feature/scalespace.jl")
@@ -139,7 +144,6 @@ include("feature/responses.jl")  # Must come before kernels.jl (defines ScaleSpa
 include("feature/kernels.jl")
 include("feature/extrema.jl")
 include("feature/detection.jl")
-include("feature/correspondences.jl")  # Correspondence types for feature matching
 include("feature/io.jl")
 
 # Visualization

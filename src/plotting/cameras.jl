@@ -2,8 +2,8 @@
 # Camera Visualization Functions
 # ==============================================================================
 
-# Import camera type aliases and utilities from parent module
-import ..PhysicalCamera, ..LogicalCamera, ..default_frustum_depth
+# Import camera type aliases and utilities from Cameras submodule
+import ..VisualGeometryCore.Cameras: PhysicalCamera, LogicalCamera, default_frustum_depth, Camera, CameraModel, PhysicalIntrinsics
 
 """
     frustum!(lscene, camera::Camera{CameraModel{PhysicalIntrinsics,...}}, sensor_bounds; kwargs...)

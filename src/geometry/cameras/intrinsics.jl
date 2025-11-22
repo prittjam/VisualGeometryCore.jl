@@ -4,10 +4,6 @@
 
 abstract type AbstractIntrinsics end
 
-# Bring VisualGeometryCore unit aliases into this module
-const LogicalDensity = VisualGeometryCore.LogicalDensity
-const LogicalPitch = VisualGeometryCore.LogicalPitch
-
 # Define CameraCalibrationMatrix as a 3×3 static matrix type
 @smatrix_wrapper CameraCalibrationMatrix 3 3
 
